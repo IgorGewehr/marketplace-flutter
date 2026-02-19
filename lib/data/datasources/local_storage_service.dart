@@ -8,12 +8,14 @@ class LocalStorageService {
   static const String _favoritesBox = 'favorites';
   static const String _serviceFavoritesBox = 'service_favorites';
   static const String _cartBox = 'cart_box';
+  static const String _settingsBox = 'settings_box';
   static const String _productCacheBox = 'product_cache';
   static const String _apiCacheBox = 'api_cache';
 
   late final Box<String> favoritesBox;
   late final Box<String> serviceFavoritesBox;
   late final Box cartBox;
+  late final Box settingsBox;
   late final Box<String> productCacheBox;
   late final Box<String> apiCacheBox;
 
@@ -22,8 +24,23 @@ class LocalStorageService {
     favoritesBox = await Hive.openBox<String>(_favoritesBox);
     serviceFavoritesBox = await Hive.openBox<String>(_serviceFavoritesBox);
     cartBox = await Hive.openBox(_cartBox);
+    settingsBox = await Hive.openBox(_settingsBox);
     productCacheBox = await Hive.openBox<String>(_productCacheBox);
     apiCacheBox = await Hive.openBox<String>(_apiCacheBox);
+
+    // Migrate settings from cartBox to settingsBox (one-time)
+    await _migrateSettings();
+  }
+
+  Future<void> _migrateSettings() async {
+    final keys = cartBox.keys.where((k) => k.toString().startsWith('setting_'));
+    for (final key in keys) {
+      final settingKey = key.toString().replaceFirst('setting_', '');
+      if (settingsBox.get(settingKey) == null) {
+        await settingsBox.put(settingKey, cartBox.get(key));
+      }
+      await cartBox.delete(key);
+    }
   }
 
   // ===== Favorites =====
@@ -95,12 +112,12 @@ class LocalStorageService {
     await cartBox.put(_cartKey, items);
   }
 
-  // ===== Settings (key-value via cartBox) =====
+  // ===== Settings (key-value via settingsBox) =====
 
-  bool? getBool(String key) => cartBox.get('setting_$key') as bool?;
+  bool? getBool(String key) => settingsBox.get(key) as bool?;
 
   Future<void> setBool(String key, bool value) async {
-    await cartBox.put('setting_$key', value);
+    await settingsBox.put(key, value);
   }
 
   // ===== API Response Cache =====

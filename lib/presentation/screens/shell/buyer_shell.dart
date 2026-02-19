@@ -264,12 +264,14 @@ class _BuyerShellState extends ConsumerState<BuyerShell> {
           return;
         }
         _lastBackPress = now;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Pressione novamente para sair'),
-            duration: Duration(seconds: 2),
-          ),
-        );
+        ScaffoldMessenger.of(context)
+          ..clearSnackBars()
+          ..showSnackBar(
+            const SnackBar(
+              content: Text('Pressione novamente para sair'),
+              duration: Duration(seconds: 2),
+            ),
+          );
       },
       child: Scaffold(
         body: widget.child,

@@ -111,7 +111,7 @@ class _PhotoPickerGridState extends State<PhotoPickerGrid> {
     final ext = path.split('.').last.toLowerCase();
     if (!['jpg', 'jpeg', 'png'].contains(ext)) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
           const SnackBar(
             content: Text('Formato não suportado. Use JPG ou PNG.'),
             backgroundColor: AppColors.error,

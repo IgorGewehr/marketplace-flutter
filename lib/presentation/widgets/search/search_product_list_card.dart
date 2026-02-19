@@ -24,7 +24,7 @@ class SearchProductListCard extends ConsumerWidget {
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: theme.colorScheme.surface,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: theme.colorScheme.outline.withAlpha(20),
@@ -87,25 +87,29 @@ class SearchProductListCard extends ConsumerWidget {
                 Positioned(
                   top: 6,
                   right: 6,
-                  child: GestureDetector(
-                    onTap: () {
-                      ref
-                          .read(favoriteProductIdsProvider.notifier)
-                          .toggleFavorite(product.id);
-                    },
-                    child: Container(
-                      width: 30,
-                      height: 30,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withAlpha(220),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        isFavorite ? Icons.favorite : Icons.favorite_border,
-                        size: 16,
-                        color: isFavorite
-                            ? Colors.red
-                            : theme.colorScheme.onSurfaceVariant,
+                  child: Semantics(
+                    button: true,
+                    label: isFavorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos',
+                    child: GestureDetector(
+                      onTap: () {
+                        ref
+                            .read(favoriteProductIdsProvider.notifier)
+                            .toggleFavorite(product.id);
+                      },
+                      child: Container(
+                        width: 30,
+                        height: 30,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withAlpha(220),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          isFavorite ? Icons.favorite : Icons.favorite_border,
+                          size: 16,
+                          color: isFavorite
+                              ? Colors.red
+                              : theme.colorScheme.onSurfaceVariant,
+                        ),
                       ),
                     ),
                   ),

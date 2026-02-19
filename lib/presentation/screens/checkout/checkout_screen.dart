@@ -28,7 +28,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       // Validate cart is not empty
       final cart = ref.read(cartProvider);
       if (cart.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
           const SnackBar(content: Text('Seu carrinho está vazio')),
         );
         context.pop();
@@ -222,7 +222,7 @@ class _AddressCard extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: theme.colorScheme.surface,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: isSelected
@@ -354,7 +354,7 @@ class _PaymentMethodCard extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: theme.colorScheme.surface,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: isSelected
@@ -453,7 +453,7 @@ class _CardDetailsStep extends ConsumerWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: theme.colorScheme.surface,
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(
                   color: theme.colorScheme.primary,
@@ -538,7 +538,7 @@ class _ReviewStep extends ConsumerWidget {
             margin: const EdgeInsets.only(bottom: 16),
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: theme.colorScheme.surface,
               borderRadius: BorderRadius.circular(12),
             ),
             child: Column(
@@ -660,7 +660,7 @@ class _ReviewSection extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(

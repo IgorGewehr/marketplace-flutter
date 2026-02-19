@@ -200,9 +200,9 @@ class WalletScreen extends ConsumerWidget {
       backgroundColor: Colors.transparent,
       builder: (context) => Container(
         padding: const EdgeInsets.all(24),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -349,7 +349,7 @@ class _WithdrawSheetState extends ConsumerState<WithdrawSheet> {
         : double.tryParse(_amountController.text.replaceAll(',', '.'));
 
     if (amount == null || amount <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
         const SnackBar(
           content: Text('Informe um valor válido'),
           backgroundColor: AppColors.error,
@@ -359,7 +359,7 @@ class _WithdrawSheetState extends ConsumerState<WithdrawSheet> {
     }
 
     if (amount > widget.availableBalance) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
         const SnackBar(
           content: Text('Saldo insuficiente'),
           backgroundColor: AppColors.error,
@@ -379,14 +379,14 @@ class _WithdrawSheetState extends ConsumerState<WithdrawSheet> {
       if (mounted) {
         if (success) {
           Navigator.pop(context);
-          ScaffoldMessenger.of(context).showSnackBar(
+          ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
             const SnackBar(
               content: Text('Saque solicitado com sucesso!'),
               backgroundColor: AppColors.secondary,
             ),
           );
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(
+          ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
             const SnackBar(
               content: Text('Erro ao solicitar saque'),
               backgroundColor: AppColors.error,
@@ -462,7 +462,7 @@ class _WithdrawSheetState extends ConsumerState<WithdrawSheet> {
                 ),
                 const Spacer(),
                 Text(
-                  'R\$ ${widget.availableBalance.toStringAsFixed(2).replaceAll('.', ',')}',
+                  Formatters.currency(widget.availableBalance),
                   style: const TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,

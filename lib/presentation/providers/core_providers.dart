@@ -135,3 +135,9 @@ final mercadoPagoRepositoryProvider = Provider<MercadoPagoRepository>((ref) {
     apiClient: ref.watch(apiClientProvider),
   );
 });
+
+/// Biometric enabled state provider (used in settings screen)
+final biometricEnabledProvider = StateProvider<bool>((ref) {
+  final localStorage = ref.read(localStorageProvider);
+  return localStorage.getBool('biometric_enabled') ?? false;
+});

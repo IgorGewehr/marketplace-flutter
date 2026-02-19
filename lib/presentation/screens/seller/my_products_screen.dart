@@ -60,7 +60,7 @@ class MyProductsScreen extends ConsumerWidget {
                           hintText: 'Buscar produtos...',
                           prefixIcon: const Icon(Icons.search, color: AppColors.textHint),
                           filled: true,
-                          fillColor: Colors.white,
+                          fillColor: Theme.of(context).colorScheme.surface,
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
                             borderSide: BorderSide.none,
@@ -189,7 +189,7 @@ class MyProductsScreen extends ConsumerWidget {
             onPressed: () {
               Navigator.pop(ctx);
               ref.read(myProductsProvider.notifier).deleteProduct(product.id);
-              ScaffoldMessenger.of(context).showSnackBar(
+              ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
                 const SnackBar(
                   content: Text('Produto excluído'),
                   backgroundColor: AppColors.secondary,
@@ -224,7 +224,7 @@ class _FilterChip extends StatelessWidget {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? AppColors.sellerAccent : Colors.white,
+          color: isSelected ? AppColors.sellerAccent : Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
             color: isSelected ? AppColors.sellerAccent : AppColors.border,

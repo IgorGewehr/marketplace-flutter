@@ -19,7 +19,6 @@ class SettingsScreen extends ConsumerWidget {
       backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('Configurações'),
-        backgroundColor: Colors.white,
         foregroundColor: AppColors.textPrimary,
         elevation: 0,
         centerTitle: true,
@@ -74,21 +73,23 @@ class SettingsScreen extends ConsumerWidget {
                   icon: Icons.fingerprint_rounded,
                   label: 'Biometria',
                   subtitle: 'Use impressão digital ou Face ID',
-                  trailing: Builder(
-                    builder: (ctx) {
-                      final localStorage = ref.read(localStorageProvider);
-                      final enabled = localStorage.getBool('biometric_enabled') ?? false;
+                  trailing: Consumer(
+                    builder: (ctx, innerRef, _) {
+                      final localStorage = innerRef.read(localStorageProvider);
+                      final enabled = innerRef.watch(biometricEnabledProvider);
                       return Switch(
                         value: enabled,
                         onChanged: (value) {
                           localStorage.setBool('biometric_enabled', value);
-                          ScaffoldMessenger.of(ctx).showSnackBar(
-                            SnackBar(
-                              content: Text(value ? 'Biometria ativada' : 'Biometria desativada'),
-                              duration: const Duration(seconds: 1),
-                            ),
-                          );
-                          (ctx as Element).markNeedsBuild();
+                          innerRef.read(biometricEnabledProvider.notifier).state = value;
+                          ScaffoldMessenger.of(ctx)
+                            ..clearSnackBars()
+                            ..showSnackBar(
+                              SnackBar(
+                                content: Text(value ? 'Biometria ativada' : 'Biometria desativada'),
+                                duration: const Duration(seconds: 1),
+                              ),
+                            );
                         },
                       );
                     },
@@ -227,7 +228,7 @@ class SettingsScreen extends ConsumerWidget {
                   email: user!.email,
                 );
                 if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
                     const SnackBar(
                       content: Text('Email de redefinição de senha enviado'),
                       backgroundColor: AppColors.secondary,
@@ -244,40 +245,62 @@ class SettingsScreen extends ConsumerWidget {
   }
 
   void _showDeleteAccountDialog(BuildContext context, WidgetRef ref) {
+    final confirmController = TextEditingController();
     showDialog(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Excluir conta'),
-        content: const Text(
-          'Esta ação é permanente e não pode ser desfeita. '
-          'Todos os seus dados serão excluídos.\n\n'
-          'Digite "EXCLUIR" para confirmar.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () async {
-              Navigator.pop(dialogContext);
-              // Sign out and request deletion
-              await ref.read(authNotifierProvider.notifier).signOut();
-              if (context.mounted) {
-                context.go(AppRouter.login);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Solicitação de exclusão enviada. Você será notificado por email.'),
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) {
+          final isConfirmed = confirmController.text == 'EXCLUIR';
+          return AlertDialog(
+            title: const Text('Excluir conta'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Esta ação é permanente e não pode ser desfeita. '
+                  'Todos os seus dados serão excluídos.\n\n'
+                  'Digite "EXCLUIR" para confirmar.',
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: confirmController,
+                  decoration: const InputDecoration(
+                    border: OutlineInputBorder(),
+                    hintText: 'EXCLUIR',
                   ),
-                );
-              }
-            },
-            style: FilledButton.styleFrom(
-              backgroundColor: AppColors.error,
+                  onChanged: (_) => setDialogState(() {}),
+                ),
+              ],
             ),
-            child: const Text('Excluir minha conta'),
-          ),
-        ],
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('Cancelar'),
+              ),
+              FilledButton(
+                onPressed: isConfirmed
+                    ? () async {
+                        Navigator.pop(dialogContext);
+                        await ref.read(authNotifierProvider.notifier).signOut();
+                        if (context.mounted) {
+                          context.go(AppRouter.login);
+                          ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
+                            const SnackBar(
+                              content: Text('Solicitação de exclusão enviada. Você será notificado por email.'),
+                            ),
+                          );
+                        }
+                      }
+                    : null,
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.error,
+                ),
+                child: const Text('Excluir minha conta'),
+              ),
+            ],
+          );
+        },
       ),
     );
   }

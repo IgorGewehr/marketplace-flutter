@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../core/utils/formatters.dart';
 import '../../../data/models/order_model.dart';
 import '../../providers/chat_provider.dart';
 import '../../providers/seller_orders_provider.dart';
@@ -37,7 +38,7 @@ class _SellerOrderDetailsScreenState extends ConsumerState<SellerOrderDetailsScr
         note: note,
       );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
           const SnackBar(
             content: Text('Status atualizado!'),
             backgroundColor: AppColors.secondary,
@@ -46,9 +47,9 @@ class _SellerOrderDetailsScreenState extends ConsumerState<SellerOrderDetailsScr
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erro: $e'),
+        ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
+          const SnackBar(
+            content: Text('Erro ao atualizar status. Tente novamente.'),
             backgroundColor: AppColors.error,
           ),
         );
@@ -143,7 +144,7 @@ class _SellerOrderDetailsScreenState extends ConsumerState<SellerOrderDetailsScr
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: Theme.of(context).colorScheme.surface,
               borderRadius: BorderRadius.circular(16),
               border: Border.all(color: AppColors.border),
             ),
@@ -178,7 +179,7 @@ class _SellerOrderDetailsScreenState extends ConsumerState<SellerOrderDetailsScr
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: Theme.of(context).colorScheme.surface,
               borderRadius: BorderRadius.circular(16),
               border: Border.all(color: AppColors.border),
             ),
@@ -205,10 +206,24 @@ class _SellerOrderDetailsScreenState extends ConsumerState<SellerOrderDetailsScr
                           color: AppColors.surfaceVariant,
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child: const Icon(
-                          Icons.shopping_bag_outlined,
-                          color: AppColors.textHint,
-                        ),
+                        child: item.imageUrl != null
+                            ? ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: Image.network(
+                                  item.imageUrl!,
+                                  fit: BoxFit.cover,
+                                  width: 48,
+                                  height: 48,
+                                  errorBuilder: (_, __, ___) => const Icon(
+                                    Icons.shopping_bag_outlined,
+                                    color: AppColors.textHint,
+                                  ),
+                                ),
+                              )
+                            : const Icon(
+                                Icons.shopping_bag_outlined,
+                                color: AppColors.textHint,
+                              ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -280,7 +295,7 @@ class _SellerOrderDetailsScreenState extends ConsumerState<SellerOrderDetailsScr
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: Theme.of(context).colorScheme.surface,
               borderRadius: BorderRadius.circular(16),
               border: Border.all(color: AppColors.border),
             ),
@@ -332,7 +347,7 @@ class _SellerOrderDetailsScreenState extends ConsumerState<SellerOrderDetailsScr
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: Theme.of(context).colorScheme.surface,
               borderRadius: BorderRadius.circular(16),
               border: Border.all(color: AppColors.border),
             ),
@@ -420,7 +435,7 @@ class _SellerOrderDetailsScreenState extends ConsumerState<SellerOrderDetailsScr
   }
 
   String _formatPrice(double price) {
-    return 'R\$ ${price.toStringAsFixed(2).replaceAll('.', ',')}';
+    return Formatters.currency(price);
   }
 
   String _formatDate(DateTime date) {

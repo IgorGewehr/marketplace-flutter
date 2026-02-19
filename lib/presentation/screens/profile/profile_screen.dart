@@ -6,6 +6,9 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../providers/auth_providers.dart';
+import '../../providers/cart_provider.dart';
+import '../../providers/chat_provider.dart';
+import '../../providers/products_provider.dart';
 import '../../providers/seller_mode_provider.dart';
 import '../../widgets/profile/profile_header.dart';
 import '../../widgets/profile/profile_menu_item.dart';
@@ -23,7 +26,6 @@ class ProfileScreen extends ConsumerWidget {
       backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('Meu Perfil'),
-        backgroundColor: Colors.white,
         foregroundColor: AppColors.textPrimary,
         elevation: 0,
         centerTitle: true,
@@ -209,6 +211,10 @@ class ProfileScreen extends ConsumerWidget {
           FilledButton(
             onPressed: () {
               Navigator.pop(context);
+              ref.read(cartProvider.notifier).clearCart();
+              ref.invalidate(favoriteProductIdsProvider);
+              ref.invalidate(chatsProvider);
+              ref.invalidate(searchHistoryProvider);
               ref.read(authNotifierProvider.notifier).signOut();
               context.go(AppRouter.login);
             },

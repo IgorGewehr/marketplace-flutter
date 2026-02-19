@@ -96,10 +96,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     return Scaffold(
       body: Column(
         children: [
-          // White header with logo
+          // Header with logo
           Container(
             width: double.infinity,
-            color: Colors.white,
+            color: Theme.of(context).colorScheme.surface,
             child: SafeArea(
               bottom: false,
               child: Padding(

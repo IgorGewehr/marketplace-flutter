@@ -171,7 +171,7 @@ class _MpConnectScreenState extends ConsumerState<MpConnectScreen> {
       await ref.read(mpConnectionProvider.notifier).exchangeCode(code);
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
           SnackBar(
             content: const Row(
               children: [

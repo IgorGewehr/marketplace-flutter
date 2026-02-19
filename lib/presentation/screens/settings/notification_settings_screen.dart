@@ -17,7 +17,6 @@ class NotificationSettingsScreen extends ConsumerWidget {
       backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('Notificações'),
-        backgroundColor: Colors.white,
         foregroundColor: AppColors.textPrimary,
         elevation: 0,
         centerTitle: true,

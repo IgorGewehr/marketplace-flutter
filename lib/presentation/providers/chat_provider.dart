@@ -224,7 +224,12 @@ class ChatMessagesNotifier extends FamilyAsyncNotifier<List<MessageModel>, Strin
       final repo = ref.read(chatRepositoryProvider);
       await repo.sendMessage(chatId: arg, text: text);
     } catch (_) {
-      // Optimistic update stays; Firestore listener will sync
+      // Remove failed optimistic message
+      final msgs = state.valueOrNull ?? [];
+      state = AsyncValue.data(
+        msgs.where((m) => m.id != message.id).toList(),
+      );
+      rethrow;
     }
 
     return message;

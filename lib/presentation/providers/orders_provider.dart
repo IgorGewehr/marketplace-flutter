@@ -8,9 +8,13 @@ import 'core_providers.dart';
 /// Order status enum for use in providers/screens
 enum OrderStatus {
   pending,
+  pendingPayment,
   confirmed,
   processing,
+  preparing,
+  ready,
   shipped,
+  outForDelivery,
   delivered,
   cancelled,
   refunded,
@@ -210,16 +214,36 @@ class OrderStatusInfo {
   });
 }
 
+/// Map string status from API to OrderStatus enum
+OrderStatus _parseOrderStatus(String statusString) {
+  return switch (statusString) {
+    'pending' => OrderStatus.pending,
+    'pending_payment' => OrderStatus.pendingPayment,
+    'confirmed' => OrderStatus.confirmed,
+    'processing' => OrderStatus.processing,
+    'preparing' => OrderStatus.preparing,
+    'ready' => OrderStatus.ready,
+    'shipped' => OrderStatus.shipped,
+    'out_for_delivery' => OrderStatus.outForDelivery,
+    'delivered' => OrderStatus.delivered,
+    'cancelled' => OrderStatus.cancelled,
+    'refunded' => OrderStatus.refunded,
+    _ => OrderStatus.pending,
+  };
+}
+
 /// Get order status display info from string status
 OrderStatusInfo getOrderStatusInfo(String statusString) {
-  final status = OrderStatus.values.firstWhere(
-    (e) => e.name == statusString || e.name == statusString.toLowerCase(),
-    orElse: () => OrderStatus.pending,
-  );
-  
+  final status = _parseOrderStatus(statusString);
+
   return switch (status) {
     OrderStatus.pending => const OrderStatusInfo(
         label: 'Pendente',
+        backgroundColor: Color(0xFFFFF3E0),
+        textColor: Color(0xFFF57C00),
+      ),
+    OrderStatus.pendingPayment => const OrderStatusInfo(
+        label: 'Aguardando pagamento',
         backgroundColor: Color(0xFFFFF3E0),
         textColor: Color(0xFFF57C00),
       ),
@@ -228,13 +252,23 @@ OrderStatusInfo getOrderStatusInfo(String statusString) {
         backgroundColor: Color(0xFFE3F2FD),
         textColor: Color(0xFF1976D2),
       ),
-    OrderStatus.processing => const OrderStatusInfo(
+    OrderStatus.processing || OrderStatus.preparing => const OrderStatusInfo(
         label: 'Em preparação',
         backgroundColor: Color(0xFFE3F2FD),
         textColor: Color(0xFF1976D2),
       ),
+    OrderStatus.ready => const OrderStatusInfo(
+        label: 'Pronto para envio',
+        backgroundColor: Color(0xFFE8EAF6),
+        textColor: Color(0xFF3F51B5),
+      ),
     OrderStatus.shipped => const OrderStatusInfo(
         label: 'Enviado',
+        backgroundColor: Color(0xFFF3E5F5),
+        textColor: Color(0xFF7B1FA2),
+      ),
+    OrderStatus.outForDelivery => const OrderStatusInfo(
+        label: 'Saiu para entrega',
         backgroundColor: Color(0xFFF3E5F5),
         textColor: Color(0xFF7B1FA2),
       ),

@@ -51,7 +51,7 @@ class _CompleteProfileScreenState extends ConsumerState<CompleteProfileScreen> {
     if (!_formKey.currentState!.validate()) return;
 
     if (_birthDate == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
         SnackBar(
           content: const Text('Informe sua data de nascimento'),
           backgroundColor: Theme.of(context).colorScheme.error,

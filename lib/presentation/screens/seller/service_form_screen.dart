@@ -106,7 +106,7 @@ class _ServiceFormScreenState extends ConsumerState<ServiceFormScreen> {
 
     // Validate at least one photo
     if (_existingImageUrls.isEmpty && _newImageFiles.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
         const SnackBar(
           content: Text('Adicione pelo menos 1 foto do serviço'),
           backgroundColor: AppColors.error,
@@ -117,7 +117,7 @@ class _ServiceFormScreenState extends ConsumerState<ServiceFormScreen> {
 
     // Validate service delivery method
     if (!_isRemote && !_isOnSite) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
         const SnackBar(
           content: Text('Selecione pelo menos um tipo de atendimento'),
           backgroundColor: AppColors.error,
@@ -208,7 +208,7 @@ class _ServiceFormScreenState extends ConsumerState<ServiceFormScreen> {
       }
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
           SnackBar(
             content: Text(_isEditing ? 'Serviço atualizado!' : 'Serviço criado!'),
             backgroundColor: AppColors.secondary,
@@ -218,7 +218,7 @@ class _ServiceFormScreenState extends ConsumerState<ServiceFormScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
           SnackBar(
             content: Text('Erro: $e'),
             backgroundColor: AppColors.error,
@@ -524,7 +524,7 @@ class _ServiceFormScreenState extends ConsumerState<ServiceFormScreen> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: theme.colorScheme.surface,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: AppColors.border),
               ),
@@ -602,7 +602,7 @@ class _ServiceFormScreenState extends ConsumerState<ServiceFormScreen> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: theme.colorScheme.surface,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: AppColors.border),
               ),

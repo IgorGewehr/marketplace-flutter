@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../core/utils/formatters.dart';
 import '../../../data/models/order_model.dart';
 
 /// Order tile for seller's orders list
@@ -118,7 +119,7 @@ class SellerOrderTile extends StatelessWidget {
   }
 
   String _formatPrice(double price) {
-    return 'R\$ ${price.toStringAsFixed(2).replaceAll('.', ',')}';
+    return Formatters.currency(price);
   }
 
   String _getTimeAgo() {

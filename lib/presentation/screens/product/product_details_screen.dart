@@ -28,6 +28,7 @@ class ProductDetailsScreen extends ConsumerStatefulWidget {
 class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
   int _quantity = 1;
   bool _isAddingToCart = false;
+  bool _isBuyingNow = false;
   String? _selectedVariantId;
 
   void _incrementQuantity() {
@@ -47,26 +48,39 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
     final product = ref.read(productDetailProvider(widget.productId)).valueOrNull;
     if (product == null) return;
 
+    if (product.hasVariants && product.variants.isNotEmpty && _selectedVariantId == null) {
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(
+          const SnackBar(content: Text('Selecione uma variante antes de continuar')),
+        );
+      return;
+    }
+
     setState(() => _isAddingToCart = true);
 
-    await ref.read(cartProvider.notifier).addToCart(product, quantity: _quantity);
+    await ref.read(cartProvider.notifier).addToCart(product, quantity: _quantity, variant: _selectedVariantId);
 
     if (mounted) {
       setState(() => _isAddingToCart = false);
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('${product.name} adicionado ao carrinho'),
-          action: SnackBarAction(
-            label: 'Ver carrinho',
-            onPressed: () => context.push(AppRouter.cart),
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(
+          SnackBar(
+            content: Text('${product.name} adicionado ao carrinho'),
+            action: SnackBarAction(
+              label: 'Ver carrinho',
+              onPressed: () => context.push(AppRouter.cart),
+            ),
           ),
-        ),
-      );
+        );
     }
   }
 
   void _buyNow() async {
+    if (_isBuyingNow || _isAddingToCart) return;
+
     final isAuth = ref.read(isAuthenticatedProvider);
 
     if (!isAuth) {
@@ -74,8 +88,10 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
       return;
     }
 
+    setState(() => _isBuyingNow = true);
     await _addToCart();
     if (mounted) {
+      setState(() => _isBuyingNow = false);
       context.push(AppRouter.checkout);
     }
   }
@@ -156,12 +172,18 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
             Expanded(
               flex: 2,
               child: FilledButton(
-                onPressed: _buyNow,
+                onPressed: (_isBuyingNow || _isAddingToCart) ? null : _buyNow,
                 style: FilledButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   backgroundColor: theme.colorScheme.secondary,
                 ),
-                child: const Text('Comprar agora'),
+                child: _isBuyingNow
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      )
+                    : const Text('Comprar agora'),
               ),
             ),
           ],
@@ -270,11 +292,13 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                           '${product.name} - ${Formatters.currency(product.price)}\n'
                           'Confira no Compre Aqui!';
                       Clipboard.setData(ClipboardData(text: shareText));
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Link copiado para a área de transferência'),
-                        ),
-                      );
+                      ScaffoldMessenger.of(context)
+                        ..clearSnackBars()
+                        ..showSnackBar(
+                          const SnackBar(
+                            content: Text('Link copiado para a área de transferência'),
+                          ),
+                        );
                     },
                     icon: Container(
                       padding: const EdgeInsets.all(8),

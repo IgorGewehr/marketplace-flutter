@@ -137,7 +137,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
 
     // Validate at least one photo
     if (_existingImageUrls.isEmpty && _newImageFiles.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
         const SnackBar(
           content: Text('Adicione pelo menos 1 foto do produto'),
           backgroundColor: AppColors.error,
@@ -217,7 +217,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
       }
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
           SnackBar(
             content:
                 Text(_isEditing ? 'Produto atualizado!' : 'Produto criado!'),
@@ -228,9 +228,9 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erro: $e'),
+        ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
+          const SnackBar(
+            content: Text('Erro ao salvar produto. Tente novamente.'),
             backgroundColor: AppColors.error,
           ),
         );
@@ -410,6 +410,9 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                     ),
                     keyboardType: const TextInputType.numberWithOptions(
                         decimal: true),
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'[\d,.]')),
+                    ],
                     validator: (value) {
                       if (value == null || value.isEmpty) {
                         return 'Informe o preço';
@@ -562,7 +565,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: Theme.of(context).colorScheme.surface,
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(color: AppColors.border),
               ),
@@ -683,7 +686,7 @@ class _SectionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.border),
       ),

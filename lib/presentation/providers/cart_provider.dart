@@ -206,16 +206,19 @@ class CartNotifier extends Notifier<CartState> {
       // Get current remote cart
       final remoteCart = await cartRepo.getCart();
 
+      // Use a separator that won't appear in IDs
+      const keySep = '|||';
+
       // Build map of remote items for quick lookup
       final remoteItemsMap = <String, int>{};
       for (final remoteItem in remoteCart.items) {
-        final key = '${remoteItem.productId}_${remoteItem.variantId ?? ''}';
+        final key = '${remoteItem.productId}$keySep${remoteItem.variantId ?? ''}';
         remoteItemsMap[key] = remoteItem.quantity;
       }
 
       // Process local items - add or update
       for (final localItem in state.items) {
-        final key = '${localItem.productId}_${localItem.variant ?? ''}';
+        final key = '${localItem.productId}$keySep${localItem.variant ?? ''}';
         final remoteQuantity = remoteItemsMap[key];
 
         if (remoteQuantity == null) {
@@ -241,7 +244,7 @@ class CartNotifier extends Notifier<CartState> {
 
       // Remove items that exist remotely but not locally
       for (final remoteKey in remoteItemsMap.keys) {
-        final parts = remoteKey.split('_');
+        final parts = remoteKey.split(keySep);
         final productId = parts[0];
         final variantId = parts.length > 1 && parts[1].isNotEmpty ? parts[1] : null;
 

@@ -54,7 +54,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       ref.invalidate(currentUserProvider);
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
           const SnackBar(
             content: Text('Perfil atualizado com sucesso'),
             backgroundColor: AppColors.secondary,
@@ -64,7 +64,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
           const SnackBar(
             content: Text('Erro ao atualizar perfil. Tente novamente.'),
             backgroundColor: AppColors.error,
@@ -124,7 +124,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       ref.invalidate(currentUserProvider);
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
           const SnackBar(
             content: Text('Foto de perfil atualizada!'),
             backgroundColor: AppColors.secondary,
@@ -133,7 +133,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
           const SnackBar(
             content: Text('Erro ao selecionar imagem'),
             backgroundColor: AppColors.error,
@@ -153,7 +153,6 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('Editar Perfil'),
-        backgroundColor: Colors.white,
         foregroundColor: AppColors.textPrimary,
         elevation: 0,
         centerTitle: true,
@@ -315,7 +314,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
@@ -339,7 +338,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
             borderSide: BorderSide.none,
           ),
           filled: true,
-          fillColor: enabled ? Colors.white : AppColors.background,
+          fillColor: enabled ? Theme.of(context).colorScheme.surface : AppColors.background,
         ),
       ),
     );

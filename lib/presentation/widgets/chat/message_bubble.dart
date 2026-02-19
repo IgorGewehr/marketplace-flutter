@@ -315,7 +315,7 @@ class MessageBubble extends StatelessWidget {
                 Navigator.pop(ctx);
                 if (message.text != null) {
                   // ignore: unused_import
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
                     const SnackBar(content: Text('Texto copiado')),
                   );
                 }

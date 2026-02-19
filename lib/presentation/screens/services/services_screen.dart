@@ -277,7 +277,7 @@ class _ServiceCategoryChips extends ConsumerWidget {
                       ref.invalidate(recentServicesProvider);
                     }
                   },
-                  backgroundColor: Colors.white,
+                  backgroundColor: theme.colorScheme.surface,
                   selectedColor: theme.colorScheme.primary,
                   labelStyle: TextStyle(
                     color: isSelected ? Colors.white : theme.colorScheme.onSurface,
@@ -316,9 +316,9 @@ class _ServiceFilterSheetState extends ConsumerState<_ServiceFilterSheet> {
     final theme = Theme.of(context);
 
     return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
       ),
       padding: EdgeInsets.only(
         bottom: MediaQuery.of(context).viewInsets.bottom,

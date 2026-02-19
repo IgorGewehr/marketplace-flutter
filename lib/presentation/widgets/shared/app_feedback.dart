@@ -4,6 +4,15 @@ library;
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
+/// Extension on BuildContext for safe snackbar display (always clears previous)
+extension SafeSnackBar on BuildContext {
+  void showSafeSnackBar(SnackBar snackBar) {
+    ScaffoldMessenger.of(this)
+      ..clearSnackBars()
+      ..showSnackBar(snackBar);
+  }
+}
+
 /// Feedback types
 enum FeedbackType {
   success,

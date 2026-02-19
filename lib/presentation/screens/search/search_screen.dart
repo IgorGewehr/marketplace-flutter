@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -23,6 +25,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _focusNode = FocusNode();
   bool _showResults = false;
+  Timer? _debounceTimer;
 
   @override
   void initState() {
@@ -33,15 +36,21 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   @override
   void dispose() {
+    _debounceTimer?.cancel();
     _searchController.dispose();
     _focusNode.dispose();
     super.dispose();
   }
 
   void _onSearchChanged() {
-    ref.read(searchQueryProvider.notifier).state = _searchController.text;
+    _debounceTimer?.cancel();
     setState(() {
       _showResults = _searchController.text.isNotEmpty;
+    });
+    _debounceTimer = Timer(const Duration(milliseconds: 400), () {
+      if (mounted) {
+        ref.read(searchQueryProvider.notifier).state = _searchController.text;
+      }
     });
   }
 
@@ -179,7 +188,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                     child: Container(
                       height: 46,
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: theme.colorScheme.surface,
                         borderRadius: BorderRadius.circular(24),
                         border: Border.all(
                           color: theme.colorScheme.outline.withAlpha(30),
@@ -235,7 +244,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                           ref
                               .read(searchHistoryProvider.notifier)
                               .addSearch(_searchController.text);
-                          ScaffoldMessenger.of(context).showSnackBar(
+                          ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
                             const SnackBar(
                               content: Text('Busca salva'),
                               duration: Duration(seconds: 1),
@@ -278,11 +287,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             Expanded(
               child: hasActiveFilters
                   ? _buildResults(resultsAsync)
-                  : categoriesAsync.when(
-                      loading: () => const ShimmerLoading(itemCount: 4),
-                      error: (_, __) => const Center(child: Text('Erro ao carregar categorias')),
-                      data: (categories) => _buildCategoryCarousels(categories),
-                    ),
+                  : (!_showResults && history.isNotEmpty)
+                      ? _buildSearchHistory(history)
+                      : categoriesAsync.when(
+                          loading: () => const ShimmerLoading(itemCount: 4),
+                          error: (_, __) => const Center(child: Text('Erro ao carregar categorias')),
+                          data: (categories) => _buildCategoryCarousels(categories),
+                        ),
             ),
           ],
         ),
@@ -459,7 +470,7 @@ class _ActionChip extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: theme.colorScheme.surface,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
             color: theme.colorScheme.outline.withAlpha(40),

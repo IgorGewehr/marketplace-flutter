@@ -39,8 +39,11 @@ class ProductCard extends ConsumerWidget {
     final isFavorite = ref.watch(isProductFavoriteProvider(product.id));
     final photoCount = product.images.length;
 
-    return Material(
-      color: Colors.white,
+    return Semantics(
+      label: '${product.name}, ${Formatters.currency(product.price)}'
+          '${isFavorite ? ', favoritado' : ''}',
+      child: Material(
+      color: theme.colorScheme.surface,
       borderRadius: BorderRadius.circular(AppSpacing.radiusM),
       elevation: 0,
       child: InkWell(
@@ -120,7 +123,10 @@ class ProductCard extends ConsumerWidget {
                     Positioned(
                       top: AppSpacing.xs,
                       right: AppSpacing.xs,
-                      child: SizedBox(
+                      child: Semantics(
+                        button: true,
+                        label: isFavorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos',
+                        child: SizedBox(
                         width: AppSpacing.touchTarget,
                         height: AppSpacing.touchTarget,
                         child: Material(
@@ -157,6 +163,7 @@ class ProductCard extends ConsumerWidget {
                             ),
                           ),
                         ),
+                      ),
                       ),
                     ),
 
@@ -298,6 +305,7 @@ class ProductCard extends ConsumerWidget {
             ],
           ),
         ),
+      ),
       ),
     );
   }

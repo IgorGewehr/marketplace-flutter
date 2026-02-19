@@ -18,6 +18,8 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   late AnimationController _controller;
   late Animation<double> _fadeAnimation;
   late Animation<double> _scaleAnimation;
+  int _authRetries = 0;
+  static const int _maxAuthRetries = 20; // 10 seconds max (20 * 500ms)
 
   @override
   void initState() {
@@ -57,7 +59,12 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
     switch (authStatus) {
       case AuthStatus.loading:
-        // Still loading, wait more
+        _authRetries++;
+        if (_authRetries >= _maxAuthRetries) {
+          // Timeout: go to home as unauthenticated
+          if (mounted) context.go(AppRouter.home);
+          break;
+        }
         await Future.delayed(const Duration(milliseconds: 500));
         if (mounted) _checkAuthAndNavigate();
         break;
@@ -82,7 +89,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       body: SafeArea(
         child: Center(
           child: AnimatedBuilder(

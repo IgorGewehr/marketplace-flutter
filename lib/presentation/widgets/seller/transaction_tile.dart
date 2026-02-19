@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../core/utils/formatters.dart';
 import '../../../data/models/transaction_model.dart';
 
 /// Transaction tile for wallet history
@@ -123,8 +124,7 @@ class TransactionTile extends StatelessWidget {
   }
 
   String _formatPrice(double price) {
-    final absPrice = price.abs();
-    return 'R\$ ${absPrice.toStringAsFixed(2).replaceAll('.', ',')}';
+    return Formatters.currency(price.abs());
   }
 
   String _formatDate(DateTime date) {

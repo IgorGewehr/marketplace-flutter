@@ -295,7 +295,7 @@ class _MpSubscriptionScreenState extends ConsumerState<MpSubscriptionScreen> {
         if (_paymentMethod == 'pix' && result.initPoint != null) {
           _openPixSubscription(result.initPoint!);
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(
+          ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
             const SnackBar(content: Text('Assinatura criada com sucesso!')),
           );
         }
@@ -355,7 +355,7 @@ class _MpSubscriptionScreenState extends ConsumerState<MpSubscriptionScreen> {
     if (confirmed == true) {
       await ref.read(mpSubscriptionProvider.notifier).cancel();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
           const SnackBar(content: Text('Assinatura cancelada')),
         );
       }
@@ -401,7 +401,7 @@ class _PlanCard extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: theme.colorScheme.surface,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: isSelected
@@ -507,7 +507,7 @@ class _PaymentOptionCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: isSelected
               ? theme.colorScheme.primaryContainer
-              : Colors.white,
+              : theme.colorScheme.surface,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: isSelected

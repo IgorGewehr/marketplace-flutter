@@ -116,7 +116,6 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: Colors.white,
         foregroundColor: AppColors.textPrimary,
         elevation: 0,
         titleSpacing: 0,
@@ -280,7 +279,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
   /// Order context card pinned at the top of the conversation
   Widget _buildOrderContextCard(ChatModel chat) {
     return Material(
-      color: Colors.white,
+      color: Theme.of(context).colorScheme.surface,
       child: InkWell(
         onTap: () {
           context.push(
@@ -363,7 +362,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
       }
     } on PlatformException {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
           const SnackBar(content: Text('Permissão de acesso à galeria necessária')),
         );
       }
@@ -377,9 +376,9 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
           .sendImageMessage(imageFile);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erro ao enviar imagem: $e'),
+        ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
+          const SnackBar(
+            content: Text('Erro ao enviar imagem. Tente novamente.'),
             backgroundColor: AppColors.error,
           ),
         );
@@ -393,9 +392,9 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
       backgroundColor: Colors.transparent,
       builder: (ctx) => Container(
         padding: const EdgeInsets.all(AppSpacing.l),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(
+        decoration: BoxDecoration(
+          color: Theme.of(ctx).colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(
             top: Radius.circular(AppSpacing.radiusXXL),
           ),
         ),
@@ -424,7 +423,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
               title: const Text('Denunciar', style: TextStyle(color: AppColors.error)),
               onTap: () {
                 Navigator.pop(ctx);
-                ScaffoldMessenger.of(context).showSnackBar(
+                ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
                   const SnackBar(content: Text('Denúncia registrada. Vamos analisar.')),
                 );
               },
@@ -442,9 +441,9 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
       backgroundColor: Colors.transparent,
       builder: (ctx) => Container(
         padding: const EdgeInsets.all(AppSpacing.l),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(
+        decoration: BoxDecoration(
+          color: Theme.of(ctx).colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(
             top: Radius.circular(AppSpacing.radiusXXL),
           ),
         ),
@@ -491,7 +490,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
                       }
                     } on PlatformException {
                       if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
+                        ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
                           const SnackBar(content: Text('Permissão de câmera necessária')),
                         );
                       }
@@ -504,7 +503,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
                   color: AppColors.sellerAccent,
                   onTap: () {
                     Navigator.pop(ctx);
-                    ScaffoldMessenger.of(context).showSnackBar(
+                    ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
                       const SnackBar(content: Text('Envio de documentos em breve')),
                     );
                   },

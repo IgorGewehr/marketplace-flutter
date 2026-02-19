@@ -1,7 +1,9 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../router/app_router.dart';
 import '../../presentation/providers/core_providers.dart';
 import '../../presentation/providers/notifications_provider.dart';
 
@@ -92,9 +94,32 @@ class PushNotificationService {
       _ref.read(notificationsProvider.notifier).refresh();
     } catch (_) {}
 
-    // Navigation is handled via the notification screen when the user taps
-    // an in-app notification tile. The push notification tap just brings
-    // the user back to the app and refreshes the data.
+    // Route to relevant screen based on notification data
+    final data = message.data;
+    final type = data['type'] as String?;
+    final targetId = data['targetId'] as String? ?? data['id'] as String?;
+
+    try {
+      final router = _ref.read(routerProvider);
+
+      switch (type) {
+        case 'order':
+        case 'order_update':
+          if (targetId != null) router.push('/orders/$targetId');
+          break;
+        case 'chat':
+        case 'message':
+          if (targetId != null) router.push('/chats/$targetId');
+          break;
+        case 'product':
+          if (targetId != null) router.push('/product/$targetId');
+          break;
+        default:
+          router.push(AppRouter.notifications);
+      }
+    } catch (_) {
+      // Router not ready yet, ignore
+    }
   }
 
   /// Remove FCM token on sign out.

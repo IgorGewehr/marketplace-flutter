@@ -30,7 +30,6 @@ class _ChatsListScreenState extends ConsumerState<ChatsListScreen> {
       backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('Conversas'),
-        backgroundColor: Colors.white,
         foregroundColor: AppColors.textPrimary,
         elevation: 0,
         centerTitle: true,
@@ -90,9 +89,9 @@ class _ChatsListScreenState extends ConsumerState<ChatsListScreen> {
       backgroundColor: Colors.transparent,
       builder: (ctx) => Container(
         padding: const EdgeInsets.all(AppSpacing.l),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(AppSpacing.radiusXXL)),
+        decoration: BoxDecoration(
+          color: Theme.of(ctx).colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(AppSpacing.radiusXXL)),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -111,7 +110,7 @@ class _ChatsListScreenState extends ConsumerState<ChatsListScreen> {
               title: const Text('Fixar conversa'),
               onTap: () {
                 Navigator.pop(ctx);
-                ScaffoldMessenger.of(context).showSnackBar(
+                ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
                   const SnackBar(content: Text('Conversa fixada')),
                 );
               },
@@ -121,7 +120,7 @@ class _ChatsListScreenState extends ConsumerState<ChatsListScreen> {
               title: const Text('Silenciar'),
               onTap: () {
                 Navigator.pop(ctx);
-                ScaffoldMessenger.of(context).showSnackBar(
+                ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
                   const SnackBar(content: Text('Conversa silenciada')),
                 );
               },
@@ -131,7 +130,7 @@ class _ChatsListScreenState extends ConsumerState<ChatsListScreen> {
               title: const Text('Arquivar'),
               onTap: () {
                 Navigator.pop(ctx);
-                ScaffoldMessenger.of(context).showSnackBar(
+                ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
                   const SnackBar(content: Text('Conversa arquivada')),
                 );
               },

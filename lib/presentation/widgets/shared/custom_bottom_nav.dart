@@ -114,59 +114,66 @@ class _NavItem extends StatelessWidget {
         ? theme.colorScheme.primary
         : theme.colorScheme.onSurfaceVariant;
 
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: SizedBox(
-        width: 56,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Stack(
-              clipBehavior: Clip.none,
-              children: [
-                Icon(
-                  icon,
-                  color: color,
-                  size: 26,
-                ),
-                if (badgeCount > 0)
-                  Positioned(
-                    right: -8,
-                    top: -4,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 5,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.error,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      constraints: const BoxConstraints(minWidth: 18),
-                      child: Text(
-                        badgeCount > 99 ? '99+' : badgeCount.toString(),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
+    return Semantics(
+      button: true,
+      selected: isSelected,
+      label: badgeCount > 0 ? '$label, $badgeCount não lidas' : label,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: SizedBox(
+          width: 56,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Icon(
+                    icon,
+                    color: color,
+                    size: 26,
+                  ),
+                  if (badgeCount > 0)
+                    Positioned(
+                      right: -8,
+                      top: -4,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 5,
+                          vertical: 2,
                         ),
-                        textAlign: TextAlign.center,
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.error,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        constraints: const BoxConstraints(minWidth: 18),
+                        child: Text(
+                          badgeCount > 99 ? '99+' : badgeCount.toString(),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
                       ),
                     ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: TextStyle(
-                color: color,
-                fontSize: 11,
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                ],
               ),
-            ),
-          ],
+              const SizedBox(height: 4),
+              ExcludeSemantics(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 11,
+                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -182,33 +189,37 @@ class _CenterFab extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return GestureDetector(
-      onTap: onPressed,
-      child: Container(
-        width: 56,
-        height: 56,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              theme.colorScheme.primary,
-              theme.colorScheme.primary.withAlpha(200),
-            ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          shape: BoxShape.circle,
-          boxShadow: [
-            BoxShadow(
-              color: theme.colorScheme.primary.withAlpha(80),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
+    return Semantics(
+      button: true,
+      label: 'Anunciar produto',
+      child: GestureDetector(
+        onTap: onPressed,
+        child: Container(
+          width: 56,
+          height: 56,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                theme.colorScheme.primary,
+                theme.colorScheme.primary.withAlpha(200),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
             ),
-          ],
-        ),
-        child: const Icon(
-          Icons.add_circle_outline_rounded,
-          color: Colors.white,
-          size: 32,
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: theme.colorScheme.primary.withAlpha(80),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: const Icon(
+            Icons.add_circle_outline_rounded,
+            color: Colors.white,
+            size: 32,
+          ),
         ),
       ),
     );

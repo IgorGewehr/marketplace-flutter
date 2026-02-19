@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/utils/formatters.dart';
 import '../../providers/orders_provider.dart';
@@ -56,7 +57,7 @@ class OrderDetailsScreen extends ConsumerWidget {
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: theme.colorScheme.surface,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Row(
@@ -92,9 +93,11 @@ class OrderDetailsScreen extends ConsumerWidget {
                                 GestureDetector(
                                   onTap: () {
                                     Clipboard.setData(ClipboardData(text: order.id));
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(content: Text('ID copiado!')),
-                                    );
+                                    ScaffoldMessenger.of(context)
+                                      ..clearSnackBars()
+                                      ..showSnackBar(
+                                        const SnackBar(content: Text('ID copiado!')),
+                                      );
                                   },
                                   child: Icon(
                                     Icons.copy,
@@ -149,7 +152,7 @@ class OrderDetailsScreen extends ConsumerWidget {
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: theme.colorScheme.surface,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: OrderTimeline(order: order),
@@ -168,7 +171,7 @@ class OrderDetailsScreen extends ConsumerWidget {
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: theme.colorScheme.surface,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Column(
@@ -242,7 +245,7 @@ class OrderDetailsScreen extends ConsumerWidget {
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: theme.colorScheme.surface,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Row(
@@ -306,7 +309,7 @@ class OrderDetailsScreen extends ConsumerWidget {
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: theme.colorScheme.surface,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Column(
@@ -372,7 +375,10 @@ class OrderDetailsScreen extends ConsumerWidget {
                   width: double.infinity,
                   child: TextButton.icon(
                     onPressed: () {
-                      // Open help/support
+                      final uri = Uri.parse(
+                        'https://wa.me/5547997856405?text=Olá, preciso de ajuda com o pedido #${order.id.substring(0, 8).toUpperCase()}',
+                      );
+                      launchUrl(uri, mode: LaunchMode.externalApplication);
                     },
                     icon: const Icon(Icons.help_outline),
                     label: const Text('Precisa de ajuda?'),

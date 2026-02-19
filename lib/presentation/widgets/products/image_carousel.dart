@@ -61,7 +61,10 @@ class _ImageCarouselState extends State<ImageCarousel> {
             onPageChanged: (page) => setState(() => _currentPage = page),
             itemCount: widget.images.length,
             itemBuilder: (context, index) {
-              return GestureDetector(
+              return Semantics(
+                image: true,
+                label: 'Imagem ${index + 1} de ${widget.images.length}. Toque para ampliar',
+                child: GestureDetector(
                 onTap: _openFullscreen,
                 child: ClipRRect(
                   borderRadius: widget.borderRadius ?? BorderRadius.zero,
@@ -75,6 +78,7 @@ class _ImageCarouselState extends State<ImageCarousel> {
                     errorWidget: (_, __, ___) => _buildPlaceholder(),
                   ),
                 ),
+              ),
               );
             },
           ),

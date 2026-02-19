@@ -31,10 +31,10 @@ class OrderTimeline extends StatelessWidget {
 
   int _getCurrentStepIndex() {
     return switch (order.status) {
-      'pending' => 0,
+      'pending' || 'pending_payment' => 0,
       'confirmed' => 1,
       'preparing' || 'processing' => 2,
-      'shipped' || 'ready' => 3,
+      'shipped' || 'ready' || 'out_for_delivery' => 3,
       'delivered' => 4,
       'cancelled' || 'refunded' => -1,
       _ => 0,

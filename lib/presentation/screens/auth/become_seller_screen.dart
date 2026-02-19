@@ -102,7 +102,7 @@ class _BecomeSellerScreenState extends ConsumerState<BecomeSellerScreen> {
     switch (_currentStep) {
       case 1:
         if (_businessType.isEmpty) {
-          ScaffoldMessenger.of(context).showSnackBar(
+          ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
             const SnackBar(
               content: Text('Selecione um tipo de negócio'),
               behavior: SnackBarBehavior.floating,
@@ -140,7 +140,7 @@ class _BecomeSellerScreenState extends ConsumerState<BecomeSellerScreen> {
         curve: Curves.easeInOut,
       );
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
         const SnackBar(
           content: Text('Erro ao criar loja. Tente novamente.'),
           behavior: SnackBarBehavior.floating,
@@ -155,7 +155,7 @@ class _BecomeSellerScreenState extends ConsumerState<BecomeSellerScreen> {
     final isWelcome = _currentStep == 0;
 
     return Scaffold(
-      backgroundColor: isWelcome ? Colors.white : null,
+      backgroundColor: isWelcome ? theme.colorScheme.surface : null,
       body: SafeArea(
         child: Column(
           children: [
@@ -219,7 +219,7 @@ class _BecomeSellerScreenState extends ConsumerState<BecomeSellerScreen> {
   // ========== Step 0: Welcome ==========
   Widget _buildWelcomeStep(ThemeData theme) {
     return Container(
-      color: Colors.white,
+      color: theme.colorScheme.surface,
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
@@ -756,7 +756,7 @@ class _BusinessTypeCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: isSelected
               ? theme.colorScheme.primary.withAlpha(13)
-              : Colors.white,
+              : theme.colorScheme.surface,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: isSelected

@@ -141,7 +141,7 @@ class FavoritesScreen extends ConsumerWidget {
             onPressed: () {
               ref.read(favoriteProductIdsProvider.notifier).clearFavorites();
               Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
+              ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
                 const SnackBar(content: Text('Favoritos removidos')),
               );
             },

@@ -409,6 +409,7 @@ bool _isProtectedRoute(String location) {
       location == AppRouter.notifications ||
       location == AppRouter.settings ||
       location == AppRouter.notificationSettings ||
+      location == AppRouter.becomeSeller ||
       _isSellerRoute(location);
 }
 

@@ -67,12 +67,17 @@ class ImageUploadService {
   }
 
   /// Upload multiple images with progress tracking
+  /// Returns a list of successfully uploaded URLs.
+  /// If [onProgress] is provided, it will be called with the current and total count.
+  /// Upload failures for individual images are reported via [onImageFailed].
   Future<List<String>> uploadProductImages(
     List<File> imageFiles,
     String productId, {
     Function(int current, int total)? onProgress,
+    Function(int index, String error)? onImageFailed,
   }) async {
     final urls = <String>[];
+    int failedCount = 0;
 
     for (int i = 0; i < imageFiles.length; i++) {
       try {
@@ -80,9 +85,14 @@ class ImageUploadService {
         urls.add(url);
         onProgress?.call(i + 1, imageFiles.length);
       } catch (e) {
-        // Continue with other images even if one fails
+        failedCount++;
+        onImageFailed?.call(i, e.toString());
         continue;
       }
+    }
+
+    if (failedCount > 0 && urls.isEmpty) {
+      throw Exception('Nenhuma imagem foi enviada. Verifique sua conexão.');
     }
 
     return urls;

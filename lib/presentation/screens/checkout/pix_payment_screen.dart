@@ -25,14 +25,6 @@ class _PixPaymentScreenState extends ConsumerState<PixPaymentScreen> {
   @override
   void initState() {
     super.initState();
-    
-    // Poll for payment status every 5 seconds
-    _pollTimer = Timer.periodic(const Duration(seconds: 5), (_) async {
-      final paid = await ref.read(checkoutProvider.notifier).checkPixPayment();
-      if (paid && mounted) {
-        context.pushReplacement(AppRouter.orderSuccess);
-      }
-    });
 
     // Countdown timer
     final expiration = ref.read(checkoutProvider).pixExpiration;
@@ -46,6 +38,14 @@ class _PixPaymentScreenState extends ConsumerState<PixPaymentScreen> {
       });
       return;
     }
+
+    // Poll for payment status every 5 seconds (only if not expired)
+    _pollTimer = Timer.periodic(const Duration(seconds: 5), (_) async {
+      final paid = await ref.read(checkoutProvider.notifier).checkPixPayment();
+      if (paid && mounted) {
+        context.pushReplacement(AppRouter.orderSuccess);
+      }
+    });
 
     _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (_remainingSeconds > 0) {
@@ -111,9 +111,11 @@ class _PixPaymentScreenState extends ConsumerState<PixPaymentScreen> {
     final checkoutState = ref.read(checkoutProvider);
     if (checkoutState.pixCode != null) {
       Clipboard.setData(ClipboardData(text: checkoutState.pixCode!));
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Código PIX copiado!')),
-      );
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(
+          const SnackBar(content: Text('Código PIX copiado!')),
+        );
     }
   }
 
@@ -128,7 +130,32 @@ class _PixPaymentScreenState extends ConsumerState<PixPaymentScreen> {
     final theme = Theme.of(context);
     final checkoutState = ref.watch(checkoutProvider);
 
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Cancelar pagamento?'),
+            content: const Text('Se sair agora, o pagamento PIX ainda ficará disponível pelo tempo restante.'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Continuar pagando'),
+              ),
+              FilledButton(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  context.go(AppRouter.home);
+                },
+                child: const Text('Sair'),
+              ),
+            ],
+          ),
+        );
+      },
+      child: Scaffold(
       backgroundColor: theme.colorScheme.surface,
       appBar: AppBar(
         title: const Text('Pagamento PIX'),
@@ -211,7 +238,7 @@ class _PixPaymentScreenState extends ConsumerState<PixPaymentScreen> {
               height: 220,
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: theme.colorScheme.surface,
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(color: theme.colorScheme.outline.withAlpha(30)),
               ),
@@ -296,6 +323,7 @@ class _PixPaymentScreenState extends ConsumerState<PixPaymentScreen> {
           ],
         ),
       ),
+    ),
     );
   }
 
