@@ -1,35 +1,64 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../data/models/category_model.dart';
 import '../../data/models/product_model.dart';
 import '../../data/models/promo_banner_model.dart';
 import 'core_providers.dart';
 
-/// Categories provider - fetches from API
-final categoriesProvider = FutureProvider<List<String>>((ref) async {
+const _defaultCategories = [
+  'Veículos',
+  'Eletrônicos',
+  'Móveis',
+  'Roupas',
+  'Doces',
+  'Coloniais',
+  'Ferramentas',
+  'Casa e Jardim',
+  'Esportes',
+  'Livros',
+  'Brinquedos',
+  'Outros',
+];
+
+List<CategoryModel> _buildFallbackModels() {
+  final now = DateTime.now();
+  return _defaultCategories
+      .map((name) => CategoryModel(
+            id: name.toLowerCase(),
+            name: name,
+            slug: name.toLowerCase(),
+            createdAt: now,
+            updatedAt: now,
+          ))
+      .toList();
+}
+
+/// Category models provider - fetches full CategoryModel objects from API
+final categoryModelsProvider = FutureProvider<List<CategoryModel>>((ref) async {
   try {
     final repository = ref.read(productRepositoryProvider);
     final categories = await repository.getCategories();
+    if (categories.isNotEmpty) return categories;
+  } catch (_) {}
+  return _buildFallbackModels();
+});
 
-    // Add "Todos" as first option
-    return ['Todos', ...categories.map((c) => c.name)];
-  } catch (e) {
-    // Return default categories for Meio Oeste Catarinense
-    return [
-      'Todos',
-      'Veículos',
-      'Eletrônicos',
-      'Móveis',
-      'Roupas',
-      'Doces',
-      'Coloniais',
-      'Ferramentas',
-      'Casa e Jardim',
-      'Esportes',
-      'Livros',
-      'Brinquedos',
-      'Outros',
-    ];
-  }
+/// Categories provider - returns names for search/filter screens
+final categoriesProvider = FutureProvider<List<String>>((ref) async {
+  final models = await ref.watch(categoryModelsProvider.future);
+  return ['Todos', ...models.map((c) => c.name)];
+});
+
+/// Maps category display name to its ID for API calls
+final categoryNameToIdProvider = FutureProvider<Map<String, String>>((ref) async {
+  final models = await ref.watch(categoryModelsProvider.future);
+  return {for (final c in models) c.name: c.id};
+});
+
+/// Maps category ID back to its display name (for UI restoration)
+final categoryIdToNameProvider = FutureProvider<Map<String, String>>((ref) async {
+  final models = await ref.watch(categoryModelsProvider.future);
+  return {for (final c in models) c.id: c.name};
 });
 
 /// Selected category provider
@@ -44,6 +73,7 @@ class ProductFilters {
   final String sortBy; // 'recent', 'price_asc', 'price_desc', 'relevance'
   final int page;
   final int limit;
+  final List<String>? tags;
 
   const ProductFilters({
     this.query,
@@ -53,6 +83,7 @@ class ProductFilters {
     this.sortBy = 'recent',
     this.page = 1,
     this.limit = 20,
+    this.tags,
   });
 
   ProductFilters copyWith({
@@ -63,6 +94,7 @@ class ProductFilters {
     String? sortBy,
     int? page,
     int? limit,
+    List<String>? tags,
   }) {
     return ProductFilters(
       query: query ?? this.query,
@@ -72,6 +104,7 @@ class ProductFilters {
       sortBy: sortBy ?? this.sortBy,
       page: page ?? this.page,
       limit: limit ?? this.limit,
+      tags: tags ?? this.tags,
     );
   }
 
@@ -81,6 +114,7 @@ class ProductFilters {
     if (minPrice != null) count++;
     if (maxPrice != null) count++;
     if (sortBy != 'recent') count++;
+    if (tags != null && tags!.isNotEmpty) count++;
     return count;
   }
 
@@ -90,6 +124,7 @@ class ProductFilters {
       if (category != null && category != 'Todos') 'category': category,
       if (minPrice != null) 'min_price': minPrice,
       if (maxPrice != null) 'max_price': maxPrice,
+      if (tags != null && tags!.isNotEmpty) 'tags': tags!.join(','),
       'sort': sortBy,
       'page': page,
       'limit': limit,
@@ -211,20 +246,32 @@ final filteredProductsProvider = FutureProvider<List<ProductModel>>((ref) async 
 });
 
 /// Products by category provider - for carousel display
+/// Accepts a category name and resolves it to an ID for the API call.
 final productsByCategoryProvider = FutureProvider.family<List<ProductModel>, String>(
   (ref, category) async {
     final repository = ref.read(productRepositoryProvider);
+    final nameToId = ref.watch(categoryNameToIdProvider).valueOrNull ?? {};
+    final categoryId = category == 'Todos' ? null : (nameToId[category] ?? category);
     try {
       final response = await repository.getProducts(
         page: 1,
         limit: 10,
-        categoryId: category == 'Todos' ? null : category,
+        categoryId: categoryId,
         sortBy: 'recent',
       );
       return response.products;
     } catch (e) {
       return [];
     }
+  },
+);
+
+/// Seller products provider - fetches products for a specific seller
+final sellerProductsProvider = FutureProvider.family<List<ProductModel>, String>(
+  (ref, tenantId) async {
+    final repository = ref.read(productRepositoryProvider);
+    final response = await repository.getProducts(tenantId: tenantId, limit: 50);
+    return response.products;
   },
 );
 

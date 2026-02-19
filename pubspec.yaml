@@ -33,6 +33,7 @@ dependencies:
   # Local Storage
   shared_preferences: ^2.3.4
   hive_flutter: ^1.1.0
+  flutter_secure_storage: ^9.2.4
 
   # UI Components
   cupertino_icons: ^1.0.8

@@ -47,6 +47,11 @@ final filteredSellerOrdersProvider = Provider<AsyncValue<List<OrderModel>>>((ref
 });
 
 class SellerOrdersNotifier extends AsyncNotifier<List<OrderModel>> {
+  static const int _pageSize = 20;
+  int _currentPage = 1;
+  bool _hasMore = true;
+  bool _isLoadingMore = false;
+
   @override
   Future<List<OrderModel>> build() async {
     final user = ref.read(currentUserProvider).valueOrNull;
@@ -54,16 +59,43 @@ class SellerOrdersNotifier extends AsyncNotifier<List<OrderModel>> {
 
     try {
       final repository = ref.read(orderRepositoryProvider);
-      final response = await repository.getSellerOrders();
+      final response = await repository.getSellerOrders(page: 1, limit: _pageSize);
+      _currentPage = 1;
+      _hasMore = response.hasMore;
       return response.orders;
     } catch (e) {
       return [];
     }
   }
 
+  bool get hasMore => _hasMore;
+  bool get isLoadingMore => _isLoadingMore;
+
   Future<void> refresh() async {
     state = const AsyncLoading();
     state = await AsyncValue.guard(() => build());
+  }
+
+  Future<void> loadMore() async {
+    if (_isLoadingMore || !_hasMore) return;
+    final current = state.valueOrNull;
+    if (current == null) return;
+
+    _isLoadingMore = true;
+
+    try {
+      final repository = ref.read(orderRepositoryProvider);
+      final response = await repository.getSellerOrders(
+        page: _currentPage + 1,
+        limit: _pageSize,
+      );
+      _currentPage++;
+      _hasMore = response.hasMore;
+      _isLoadingMore = false;
+      state = AsyncValue.data([...current, ...response.orders]);
+    } catch (e) {
+      _isLoadingMore = false;
+    }
   }
 
   Future<void> updateOrderStatus(String orderId, String newStatus, {String? note}) async {

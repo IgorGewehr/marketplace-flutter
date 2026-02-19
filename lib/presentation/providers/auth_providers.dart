@@ -258,5 +258,5 @@ String getAuthErrorMessage(Object error) {
       _ => 'Erro de autenticação. Tente novamente.',
     };
   }
-  return error.toString();
+  return 'Erro inesperado. Tente novamente.';
 }

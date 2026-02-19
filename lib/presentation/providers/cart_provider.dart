@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/constants/marketplace_constants.dart';
 import '../../data/models/product_model.dart';
 import 'auth_providers.dart';
 import 'core_providers.dart';
@@ -91,11 +92,7 @@ class CartState {
 class CartNotifier extends Notifier<CartState> {
   @override
   CartState build() {
-    _loadFromLocal();
-    return const CartState(isLoading: true);
-  }
-
-  void _loadFromLocal() {
+    // Load synchronously from Hive (Hive reads are sync)
     try {
       final storage = ref.read(localStorageProvider);
       final stored = storage.loadCartItems();
@@ -104,13 +101,12 @@ class CartNotifier extends Notifier<CartState> {
         final items = stored
             .map((e) => LocalCartItem.fromJson(Map<String, dynamic>.from(e as Map)))
             .toList();
-        state = state.copyWith(items: items, isLoading: false);
-      } else {
-        state = state.copyWith(isLoading: false);
+        return CartState(items: items);
       }
-    } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+    } catch (_) {
+      // Fall through to empty cart on error
     }
+    return const CartState();
   }
 
   Future<void> _saveToLocal() async {
@@ -124,6 +120,14 @@ class CartNotifier extends Notifier<CartState> {
 
   /// Add product to cart
   Future<void> addToCart(ProductModel product, {int quantity = 1, String? variant}) async {
+    // E2: Block products above checkout price limit
+    if (product.price > kCheckoutPriceLimit) {
+      state = state.copyWith(
+        error: 'Produto acima de R\$ ${kCheckoutPriceLimit.toStringAsFixed(0)} - negocie diretamente com o vendedor',
+      );
+      return;
+    }
+
     final existingIndex = state.items.indexWhere(
       (item) => item.productId == product.id && item.variant == variant,
     );
@@ -206,16 +210,19 @@ class CartNotifier extends Notifier<CartState> {
       // Get current remote cart
       final remoteCart = await cartRepo.getCart();
 
+      // Gap #24: Use a separator that won't appear in IDs
+      const sep = '|||';
+
       // Build map of remote items for quick lookup
       final remoteItemsMap = <String, int>{};
       for (final remoteItem in remoteCart.items) {
-        final key = '${remoteItem.productId}_${remoteItem.variantId ?? ''}';
+        final key = '${remoteItem.productId}$sep${remoteItem.variantId ?? ''}';
         remoteItemsMap[key] = remoteItem.quantity;
       }
 
       // Process local items - add or update
       for (final localItem in state.items) {
-        final key = '${localItem.productId}_${localItem.variant ?? ''}';
+        final key = '${localItem.productId}$sep${localItem.variant ?? ''}';
         final remoteQuantity = remoteItemsMap[key];
 
         if (remoteQuantity == null) {
@@ -241,7 +248,7 @@ class CartNotifier extends Notifier<CartState> {
 
       // Remove items that exist remotely but not locally
       for (final remoteKey in remoteItemsMap.keys) {
-        final parts = remoteKey.split('_');
+        final parts = remoteKey.split(sep);
         final productId = parts[0];
         final variantId = parts.length > 1 && parts[1].isNotEmpty ? parts[1] : null;
 

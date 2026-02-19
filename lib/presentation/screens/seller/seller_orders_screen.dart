@@ -31,12 +31,12 @@ class SellerOrdersScreen extends ConsumerWidget {
               elevation: 0,
               title: Row(
                 children: [
-                  const Text(
+                  Text(
                     'Pedidos',
                     style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary,
+                      color: Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
                   if (newOrdersCount > 0) ...[
@@ -141,16 +141,29 @@ class SellerOrdersScreen extends ConsumerWidget {
                   );
                 }
 
+                final notifier = ref.read(sellerOrdersProvider.notifier);
+                final hasMore = notifier.hasMore;
+
                 return SliverList(
                   delegate: SliverChildBuilderDelegate(
                     (context, index) {
+                      if (index >= orders.length) {
+                        // Load more trigger
+                        notifier.loadMore();
+                        return const Center(
+                          child: Padding(
+                            padding: EdgeInsets.all(16),
+                            child: CircularProgressIndicator(color: AppColors.sellerAccent),
+                          ),
+                        );
+                      }
                       final order = orders[index];
                       return SellerOrderTile(
                         order: order,
                         onTap: () => context.push('/seller/orders/${order.id}'),
                       );
                     },
-                    childCount: orders.length,
+                    childCount: orders.length + (hasMore ? 1 : 0),
                   ),
                 );
               },
@@ -196,7 +209,7 @@ class _FilterChip extends StatelessWidget {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? AppColors.sellerAccent : Colors.white,
+          color: isSelected ? AppColors.sellerAccent : Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
             color: isSelected ? AppColors.sellerAccent : AppColors.border,

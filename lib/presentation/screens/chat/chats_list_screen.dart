@@ -30,8 +30,8 @@ class _ChatsListScreenState extends ConsumerState<ChatsListScreen> {
       backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('Conversas'),
-        backgroundColor: Colors.white,
-        foregroundColor: AppColors.textPrimary,
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        foregroundColor: Theme.of(context).colorScheme.onSurface,
         elevation: 0,
         centerTitle: true,
       ),
@@ -83,16 +83,16 @@ class _ChatsListScreenState extends ConsumerState<ChatsListScreen> {
     );
   }
 
-  /// Long press actions: pin, mute, archive
+  /// Long press actions
   void _showChatActions(BuildContext context, chat) {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       builder: (ctx) => Container(
         padding: const EdgeInsets.all(AppSpacing.l),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(AppSpacing.radiusXXL)),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(AppSpacing.radiusXXL)),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -107,33 +107,11 @@ class _ChatsListScreenState extends ConsumerState<ChatsListScreen> {
             ),
             const SizedBox(height: AppSpacing.m),
             ListTile(
-              leading: const Icon(Icons.push_pin_outlined),
-              title: const Text('Fixar conversa'),
+              leading: const Icon(Icons.mark_chat_read_outlined),
+              title: const Text('Marcar como lida'),
               onTap: () {
                 Navigator.pop(ctx);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Conversa fixada')),
-                );
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.notifications_off_outlined),
-              title: const Text('Silenciar'),
-              onTap: () {
-                Navigator.pop(ctx);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Conversa silenciada')),
-                );
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.archive_outlined),
-              title: const Text('Arquivar'),
-              onTap: () {
-                Navigator.pop(ctx);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Conversa arquivada')),
-                );
+                ref.read(chatsProvider.notifier).markChatAsRead(chat.id);
               },
             ),
             SizedBox(height: MediaQuery.of(ctx).padding.bottom),

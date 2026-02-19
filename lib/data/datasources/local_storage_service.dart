@@ -1,29 +1,68 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 /// Centralized Hive box management.
-/// All boxes are opened once at startup and reused throughout the app.
+/// Sensitive boxes (cart, apiCache) are encrypted with a key stored in secure storage.
 class LocalStorageService {
   static const String _favoritesBox = 'favorites';
   static const String _serviceFavoritesBox = 'service_favorites';
-  static const String _cartBox = 'cart_box';
+  static const String _cartBox = 'cart_box_v2';
+  static const String _settingsBox = 'settings_box';
   static const String _productCacheBox = 'product_cache';
-  static const String _apiCacheBox = 'api_cache';
+  static const String _apiCacheBox = 'api_cache_v2';
+  static const String _encryptionKeyName = 'hive_encryption_key';
 
   late final Box<String> favoritesBox;
   late final Box<String> serviceFavoritesBox;
   late final Box cartBox;
+  late final Box settingsBox;
   late final Box<String> productCacheBox;
   late final Box<String> apiCacheBox;
 
+  /// Get or create an encryption key for sensitive Hive boxes.
+  Future<HiveAesCipher> _getEncryptionCipher() async {
+    const secureStorage = FlutterSecureStorage();
+    final existingKey = await secureStorage.read(key: _encryptionKeyName);
+
+    if (existingKey != null) {
+      final keyBytes = base64Url.decode(existingKey);
+      return HiveAesCipher(keyBytes);
+    }
+
+    final newKey = Hive.generateSecureKey();
+    await secureStorage.write(
+      key: _encryptionKeyName,
+      value: base64UrlEncode(Uint8List.fromList(newKey)),
+    );
+    return HiveAesCipher(newKey);
+  }
+
   /// Open all boxes. Must be called once after Hive.initFlutter().
   Future<void> init() async {
+    final cipher = await _getEncryptionCipher();
+
     favoritesBox = await Hive.openBox<String>(_favoritesBox);
     serviceFavoritesBox = await Hive.openBox<String>(_serviceFavoritesBox);
-    cartBox = await Hive.openBox(_cartBox);
+    cartBox = await Hive.openBox(_cartBox, encryptionCipher: cipher);
+    settingsBox = await Hive.openBox(_settingsBox);
     productCacheBox = await Hive.openBox<String>(_productCacheBox);
-    apiCacheBox = await Hive.openBox<String>(_apiCacheBox);
+    apiCacheBox = await Hive.openBox<String>(_apiCacheBox, encryptionCipher: cipher);
+
+    // Migrate existing settings from cartBox to settingsBox
+    _migrateSettings();
+  }
+
+  void _migrateSettings() {
+    final keysToMigrate = cartBox.keys.where((k) => k.toString().startsWith('setting_'));
+    for (final key in keysToMigrate) {
+      if (!settingsBox.containsKey(key)) {
+        settingsBox.put(key, cartBox.get(key));
+      }
+      cartBox.delete(key);
+    }
   }
 
   // ===== Favorites =====
@@ -95,12 +134,13 @@ class LocalStorageService {
     await cartBox.put(_cartKey, items);
   }
 
-  // ===== Settings (key-value via cartBox) =====
+  // ===== Settings (key-value via dedicated settingsBox) =====
+  // Gap #19: Use separate box so cartBox.clear() doesn't erase settings
 
-  bool? getBool(String key) => cartBox.get('setting_$key') as bool?;
+  bool? getBool(String key) => settingsBox.get('setting_$key') as bool?;
 
   Future<void> setBool(String key, bool value) async {
-    await cartBox.put('setting_$key', value);
+    await settingsBox.put('setting_$key', value);
   }
 
   // ===== API Response Cache =====

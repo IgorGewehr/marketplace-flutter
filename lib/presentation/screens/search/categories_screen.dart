@@ -21,9 +21,9 @@ class CategoriesScreen extends ConsumerWidget {
           onPressed: () => context.pop(),
           icon: const Icon(Icons.arrow_back),
         ),
-        title: const Text(
+        title: Text(
           'Categorias',
-          style: TextStyle(color: Colors.black),
+          style: TextStyle(color: theme.colorScheme.onSurface),
         ),
         centerTitle: false,
       ),
@@ -97,10 +97,12 @@ class CategoriesScreen extends ConsumerWidget {
                     ),
               onTap: () {
                 ref.read(selectedCategoryProvider.notifier).state = category;
-                // Apply category to search filters
+                // Apply category ID (not name) to search filters
+                final nameToId = ref.read(categoryNameToIdProvider).valueOrNull ?? {};
+                final categoryId = isAll ? null : (nameToId[category] ?? category);
                 ref.read(productFiltersProvider.notifier).state =
                     ref.read(productFiltersProvider).copyWith(
-                          category: isAll ? null : category,
+                          category: categoryId,
                           page: 1,
                         );
                 context.pop();

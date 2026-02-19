@@ -1,7 +1,8 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:flutter/foundation.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../router/app_router.dart';
 import '../../presentation/providers/core_providers.dart';
 import '../../presentation/providers/notifications_provider.dart';
 
@@ -24,7 +25,7 @@ class PushNotificationService {
     );
 
     if (settings.authorizationStatus == AuthorizationStatus.denied) {
-      debugPrint('PushNotificationService: Notification permission denied');
+      // Permission denied — notifications won't work
       return;
     }
 
@@ -63,19 +64,19 @@ class PushNotificationService {
       if (fcmToken == null) return;
 
       _currentToken = fcmToken;
-      debugPrint('PushNotificationService: FCM token obtained');
+      // Token obtained successfully
 
       // Send token to backend
       final authRepo = _ref.read(authRepositoryProvider);
       await authRepo.updateFcmToken(fcmToken);
     } catch (e) {
-      debugPrint('PushNotificationService: Error registering token: $e');
+      // Token registration failed
     }
   }
 
   /// Handle foreground messages: refresh the notifications list.
   void _handleForegroundMessage(RemoteMessage message) {
-    debugPrint('PushNotificationService: Foreground message: ${message.data}');
+    // Foreground message received — refresh notifications
 
     // Refresh the in-app notifications list
     try {
@@ -84,17 +85,55 @@ class PushNotificationService {
   }
 
   /// Handle notification tap: navigate to the relevant screen.
+  /// Gap #13: Route to the correct screen based on notification data.
   void _handleNotificationTap(RemoteMessage message) {
-    debugPrint('PushNotificationService: Notification tapped: ${message.data}');
+    // Notification tapped — navigate to relevant screen
 
     // Refresh notifications
     try {
       _ref.read(notificationsProvider.notifier).refresh();
     } catch (_) {}
 
-    // Navigation is handled via the notification screen when the user taps
-    // an in-app notification tile. The push notification tap just brings
-    // the user back to the app and refreshes the data.
+    // Navigate based on notification data
+    final data = message.data;
+    final type = data['type'] as String?;
+    final rawId = data['id'] as String?;
+
+    // Sanitize ID: only allow alphanumeric, hyphens, and underscores
+    final id = rawId != null && RegExp(r'^[a-zA-Z0-9_-]+$').hasMatch(rawId)
+        ? rawId
+        : null;
+
+    try {
+      final router = _ref.read(routerProvider);
+      switch (type) {
+        case 'order':
+          if (id != null) router.push('/orders/$id');
+          break;
+        case 'seller_order':
+          if (id != null) router.push('/seller/orders/$id');
+          break;
+        case 'chat':
+          if (id != null) router.push('/chats/$id');
+          break;
+        case 'product':
+          if (id != null) router.push('/product/$id');
+          break;
+        case 'delivery_confirmation':
+          if (id != null) router.push('/orders/$id');
+          break;
+        case 'payment_released':
+          router.push(AppRouter.sellerWallet);
+          break;
+        case 'review':
+          if (id != null) router.push('/product/$id');
+          break;
+        default:
+          router.push(AppRouter.notifications);
+      }
+    } catch (e) {
+      // Navigation error — silently handled
+    }
   }
 
   /// Remove FCM token on sign out.
@@ -106,7 +145,7 @@ class PushNotificationService {
       await authRepo.removeFcmToken(_currentToken!);
       _currentToken = null;
     } catch (e) {
-      debugPrint('PushNotificationService: Error removing token: $e');
+      // Token removal failed
     }
   }
 }

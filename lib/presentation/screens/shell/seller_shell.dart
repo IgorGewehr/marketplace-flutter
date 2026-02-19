@@ -8,6 +8,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../providers/mercadopago_provider.dart';
 import '../../providers/seller_mode_provider.dart';
 import '../../widgets/seller/seller_bottom_nav.dart';
+import '../../widgets/shared/app_feedback.dart';
 
 /// Seller shell with bottom navigation
 class SellerShell extends ConsumerStatefulWidget {
@@ -48,14 +49,14 @@ class _SellerShellState extends ConsumerState<SellerShell> {
   }
 
   void _onFabPressed() {
-    // TODO: Re-enable Mercado Pago check after testing phase
-    // final isMpConnected = ref.read(isMpConnectedProvider);
-    // if (!isMpConnected) {
-    //   _showMpConnectDialog();
-    //   return;
-    // }
+    // Check Mercado Pago connection before creating product
+    final isMpConnected = ref.read(isMpConnectedProvider);
+    if (!isMpConnected) {
+      _showMpConnectDialog();
+      return;
+    }
 
-    // Go directly to create product
+    // All checks passed — create product
     context.push('/seller/products/new');
   }
 
@@ -129,12 +130,8 @@ class _SellerShellState extends ConsumerState<SellerShell> {
           return;
         }
         _lastBackPress = now;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Pressione novamente para voltar ao modo comprador'),
-            duration: Duration(seconds: 2),
-          ),
-        );
+        if (!context.mounted) return;
+        AppFeedback.showInfo(context, 'Pressione novamente para voltar ao modo comprador');
       },
       child: Scaffold(
         body: widget.child,

@@ -30,6 +30,7 @@ import '../../presentation/screens/seller/seller_order_details_screen.dart';
 import '../../presentation/screens/seller/wallet_screen.dart';
 import '../../presentation/screens/seller/mp_connect_screen.dart';
 import '../../presentation/screens/seller/mp_subscription_screen.dart';
+import '../../presentation/screens/seller/seller_profile_screen.dart';
 import '../../presentation/screens/chat/chats_list_screen.dart';
 import '../../presentation/screens/chat/conversation_screen.dart';
 import '../../presentation/screens/notifications/notifications_screen.dart';
@@ -83,6 +84,7 @@ class AppRouter {
   static const favorites = '/favorites';
   static const services = '/services';
   static const serviceDetails = '/service/:id';
+  static const sellerProfile = '/seller-profile/:id';
 }
 
 /// Navigator keys for shell routes
@@ -358,6 +360,15 @@ final routerProvider = Provider<GoRouter>((ref) {
       // Seller detail routes without shell path conflicts
       GoRoute(
         parentNavigatorKey: _rootNavigatorKey,
+        path: AppRouter.sellerProfile,
+        builder: (context, state) {
+          final id = state.pathParameters['id']!;
+          return SellerProfileScreen(tenantId: id);
+        },
+      ),
+
+      GoRoute(
+        parentNavigatorKey: _rootNavigatorKey,
         path: AppRouter.sellerMpConnect,
         builder: (context, state) => const MpConnectScreen(),
       ),
@@ -375,9 +386,11 @@ final routerProvider = Provider<GoRouter>((ref) {
             const Icon(Icons.error_outline, size: 64, color: Colors.grey),
             const SizedBox(height: 16),
             const Text('Página não encontrada'),
-            const SizedBox(height: 8),
-            Text(state.uri.toString(),
-                style: const TextStyle(color: Colors.grey)),
+            const SizedBox(height: 16),
+            FilledButton(
+              onPressed: () => context.go(AppRouter.home),
+              child: const Text('Voltar ao início'),
+            ),
           ],
         ),
       ),
@@ -393,6 +406,7 @@ bool _isAuthRoute(String location) {
 }
 
 /// Check if route requires authentication
+/// Gap #22: Include /become-seller in protected routes
 bool _isProtectedRoute(String location) {
   return location == AppRouter.cart ||
       location == AppRouter.checkout ||
@@ -409,6 +423,7 @@ bool _isProtectedRoute(String location) {
       location == AppRouter.notifications ||
       location == AppRouter.settings ||
       location == AppRouter.notificationSettings ||
+      location == AppRouter.becomeSeller ||
       _isSellerRoute(location);
 }
 

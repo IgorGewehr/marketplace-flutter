@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/router/app_router.dart';
 import '../../providers/checkout_provider.dart';
+import '../../widgets/shared/app_feedback.dart';
 import '../../widgets/shared/glass_container.dart';
 
 /// PIX payment screen with QR code and timer
@@ -25,14 +26,6 @@ class _PixPaymentScreenState extends ConsumerState<PixPaymentScreen> {
   @override
   void initState() {
     super.initState();
-    
-    // Poll for payment status every 5 seconds
-    _pollTimer = Timer.periodic(const Duration(seconds: 5), (_) async {
-      final paid = await ref.read(checkoutProvider.notifier).checkPixPayment();
-      if (paid && mounted) {
-        context.pushReplacement(AppRouter.orderSuccess);
-      }
-    });
 
     // Countdown timer
     final expiration = ref.read(checkoutProvider).pixExpiration;
@@ -40,6 +33,7 @@ class _PixPaymentScreenState extends ConsumerState<PixPaymentScreen> {
       _remainingSeconds = expiration.difference(DateTime.now()).inSeconds.clamp(0, 1800);
     }
 
+    // Gap #5: Check expiration before starting timers
     if (_remainingSeconds <= 0) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _showExpiredDialog();
@@ -47,11 +41,20 @@ class _PixPaymentScreenState extends ConsumerState<PixPaymentScreen> {
       return;
     }
 
+    // Poll for payment status every 5 seconds (only if not expired)
+    _pollTimer = Timer.periodic(const Duration(seconds: 5), (_) async {
+      final paid = await ref.read(checkoutProvider.notifier).checkPixPayment();
+      if (paid && mounted) {
+        context.pushReplacement(AppRouter.orderSuccess);
+      }
+    });
+
     _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (_remainingSeconds > 0) {
         setState(() => _remainingSeconds--);
       } else {
         _countdownTimer?.cancel();
+        _pollTimer?.cancel();
         if (mounted) {
           _showExpiredDialog();
         }
@@ -89,13 +92,25 @@ class _PixPaymentScreenState extends ConsumerState<PixPaymentScreen> {
                       ? expiration.difference(DateTime.now()).inSeconds.clamp(0, 1800)
                       : 900;
                 });
+
+                // Restart countdown timer
                 _countdownTimer?.cancel();
                 _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
                   if (_remainingSeconds > 0) {
                     setState(() => _remainingSeconds--);
                   } else {
                     _countdownTimer?.cancel();
+                    _pollTimer?.cancel();
                     if (mounted) _showExpiredDialog();
+                  }
+                });
+
+                // Restart poll timer to detect payment confirmation
+                _pollTimer?.cancel();
+                _pollTimer = Timer.periodic(const Duration(seconds: 5), (_) async {
+                  final paid = await ref.read(checkoutProvider.notifier).checkPixPayment();
+                  if (paid && mounted) {
+                    context.pushReplacement(AppRouter.orderSuccess);
                   }
                 });
               }
@@ -111,9 +126,7 @@ class _PixPaymentScreenState extends ConsumerState<PixPaymentScreen> {
     final checkoutState = ref.read(checkoutProvider);
     if (checkoutState.pixCode != null) {
       Clipboard.setData(ClipboardData(text: checkoutState.pixCode!));
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Código PIX copiado!')),
-      );
+      AppFeedback.showInfo(context, 'Código PIX copiado!');
     }
   }
 
@@ -128,7 +141,33 @@ class _PixPaymentScreenState extends ConsumerState<PixPaymentScreen> {
     final theme = Theme.of(context);
     final checkoutState = ref.watch(checkoutProvider);
 
-    return Scaffold(
+    // Gap #5: Prevent accidental back-press
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
+        final shouldLeave = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Cancelar pagamento?'),
+            content: const Text('Se sair agora, o pagamento PIX será perdido.'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Continuar aqui'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Sair'),
+              ),
+            ],
+          ),
+        );
+        if (shouldLeave == true && context.mounted) {
+          context.go(AppRouter.home);
+        }
+      },
+      child: Scaffold(
       backgroundColor: theme.colorScheme.surface,
       appBar: AppBar(
         title: const Text('Pagamento PIX'),
@@ -136,7 +175,28 @@ class _PixPaymentScreenState extends ConsumerState<PixPaymentScreen> {
         automaticallyImplyLeading: false,
         actions: [
           IconButton(
-            onPressed: () => context.go(AppRouter.home),
+            onPressed: () async {
+              final shouldLeave = await showDialog<bool>(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: const Text('Cancelar pagamento?'),
+                  content: const Text('Se sair agora, o pagamento PIX será perdido.'),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      child: const Text('Continuar aqui'),
+                    ),
+                    FilledButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      child: const Text('Sair'),
+                    ),
+                  ],
+                ),
+              );
+              if (shouldLeave == true && context.mounted) {
+                context.go(AppRouter.home);
+              }
+            },
             icon: const Icon(Icons.close),
           ),
         ],
@@ -296,6 +356,7 @@ class _PixPaymentScreenState extends ConsumerState<PixPaymentScreen> {
           ],
         ),
       ),
+    ),
     );
   }
 

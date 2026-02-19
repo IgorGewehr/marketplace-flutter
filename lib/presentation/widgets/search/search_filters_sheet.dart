@@ -16,26 +16,47 @@ class _SearchFiltersSheetState extends ConsumerState<SearchFiltersSheet> {
   late String _selectedCategory;
   RangeValues _priceRange = const RangeValues(0, 10000);
   String _sortBy = 'recent';
+  final _tagController = TextEditingController();
+  List<String> _tags = [];
 
   @override
   void initState() {
     super.initState();
     final filters = ref.read(productFiltersProvider);
-    _selectedCategory = filters.category ?? 'Todos';
+    // filters.category stores a category ID; resolve it back to a name for display
+    final categoryId = filters.category;
+    if (categoryId != null) {
+      final idToName = ref.read(categoryIdToNameProvider).valueOrNull ?? {};
+      _selectedCategory = idToName[categoryId] ?? 'Todos';
+    } else {
+      _selectedCategory = 'Todos';
+    }
     _priceRange = RangeValues(
       filters.minPrice ?? 0,
       filters.maxPrice ?? 10000,
     );
     _sortBy = filters.sortBy;
+    _tags = List.from(filters.tags ?? []);
+  }
+
+  @override
+  void dispose() {
+    _tagController.dispose();
+    super.dispose();
   }
 
   void _applyFilters() {
     final currentFilters = ref.read(productFiltersProvider);
+    final nameToId = ref.read(categoryNameToIdProvider).valueOrNull ?? {};
+    final categoryId = _selectedCategory == 'Todos'
+        ? null
+        : nameToId[_selectedCategory] ?? _selectedCategory;
     ref.read(productFiltersProvider.notifier).state = currentFilters.copyWith(
-      category: _selectedCategory == 'Todos' ? null : _selectedCategory,
+      category: categoryId,
       minPrice: _priceRange.start > 0 ? _priceRange.start : null,
       maxPrice: _priceRange.end < 10000 ? _priceRange.end : null,
       sortBy: _sortBy,
+      tags: _tags.isNotEmpty ? _tags : null,
       page: 1, // Reset to first page
     );
     Navigator.pop(context);
@@ -46,7 +67,19 @@ class _SearchFiltersSheetState extends ConsumerState<SearchFiltersSheet> {
       _selectedCategory = 'Todos';
       _priceRange = const RangeValues(0, 10000);
       _sortBy = 'recent';
+      _tags = [];
+      _tagController.clear();
     });
+  }
+
+  void _addTag() {
+    final tag = _tagController.text.trim();
+    if (tag.isNotEmpty && !_tags.contains(tag)) {
+      setState(() {
+        _tags.add(tag);
+        _tagController.clear();
+      });
+    }
   }
 
   @override
@@ -169,6 +202,49 @@ class _SearchFiltersSheetState extends ConsumerState<SearchFiltersSheet> {
                       setState(() => _priceRange = values);
                     },
                   ),
+
+                  const SizedBox(height: 24),
+
+                  // Tag filter
+                  Text(
+                    'Tags',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _tagController,
+                          decoration: InputDecoration(
+                            hintText: 'Filtrar por tag',
+                            isDense: true,
+                            suffixIcon: IconButton(
+                              icon: const Icon(Icons.add_circle_outline),
+                              onPressed: _addTag,
+                            ),
+                          ),
+                          textInputAction: TextInputAction.done,
+                          onSubmitted: (_) => _addTag(),
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (_tags.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: _tags.map((tag) => Chip(
+                        label: Text('#$tag'),
+                        deleteIcon: const Icon(Icons.close, size: 16),
+                        onDeleted: () => setState(() => _tags.remove(tag)),
+                        visualDensity: VisualDensity.compact,
+                      )).toList(),
+                    ),
+                  ],
 
                   const SizedBox(height: 24),
 

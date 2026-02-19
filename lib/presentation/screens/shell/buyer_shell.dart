@@ -8,6 +8,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../providers/auth_providers.dart';
 import '../../providers/mercadopago_provider.dart';
 import '../../providers/seller_mode_provider.dart';
+import '../../widgets/shared/app_feedback.dart';
 import '../../widgets/shared/custom_bottom_nav.dart';
 
 /// Buyer shell with bottom navigation (5 tabs)
@@ -69,14 +70,14 @@ class _BuyerShellState extends ConsumerState<BuyerShell> {
       return;
     }
 
-    // TODO: Re-enable Mercado Pago check after testing phase
-    // final isMpConnected = ref.read(isMpConnectedProvider);
-    // if (!isMpConnected) {
-    //   _showMpConnectDialog();
-    //   return;
-    // }
+    // 3. Check Mercado Pago connection
+    final isMpConnected = ref.read(isMpConnectedProvider);
+    if (!isMpConnected) {
+      _showMpConnectDialog();
+      return;
+    }
 
-    // 3. All checks passed — go directly to create product
+    // 4. All checks passed — go directly to create product
     context.push('/seller/products/new');
   }
 
@@ -168,17 +169,22 @@ class _BuyerShellState extends ConsumerState<BuyerShell> {
 
               // Seller mode entry — prominent for sellers
               if (isSeller) ...[
-                _MenuActionButton(
-                  icon: Icons.storefront_rounded,
-                  label: 'Minhas Vendas',
-                  isSeller: true,
+                _SellerModeMenuCard(
                   onTap: () {
                     Navigator.pop(context);
                     ref.read(sellerModeProvider.notifier).setMode(true);
                     this.context.go('/seller');
                   },
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 12),
+              ] else ...[
+                _BecomeSellerMenuCard(
+                  onTap: () {
+                    Navigator.pop(context);
+                    this.context.push(AppRouter.becomeSeller);
+                  },
+                ),
+                const SizedBox(height: 12),
               ],
 
               _MenuActionButton(
@@ -264,12 +270,8 @@ class _BuyerShellState extends ConsumerState<BuyerShell> {
           return;
         }
         _lastBackPress = now;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Pressione novamente para sair'),
-            duration: Duration(seconds: 2),
-          ),
-        );
+        if (!context.mounted) return;
+        AppFeedback.showInfo(context, 'Pressione novamente para sair');
       },
       child: Scaffold(
         body: widget.child,
@@ -289,14 +291,12 @@ class _MenuActionButton extends StatelessWidget {
   final String label;
   final VoidCallback onTap;
   final bool isDestructive;
-  final bool isSeller;
 
   const _MenuActionButton({
     required this.icon,
     required this.label,
     required this.onTap,
     this.isDestructive = false,
-    this.isSeller = false,
   });
 
   @override
@@ -304,9 +304,7 @@ class _MenuActionButton extends StatelessWidget {
     final theme = Theme.of(context);
     final color = isDestructive
         ? theme.colorScheme.error
-        : isSeller
-            ? AppColors.sellerAccent
-            : theme.colorScheme.primary;
+        : theme.colorScheme.primary;
 
     return InkWell(
       onTap: onTap,
@@ -314,13 +312,8 @@ class _MenuActionButton extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
-          color: isSeller
-              ? AppColors.sellerAccent.withAlpha(15)
-              : theme.colorScheme.surfaceContainerHighest,
+          color: theme.colorScheme.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(12),
-          border: isSeller
-              ? Border.all(color: AppColors.sellerAccent.withAlpha(40))
-              : null,
         ),
         child: Row(
           children: [
@@ -330,22 +323,173 @@ class _MenuActionButton extends StatelessWidget {
               child: Text(
                 label,
                 style: theme.textTheme.bodyLarge?.copyWith(
-                  fontWeight: isSeller ? FontWeight.w600 : FontWeight.w500,
+                  fontWeight: FontWeight.w500,
                   color: isDestructive
                       ? theme.colorScheme.error
-                      : isSeller
-                          ? AppColors.sellerAccent
-                          : null,
+                      : null,
                 ),
               ),
             ),
             Icon(
               Icons.chevron_right,
-              color: isSeller
-                  ? AppColors.sellerAccent
-                  : theme.colorScheme.onSurfaceVariant,
+              color: theme.colorScheme.onSurfaceVariant,
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Prominent seller mode card in the buyer menu
+class _SellerModeMenuCard extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const _SellerModeMenuCard({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      borderRadius: BorderRadius.circular(16),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            gradient: AppColors.sellerGradient,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: Colors.white.withAlpha(40),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.storefront_rounded,
+                  color: Colors.white,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Modo Vendedor',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Gerencie produtos e vendas',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.white.withAlpha(200),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: Colors.white.withAlpha(40),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.arrow_forward_rounded,
+                  color: Colors.white,
+                  size: 18,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// CTA card encouraging non-sellers to start selling
+class _BecomeSellerMenuCard extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const _BecomeSellerMenuCard({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Material(
+      borderRadius: BorderRadius.circular(16),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            color: theme.colorScheme.surfaceContainerHighest,
+            border: Border.all(
+              color: AppColors.sellerAccent.withAlpha(40),
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: AppColors.sellerAccent.withAlpha(20),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.storefront_rounded,
+                  color: AppColors.sellerAccent,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Quero Vender',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: theme.colorScheme.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Comece a vender no Compre Aqui',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.arrow_forward_rounded,
+                color: AppColors.sellerAccent,
+                size: 20,
+              ),
+            ],
+          ),
         ),
       ),
     );

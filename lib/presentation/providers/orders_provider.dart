@@ -2,15 +2,21 @@ import 'package:flutter/painting.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/models/order_model.dart';
-import '../../domain/repositories/order_repository.dart';
 import 'core_providers.dart';
 
 /// Order status enum for use in providers/screens
+/// Gap #16: Include all statuses used by the backend
 enum OrderStatus {
   pending,
+  // ignore: constant_identifier_names
+  pending_payment,
   confirmed,
+  preparing,
   processing,
+  ready,
   shipped,
+  // ignore: constant_identifier_names
+  out_for_delivery,
   delivered,
   cancelled,
   refunded,
@@ -83,42 +89,36 @@ class OrdersState {
   }
 }
 
-/// Orders notifier
-class OrdersNotifier extends Notifier<OrdersState> {
+/// Orders notifier — uses AsyncNotifier for safe async build
+class OrdersNotifier extends AsyncNotifier<OrdersState> {
   static const int _pageSize = 20;
   int _currentPage = 1;
 
   @override
-  OrdersState build() {
-    _loadOrders();
-    return const OrdersState(isLoading: true);
-  }
-
-  Future<void> _loadOrders() async {
+  Future<OrdersState> build() async {
     try {
       final orderRepo = ref.read(orderRepositoryProvider);
       final response = await orderRepo.getOrders(page: 1, limit: _pageSize);
-      
-      state = state.copyWith(
+      _currentPage = 1;
+      return OrdersState(
         orders: response.orders,
-        isLoading: false,
         hasMore: response.orders.length >= _pageSize,
       );
-      _currentPage = 1;
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      return OrdersState(error: e.toString());
     }
   }
 
   Future<void> refresh() async {
-    state = state.copyWith(isLoading: true);
-    await _loadOrders();
+    state = const AsyncValue.loading();
+    state = await AsyncValue.guard(() => build());
   }
 
   Future<void> loadMore() async {
-    if (state.isLoadingMore || !state.hasMore) return;
+    final current = state.valueOrNull;
+    if (current == null || current.isLoadingMore || !current.hasMore) return;
 
-    state = state.copyWith(isLoadingMore: true);
+    state = AsyncValue.data(current.copyWith(isLoadingMore: true));
 
     try {
       final orderRepo = ref.read(orderRepositoryProvider);
@@ -127,24 +127,37 @@ class OrdersNotifier extends Notifier<OrdersState> {
         limit: _pageSize,
       );
 
-      state = state.copyWith(
-        orders: [...state.orders, ...response.orders],
+      state = AsyncValue.data(current.copyWith(
+        orders: [...current.orders, ...response.orders],
         isLoadingMore: false,
         hasMore: response.orders.length >= _pageSize,
-      );
+      ));
       _currentPage++;
     } catch (e) {
-      state = state.copyWith(isLoadingMore: false);
+      state = AsyncValue.data(current.copyWith(isLoadingMore: false));
     }
   }
 
   void setFilter(OrderFilter filter) {
-    state = state.copyWith(filter: filter);
+    final current = state.valueOrNull;
+    if (current == null) return;
+    state = AsyncValue.data(current.copyWith(filter: filter));
+  }
+
+  Future<bool> confirmDelivery(String orderId) async {
+    try {
+      final orderRepo = ref.read(orderRepositoryProvider);
+      await orderRepo.confirmDelivery(orderId);
+      await refresh();
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 }
 
 /// Orders provider
-final ordersProvider = NotifierProvider<OrdersNotifier, OrdersState>(
+final ordersProvider = AsyncNotifierProvider<OrdersNotifier, OrdersState>(
   OrdersNotifier.new,
 );
 
@@ -223,8 +236,18 @@ OrderStatusInfo getOrderStatusInfo(String statusString) {
         backgroundColor: Color(0xFFFFF3E0),
         textColor: Color(0xFFF57C00),
       ),
+    OrderStatus.pending_payment => const OrderStatusInfo(
+        label: 'Aguardando pagamento',
+        backgroundColor: Color(0xFFFFF3E0),
+        textColor: Color(0xFFF57C00),
+      ),
     OrderStatus.confirmed => const OrderStatusInfo(
         label: 'Confirmado',
+        backgroundColor: Color(0xFFE3F2FD),
+        textColor: Color(0xFF1976D2),
+      ),
+    OrderStatus.preparing => const OrderStatusInfo(
+        label: 'Preparando',
         backgroundColor: Color(0xFFE3F2FD),
         textColor: Color(0xFF1976D2),
       ),
@@ -233,8 +256,18 @@ OrderStatusInfo getOrderStatusInfo(String statusString) {
         backgroundColor: Color(0xFFE3F2FD),
         textColor: Color(0xFF1976D2),
       ),
+    OrderStatus.ready => const OrderStatusInfo(
+        label: 'Pronto para envio',
+        backgroundColor: Color(0xFFE8F5E9),
+        textColor: Color(0xFF388E3C),
+      ),
     OrderStatus.shipped => const OrderStatusInfo(
         label: 'Enviado',
+        backgroundColor: Color(0xFFF3E5F5),
+        textColor: Color(0xFF7B1FA2),
+      ),
+    OrderStatus.out_for_delivery => const OrderStatusInfo(
+        label: 'Saiu para entrega',
         backgroundColor: Color(0xFFF3E5F5),
         textColor: Color(0xFF7B1FA2),
       ),

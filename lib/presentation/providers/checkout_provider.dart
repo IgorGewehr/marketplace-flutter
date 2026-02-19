@@ -218,7 +218,7 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
 
   /// Create order and process payment
   Future<bool> placeOrder() async {
-    if (!state.canProceed) return false;
+    if (!state.canProceed || state.isLoading) return false;
 
     state = state.copyWith(isLoading: true, currentStep: CheckoutStep.processing);
 
@@ -245,16 +245,16 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
           pixExpiration: order.pixExpiration ?? DateTime.now().add(const Duration(minutes: 15)),
           isLoading: false,
         );
+        // Don't clear cart yet — wait until PIX payment is confirmed
       } else {
         state = state.copyWith(
           createdOrder: order,
           isLoading: false,
           currentStep: CheckoutStep.complete,
         );
+        // Clear cart immediately for non-PIX (card is processed instantly)
+        ref.read(cartProvider.notifier).clearCart();
       }
-
-      // Clear cart
-      ref.read(cartProvider.notifier).clearCart();
 
       return true;
     } catch (e) {
@@ -281,6 +281,8 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
           createdOrder: order,
           currentStep: CheckoutStep.complete,
         );
+        // PIX confirmed — now safe to clear cart
+        ref.read(cartProvider.notifier).clearCart();
         return true;
       }
       return false;

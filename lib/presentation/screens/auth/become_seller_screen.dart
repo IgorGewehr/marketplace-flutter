@@ -9,6 +9,7 @@ import '../../widgets/auth/auth_button.dart';
 import '../../widgets/auth/auth_text_field.dart';
 import '../../widgets/auth/cpf_cnpj_field.dart';
 import '../../widgets/auth/phone_field.dart';
+import '../../widgets/shared/app_feedback.dart';
 
 /// Become Seller Screen - Multi-step onboarding flow (5 steps)
 class BecomeSellerScreen extends ConsumerStatefulWidget {
@@ -102,12 +103,7 @@ class _BecomeSellerScreenState extends ConsumerState<BecomeSellerScreen> {
     switch (_currentStep) {
       case 1:
         if (_businessType.isEmpty) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Selecione um tipo de negócio'),
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
+          AppFeedback.showWarning(context, 'Selecione um tipo de negócio');
           return false;
         }
         return true;
@@ -140,12 +136,7 @@ class _BecomeSellerScreenState extends ConsumerState<BecomeSellerScreen> {
         curve: Curves.easeInOut,
       );
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Erro ao criar loja. Tente novamente.'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      AppFeedback.showError(context, 'Erro ao criar loja. Tente novamente.');
     }
   }
 
@@ -155,7 +146,7 @@ class _BecomeSellerScreenState extends ConsumerState<BecomeSellerScreen> {
     final isWelcome = _currentStep == 0;
 
     return Scaffold(
-      backgroundColor: isWelcome ? Colors.white : null,
+      backgroundColor: isWelcome ? theme.colorScheme.surface : null,
       body: SafeArea(
         child: Column(
           children: [
@@ -168,7 +159,7 @@ class _BecomeSellerScreenState extends ConsumerState<BecomeSellerScreen> {
                     onPressed: _previousStep,
                     icon: Icon(
                       Icons.arrow_back,
-                      color: isWelcome ? Colors.grey[800] : null,
+                      color: isWelcome ? theme.colorScheme.onSurface : null,
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -219,7 +210,7 @@ class _BecomeSellerScreenState extends ConsumerState<BecomeSellerScreen> {
   // ========== Step 0: Welcome ==========
   Widget _buildWelcomeStep(ThemeData theme) {
     return Container(
-      color: Colors.white,
+      color: theme.colorScheme.surface,
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
@@ -248,7 +239,7 @@ class _BecomeSellerScreenState extends ConsumerState<BecomeSellerScreen> {
               style: TextStyle(
                 fontSize: 26,
                 fontWeight: FontWeight.bold,
-                color: Colors.grey[900],
+                color: theme.colorScheme.onSurface,
               ),
               textAlign: TextAlign.center,
             ),
@@ -259,7 +250,7 @@ class _BecomeSellerScreenState extends ConsumerState<BecomeSellerScreen> {
               'Alcance milhares de clientes no Meio Oeste',
               style: TextStyle(
                 fontSize: 16,
-                color: Colors.grey[600],
+                color: theme.colorScheme.onSurfaceVariant,
               ),
               textAlign: TextAlign.center,
             ),
@@ -580,22 +571,19 @@ class _BecomeSellerScreenState extends ConsumerState<BecomeSellerScreen> {
 
           AuthButton(
             text: 'Continuar',
-            onPressed: _nextStep,
+            onPressed: _mpConnected ? _nextStep : null,
           ),
 
-          const SizedBox(height: 12),
-
-          Center(
-            child: TextButton(
-              onPressed: _nextStep,
-              child: Text(
-                'Pular por enquanto',
-                style: TextStyle(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
+          if (!_mpConnected) ...[
+            const SizedBox(height: 12),
+            Text(
+              'A conexão com o Mercado Pago é obrigatória para receber pagamentos e vender na plataforma.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
               ),
+              textAlign: TextAlign.center,
             ),
-          ),
+          ],
         ],
       ),
     );
@@ -756,7 +744,7 @@ class _BusinessTypeCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: isSelected
               ? theme.colorScheme.primary.withAlpha(13)
-              : Colors.white,
+              : theme.colorScheme.surface,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: isSelected

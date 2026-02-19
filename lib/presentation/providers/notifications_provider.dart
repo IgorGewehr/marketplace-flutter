@@ -123,25 +123,21 @@ class NotificationSettingsState {
 class NotificationSettingsNotifier extends Notifier<NotificationSettingsState> {
   @override
   NotificationSettingsState build() {
-    _loadFromStorage();
-    return const NotificationSettingsState();
-  }
-
-  Future<void> _loadFromStorage() async {
+    // Load synchronously from Hive (Hive reads are sync)
     try {
       final storage = ref.read(localStorageProvider);
       final orders = storage.getBool('notif_orders') ?? true;
       final chat = storage.getBool('notif_chat') ?? true;
       final promos = storage.getBool('notif_promotions') ?? true;
       final payments = storage.getBool('notif_payments') ?? true;
-      state = NotificationSettingsState(
+      return NotificationSettingsState(
         ordersEnabled: orders,
         chatEnabled: chat,
         promotionsEnabled: promos,
         paymentsEnabled: payments,
       );
     } catch (_) {
-      // Use defaults on error
+      return const NotificationSettingsState();
     }
   }
 
@@ -174,6 +170,24 @@ class NotificationSettingsNotifier extends Notifier<NotificationSettingsState> {
       storage.setBool('notif_payments', state.paymentsEnabled);
     } catch (_) {
       // Silently fail on storage error
+    }
+
+    // Sync with backend — capture values before async gap
+    final prefs = {
+      'orders': state.ordersEnabled,
+      'chat': state.chatEnabled,
+      'promotions': state.promotionsEnabled,
+      'payments': state.paymentsEnabled,
+    };
+    _syncWithBackend(prefs);
+  }
+
+  Future<void> _syncWithBackend(Map<String, bool> prefs) async {
+    try {
+      final repo = ref.read(notificationRepositoryProvider);
+      await repo.updatePreferences(prefs);
+    } catch (_) {
+      // Best-effort sync - local storage is the source of truth
     }
   }
 }

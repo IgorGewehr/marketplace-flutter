@@ -59,8 +59,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   void _navigateAfterLogin() {
-    if (widget.redirectPath != null && widget.redirectPath!.isNotEmpty) {
-      context.go(widget.redirectPath!);
+    final redirect = widget.redirectPath;
+    // Validate redirect path: must be internal route starting with /
+    // and not contain external URI schemes
+    if (redirect != null &&
+        redirect.isNotEmpty &&
+        redirect.startsWith('/') &&
+        !redirect.contains('://')) {
+      context.go(redirect);
     } else {
       context.go(AppRouter.home);
     }
@@ -75,10 +81,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     return Scaffold(
       body: Column(
         children: [
-          // White header with logo
+          // Header with logo
           Container(
             width: double.infinity,
-            color: Colors.white,
+            color: theme.colorScheme.surface,
             child: SafeArea(
               bottom: false,
               child: Padding(
@@ -96,7 +102,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             context.go(AppRouter.home);
                           }
                         },
-                        icon: Icon(Icons.arrow_back, color: Colors.grey[800]),
+                        icon: Icon(Icons.arrow_back, color: theme.colorScheme.onSurface),
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -111,7 +117,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       style: TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
-                        color: Colors.grey[900],
+                        color: theme.colorScheme.onSurface,
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -119,7 +125,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       'Entre para continuar comprando',
                       style: TextStyle(
                         fontSize: 14,
-                        color: Colors.grey[600],
+                        color: theme.colorScheme.onSurfaceVariant,
                       ),
                     ),
                   ],
@@ -159,9 +165,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       validator: (value) {
                         if (value == null || value.isEmpty) {
                           return 'Informe sua senha';
-                        }
-                        if (value.length < 6) {
-                          return 'A senha deve ter pelo menos 6 caracteres';
                         }
                         return null;
                       },

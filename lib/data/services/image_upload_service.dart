@@ -17,9 +17,23 @@ class ImageUploadService {
   static const int maxWidth = 1024;
   static const int maxHeight = 1024;
 
+  // Allowed image extensions
+  static const List<String> _allowedExtensions = ['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif'];
+
+  /// Validate that a file has an allowed image extension
+  void _validateFileExtension(File file) {
+    final ext = path.extension(file.path).toLowerCase().replaceAll('.', '');
+    if (ext.isNotEmpty && !_allowedExtensions.contains(ext)) {
+      throw Exception('Formato não suportado. Use: JPG, PNG ou WebP');
+    }
+  }
+
   /// Upload a single image with compression and validation
   Future<String> uploadProductImage(File imageFile, String productId) async {
     try {
+      // Validate file extension
+      _validateFileExtension(imageFile);
+
       // Validate file size before compression
       final fileSize = await imageFile.length();
       if (fileSize > maxFileSizeBytes * 2) {
@@ -66,23 +80,47 @@ class ImageUploadService {
     }
   }
 
-  /// Upload multiple images with progress tracking
+  // Gap #23: Track active upload tasks for cancellation
+  final List<UploadTask> _activeUploads = [];
+  bool _isCancelled = false;
+
+  /// Cancel all pending uploads
+  void cancelUploads() {
+    _isCancelled = true;
+    for (final task in _activeUploads) {
+      task.cancel();
+    }
+    _activeUploads.clear();
+  }
+
+  /// Upload multiple images with progress tracking and cancellation support
   Future<List<String>> uploadProductImages(
     List<File> imageFiles,
     String productId, {
     Function(int current, int total)? onProgress,
   }) async {
+    _isCancelled = false;
+    _activeUploads.clear();
     final urls = <String>[];
+    int failedCount = 0;
 
     for (int i = 0; i < imageFiles.length; i++) {
+      if (_isCancelled) break;
       try {
         final url = await uploadProductImage(imageFiles[i], productId);
         urls.add(url);
         onProgress?.call(i + 1, imageFiles.length);
       } catch (e) {
-        // Continue with other images even if one fails
+        failedCount++;
         continue;
       }
+    }
+
+    _activeUploads.clear();
+
+    // Gap #23: Warn if some images failed silently
+    if (failedCount > 0 && urls.isNotEmpty) {
+      throw Exception('$failedCount foto(s) não puderam ser enviadas');
     }
 
     return urls;
@@ -120,6 +158,8 @@ class ImageUploadService {
   /// Upload a chat image with compression
   Future<String> uploadChatImage(File imageFile, String chatId) async {
     try {
+      _validateFileExtension(imageFile);
+
       final fileSize = await imageFile.length();
       if (fileSize > maxFileSizeBytes * 2) {
         throw Exception('Imagem muito grande. Máximo: 10MB');
@@ -153,6 +193,8 @@ class ImageUploadService {
   /// Upload a profile avatar image with compression
   Future<String> uploadProfileImage(File imageFile, String userId) async {
     try {
+      _validateFileExtension(imageFile);
+
       final fileSize = await imageFile.length();
       if (fileSize > maxFileSizeBytes * 2) {
         throw Exception('Imagem muito grande. Máximo: 10MB');

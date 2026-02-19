@@ -76,7 +76,7 @@ class ChatsNotifier extends AsyncNotifier<List<ChatModel>> {
     final chats = state.valueOrNull ?? [];
     final existing = chats.where((c) =>
       c.tenantId == tenantId &&
-      (orderId == null || c.orderId == orderId)
+      ((orderId == null && c.orderId == null) || c.orderId == orderId)
     ).firstOrNull;
 
     if (existing != null) return existing;
@@ -194,7 +194,7 @@ class ChatMessagesNotifier extends FamilyAsyncNotifier<List<MessageModel>, Strin
   }
 
   /// Send a text message via REST API (backend handles notifications, unread counts)
-  Future<MessageModel?> sendMessage(String text) async {
+  Future<MessageModel?> sendMessage(String text, {String? replyToId}) async {
     final user = ref.read(currentUserProvider).valueOrNull;
     if (user == null) return null;
 
@@ -222,9 +222,14 @@ class ChatMessagesNotifier extends FamilyAsyncNotifier<List<MessageModel>, Strin
     // Send via REST API (handles notifications, unread counts, push)
     try {
       final repo = ref.read(chatRepositoryProvider);
-      await repo.sendMessage(chatId: arg, text: text);
+      await repo.sendMessage(chatId: arg, text: text, replyToId: replyToId);
     } catch (_) {
-      // Optimistic update stays; Firestore listener will sync
+      // Gap #15: Remove failed optimistic message so it doesn't ghost
+      final msgs = state.valueOrNull ?? [];
+      state = AsyncValue.data(
+        msgs.where((m) => m.id != message.id).toList(),
+      );
+      rethrow;
     }
 
     return message;
@@ -377,17 +382,24 @@ final chatParticipantProvider = Provider.family<ChatParticipant?, String>((ref, 
 });
 
 /// Helper to serialize Firestore data (Timestamps -> ISO strings)
+/// Handles nested Maps and Lists recursively
 Map<String, dynamic> _serializeFirestoreData(Map<String, dynamic> data) {
   final result = <String, dynamic>{};
   for (final entry in data.entries) {
-    final value = entry.value;
-    if (value is Timestamp) {
-      result[entry.key] = value.toDate().toIso8601String();
-    } else if (value is Map<String, dynamic>) {
-      result[entry.key] = _serializeFirestoreData(value);
-    } else {
-      result[entry.key] = value;
-    }
+    result[entry.key] = _serializeValue(entry.value);
   }
   return result;
+}
+
+dynamic _serializeValue(dynamic value) {
+  if (value is Timestamp) {
+    return value.toDate().toIso8601String();
+  } else if (value is Map<String, dynamic>) {
+    return _serializeFirestoreData(value);
+  } else if (value is Map) {
+    return _serializeFirestoreData(Map<String, dynamic>.from(value));
+  } else if (value is List) {
+    return value.map(_serializeValue).toList();
+  }
+  return value;
 }

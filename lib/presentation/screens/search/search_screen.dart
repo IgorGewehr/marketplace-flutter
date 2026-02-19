@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -8,6 +10,7 @@ import '../../widgets/home/section_header.dart';
 import '../../widgets/products/product_carousel.dart';
 import '../../widgets/search/search_filters_sheet.dart';
 import '../../widgets/search/search_product_list_card.dart';
+import '../../widgets/shared/app_feedback.dart';
 import '../../widgets/shared/empty_state.dart';
 import '../../widgets/shared/shimmer_loading.dart';
 
@@ -23,6 +26,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _focusNode = FocusNode();
   bool _showResults = false;
+  Timer? _debounceTimer; // Gap #11: Debounce search
 
   @override
   void initState() {
@@ -33,15 +37,23 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   @override
   void dispose() {
+    _debounceTimer?.cancel();
     _searchController.dispose();
     _focusNode.dispose();
     super.dispose();
   }
 
+  // Gap #11: Debounce search queries to avoid per-keystroke Firestore calls
   void _onSearchChanged() {
-    ref.read(searchQueryProvider.notifier).state = _searchController.text;
     setState(() {
       _showResults = _searchController.text.isNotEmpty;
+    });
+
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(const Duration(milliseconds: 400), () {
+      if (mounted) {
+        ref.read(searchQueryProvider.notifier).state = _searchController.text;
+      }
     });
   }
 
@@ -235,12 +247,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                           ref
                               .read(searchHistoryProvider.notifier)
                               .addSearch(_searchController.text);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Busca salva'),
-                              duration: Duration(seconds: 1),
-                            ),
-                          );
+                          AppFeedback.showSuccess(context, 'Busca salva');
                         }
                       },
                     ),
@@ -274,15 +281,17 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
             const SizedBox(height: 8),
 
-            // Content
+            // Content — Gap #4: Show search history when no query/filters active
             Expanded(
               child: hasActiveFilters
                   ? _buildResults(resultsAsync)
-                  : categoriesAsync.when(
-                      loading: () => const ShimmerLoading(itemCount: 4),
-                      error: (_, __) => const Center(child: Text('Erro ao carregar categorias')),
-                      data: (categories) => _buildCategoryCarousels(categories),
-                    ),
+                  : _searchController.text.isEmpty && history.isNotEmpty
+                      ? _buildSearchHistory(history)
+                      : categoriesAsync.when(
+                          loading: () => const ShimmerLoading(itemCount: 4),
+                          error: (_, __) => const Center(child: Text('Erro ao carregar categorias')),
+                          data: (categories) => _buildCategoryCarousels(categories),
+                        ),
             ),
           ],
         ),
@@ -312,9 +321,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                   actionLabel: 'Ver todos',
                   onActionPressed: () {
                     ref.read(selectedCategoryProvider.notifier).state = category;
+                    final nameToId = ref.read(categoryNameToIdProvider).valueOrNull ?? {};
+                    final categoryId = nameToId[category] ?? category;
                     ref.read(productFiltersProvider.notifier).state =
                         ref.read(productFiltersProvider).copyWith(
-                              category: category,
+                              category: categoryId,
                               page: 1,
                             );
                   },
@@ -339,9 +350,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                     actionLabel: 'Ver todos',
                     onActionPressed: () {
                       ref.read(selectedCategoryProvider.notifier).state = category;
+                      final nameToId = ref.read(categoryNameToIdProvider).valueOrNull ?? {};
+                      final categoryId = nameToId[category] ?? category;
                       ref.read(productFiltersProvider.notifier).state =
                           ref.read(productFiltersProvider).copyWith(
-                                category: category,
+                                category: categoryId,
                                 page: 1,
                               );
                     },

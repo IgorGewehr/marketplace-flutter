@@ -66,34 +66,48 @@ class OrdersScreen extends ConsumerWidget {
 
           // Orders list
           Expanded(
-            child: ordersState.isLoading
-                ? const Center(child: LoadingIndicator())
-                : ordersState.orders.isEmpty
-                    ? EmptyState.noOrders()
-                    : RefreshIndicator(
-                        onRefresh: () async {
-                          ref.invalidate(ordersProvider);
-                        },
-                        child: ListView.separated(
-                          padding: const EdgeInsets.all(16),
-                          itemCount: ordersState.orders.length + (ordersState.hasMore ? 1 : 0),
-                          separatorBuilder: (_, __) => const SizedBox(height: 12),
-                          itemBuilder: (context, index) {
-                            if (index >= ordersState.orders.length) {
-                              // Load more
-                              ref.read(ordersProvider.notifier).loadMore();
-                              return const Center(
-                                child: Padding(
-                                  padding: EdgeInsets.all(16),
-                                  child: CircularProgressIndicator(),
-                                ),
-                              );
-                            }
+            child: ordersState.when(
+              loading: () => const Center(child: LoadingIndicator()),
+              error: (_, __) => Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text('Erro ao carregar pedidos'),
+                    const SizedBox(height: 8),
+                    FilledButton(
+                      onPressed: () => ref.invalidate(ordersProvider),
+                      child: const Text('Tentar novamente'),
+                    ),
+                  ],
+                ),
+              ),
+              data: (data) => data.orders.isEmpty
+                  ? EmptyState.noOrders()
+                  : RefreshIndicator(
+                      onRefresh: () async {
+                        ref.invalidate(ordersProvider);
+                      },
+                      child: ListView.separated(
+                        padding: const EdgeInsets.all(16),
+                        itemCount: data.orders.length + (data.hasMore ? 1 : 0),
+                        separatorBuilder: (_, __) => const SizedBox(height: 12),
+                        itemBuilder: (context, index) {
+                          if (index >= data.orders.length) {
+                            // Load more
+                            ref.read(ordersProvider.notifier).loadMore();
+                            return const Center(
+                              child: Padding(
+                                padding: EdgeInsets.all(16),
+                                child: CircularProgressIndicator(),
+                              ),
+                            );
+                          }
 
-                            return OrderTile(order: ordersState.orders[index]);
-                          },
-                        ),
+                          return OrderTile(order: data.orders[index]);
+                        },
                       ),
+                    ),
+            ),
           ),
         ],
       ),
