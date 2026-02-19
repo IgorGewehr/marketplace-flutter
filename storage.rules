@@ -1,0 +1,161 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // ===========================================================================
+    // Helper Functions
+    // ===========================================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function getUserData() {
+      return firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isSeller() {
+      return isAuthenticated() &&
+             getUserData().userType in ['seller', 'erp_only', 'full'];
+    }
+
+    function isTenantMember(tenantId) {
+      return isAuthenticated() &&
+             getUserData().tenantId == tenantId;
+    }
+
+    function isValidImage() {
+      return request.resource.size <= 5 * 1024 * 1024 && // Max 5MB
+             request.resource.contentType.matches('image/.*');
+    }
+
+    // ===========================================================================
+    // Product Images
+    // ===========================================================================
+
+    match /products/{productId}/{imageFile} {
+      // Anyone can read product images (public)
+      allow read: if true;
+
+      // Sellers can only upload images for products belonging to their tenant
+      allow write: if isSeller() && isValidImage() &&
+                      firestore.get(/databases/(default)/documents/products/$(productId)).data.tenantId == getUserData().tenantId;
+
+      // Sellers can only delete images for products belonging to their tenant
+      allow delete: if isSeller() &&
+                       firestore.get(/databases/(default)/documents/products/$(productId)).data.tenantId == getUserData().tenantId;
+    }
+
+    // ===========================================================================
+    // Tenant Logos and Documents
+    // ===========================================================================
+
+    match /tenants/{tenantId}/{file} {
+      // Public read for logos
+      allow read: if true;
+
+      // Tenant members can upload files
+      allow write: if isTenantMember(tenantId) && isValidImage();
+
+      // Tenant members can delete files
+      allow delete: if isTenantMember(tenantId);
+    }
+
+    // ===========================================================================
+    // User Profile Photos
+    // ===========================================================================
+
+    match /users/{userId}/{file} {
+      // Public read for profile photos
+      allow read: if true;
+
+      // Users can upload their own photos
+      allow write: if isOwner(userId) && isValidImage();
+
+      // Users can delete their own photos
+      allow delete: if isOwner(userId);
+    }
+
+    // ===========================================================================
+    // Fiscal Documents (NFe, NFCe, NFSe)
+    // ===========================================================================
+
+    match /fiscal/{tenantId}/{invoiceId}/{file} {
+      // Only tenant members can read fiscal documents
+      allow read: if isTenantMember(tenantId);
+
+      // Only system/backend can write (via service account)
+      allow write: if false;
+
+      // No deletion allowed (immutable)
+      allow delete: if false;
+    }
+
+    // ===========================================================================
+    // Digital Certificates (A1)
+    // ===========================================================================
+
+    match /certificates/{tenantId}/{file} {
+      // Only tenant admins can read certificates
+      allow read: if isTenantMember(tenantId);
+
+      // Only tenant admins can upload certificates
+      allow write: if isTenantMember(tenantId) &&
+                      request.resource.contentType == 'application/x-pkcs12';
+
+      // Only tenant admins can delete certificates
+      allow delete: if isTenantMember(tenantId);
+    }
+
+    // ===========================================================================
+    // Service Images
+    // ===========================================================================
+
+    match /services/{serviceId}/{category}/{file} {
+      // Anyone can read service images (public marketplace)
+      allow read: if true;
+
+      // Sellers can upload images for services belonging to their tenant
+      allow write: if isSeller() && isValidImage() &&
+                      firestore.get(/databases/(default)/documents/services/$(serviceId)).data.tenantId == getUserData().tenantId;
+
+      // Sellers can delete images for services belonging to their tenant
+      allow delete: if isSeller() &&
+                       firestore.get(/databases/(default)/documents/services/$(serviceId)).data.tenantId == getUserData().tenantId;
+    }
+
+    // ===========================================================================
+    // Chat Attachments
+    // ===========================================================================
+
+    match /chats/{chatId}/{file} {
+      // Participants can read chat attachments
+      allow read: if isAuthenticated() &&
+                     request.auth.uid in firestore.get(/databases/(default)/documents/chats/$(chatId)).data.participantIds;
+
+      // Participants can upload attachments (max 10MB, images and PDFs only)
+      allow write: if isAuthenticated() &&
+                      request.auth.uid in firestore.get(/databases/(default)/documents/chats/$(chatId)).data.participantIds &&
+                      request.resource.size <= 10 * 1024 * 1024 &&
+                      (request.resource.contentType.matches('image/.*') ||
+                       request.resource.contentType == 'application/pdf');
+
+      // Participants can delete attachments
+      allow delete: if isAuthenticated() &&
+                       request.auth.uid in firestore.get(/databases/(default)/documents/chats/$(chatId)).data.participantIds;
+    }
+
+    // ===========================================================================
+    // Default: Deny all
+    // ===========================================================================
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

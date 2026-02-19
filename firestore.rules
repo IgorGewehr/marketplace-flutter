@@ -1,0 +1,400 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===========================================================================
+    // Helper Functions
+    // ===========================================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isSeller() {
+      return isAuthenticated() &&
+             getUserData().userType in ['seller', 'erp_only', 'full'];
+    }
+
+    function isTenantMember(tenantId) {
+      return isAuthenticated() &&
+             getUserData().tenantId == tenantId;
+    }
+
+    function isTenantAdmin(tenantId) {
+      return isTenantMember(tenantId) &&
+             getUserData().role in ['owner', 'admin'];
+    }
+
+    // ===========================================================================
+    // Users Collection
+    // ===========================================================================
+
+    match /users/{userId} {
+      // Users can read their own data
+      allow read: if isOwner(userId);
+
+      // Users can create their own document on signup
+      allow create: if isOwner(userId);
+
+      // Users can update their own data (except critical fields)
+      allow update: if isOwner(userId) &&
+                       !request.resource.data.diff(resource.data).affectedKeys()
+                         .hasAny(['userType', 'tenantId', 'role']);
+
+      // Addresses subcollection
+      match /addresses/{addressId} {
+        allow read, write: if isOwner(userId);
+      }
+    }
+
+    // ===========================================================================
+    // Tenants Collection
+    // ===========================================================================
+
+    match /tenants/{tenantId} {
+      // Public read for marketplace data
+      allow read: if true;
+
+      // Only authenticated users can create tenants
+      allow create: if isAuthenticated();
+
+      // Only tenant admins can update
+      allow update: if isTenantAdmin(tenantId);
+
+      // No deletion allowed (use soft delete via status field)
+      allow delete: if false;
+
+      // Private subcollection (MP OAuth tokens, secrets)
+      // Access denied to all clients - only Admin SDK (Cloud Functions) can access
+      match /private/{document=**} {
+        allow read, write: if false;
+      }
+    }
+
+    // ===========================================================================
+    // Products Collection
+    // ===========================================================================
+
+    match /products/{productId} {
+      // Public read for active products visible in marketplace
+      allow read: if resource.data.status == 'active' &&
+                     resource.data.visibility in ['marketplace', 'both'];
+
+      // Tenant members can read their own products
+      allow read: if isTenantMember(resource.data.tenantId);
+
+      // Sellers can create products
+      allow create: if isSeller() &&
+                       request.resource.data.tenantId == getUserData().tenantId;
+
+      // Tenant members can update their products
+      allow update: if isTenantMember(resource.data.tenantId);
+
+      // Tenant admins can delete products
+      allow delete: if isTenantAdmin(resource.data.tenantId);
+    }
+
+    // ===========================================================================
+    // Categories Collection
+    // ===========================================================================
+
+    match /categories/{categoryId} {
+      // Public read for active categories
+      allow read: if resource.data.isActive == true;
+
+      // No write access (managed by admin only)
+      allow write: if false;
+    }
+
+    // ===========================================================================
+    // Orders Collection
+    // ===========================================================================
+
+    match /orders/{orderId} {
+      // Buyers can read their own orders
+      allow read: if isOwner(resource.data.buyerUserId) ||
+                     isOwner(resource.data.buyerId);
+
+      // Sellers can read orders for their tenant
+      allow read: if isTenantMember(resource.data.tenantId) ||
+                     isTenantMember(resource.data.sellerId);
+
+      // Orders are created via Cloud Functions (Admin SDK) - no direct client creation
+      // Fallback: authenticated users can create orders with their own buyerUserId
+      allow create: if isAuthenticated() &&
+                       (request.resource.data.buyerUserId == request.auth.uid ||
+                        request.resource.data.buyerId == request.auth.uid);
+
+      // Sellers can update order status, buyers can confirm delivery
+      allow update: if (isTenantMember(resource.data.tenantId) &&
+                        request.resource.data.diff(resource.data).affectedKeys()
+                          .hasOnly(['status', 'statusHistory', 'updatedAt'])) ||
+                       (isOwner(resource.data.buyerUserId) &&
+                        request.resource.data.diff(resource.data).affectedKeys()
+                          .hasOnly(['deliveryConfirmedAt', 'status', 'statusHistory', 'updatedAt']));
+
+      // No deletion
+      allow delete: if false;
+    }
+
+    // ===========================================================================
+    // Carts Collection
+    // ===========================================================================
+
+    match /carts/{userId} {
+      allow read, write: if isOwner(userId);
+
+      match /items/{itemId} {
+        allow read, write: if isOwner(userId);
+      }
+    }
+
+    // ===========================================================================
+    // QR Codes Collection
+    // ===========================================================================
+
+    match /qr_codes/{qrCodeId} {
+      // Only buyer or seller of the associated order can read
+      allow read: if isAuthenticated() &&
+                     (get(/databases/$(database)/documents/orders/$(resource.data.orderId)).data.buyerUserId == request.auth.uid ||
+                      isTenantMember(get(/databases/$(database)/documents/orders/$(resource.data.orderId)).data.tenantId));
+
+      // Only Cloud Functions create QR codes
+      allow create: if false;
+
+      // Only buyer of the order can mark as used (delivery confirmation)
+      allow update: if isAuthenticated() &&
+                       get(/databases/$(database)/documents/orders/$(resource.data.orderId)).data.buyerUserId == request.auth.uid &&
+                       request.resource.data.diff(resource.data).affectedKeys()
+                         .hasOnly(['isUsed', 'usedAt', 'usedBy']);
+
+      allow delete: if false;
+    }
+
+    // ===========================================================================
+    // Chats Collection
+    // ===========================================================================
+
+    match /chats/{chatId} {
+      // Participants can read chat
+      allow read: if isAuthenticated() &&
+                     request.auth.uid in resource.data.participantIds;
+
+      // Users can create chats they participate in
+      allow create: if isAuthenticated() &&
+                       request.auth.uid in request.resource.data.participantIds;
+
+      // Participants can update chat (last message, etc)
+      allow update: if isAuthenticated() &&
+                       request.auth.uid in resource.data.participantIds;
+
+      // No deletion
+      allow delete: if false;
+
+      // Messages subcollection
+      match /messages/{messageId} {
+        // Participants can read messages
+        allow read: if isAuthenticated() &&
+                       request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participantIds;
+
+        // Participants can create messages
+        allow create: if isAuthenticated() &&
+                         request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participantIds &&
+                         request.resource.data.senderId == request.auth.uid;
+
+        // Sender can update their own messages (edit, delete flag)
+        allow update: if isAuthenticated() &&
+                         resource.data.senderId == request.auth.uid;
+
+        // No deletion
+        allow delete: if false;
+      }
+    }
+
+    // ===========================================================================
+    // Notifications Collection
+    // ===========================================================================
+
+    match /notifications/{notificationId} {
+      // Users can read their own notifications
+      allow read: if isOwner(resource.data.userId);
+
+      // Only Cloud Functions/backend can create notifications (via Admin SDK)
+      allow create: if false;
+
+      // Users can update their own notifications (mark as read)
+      allow update: if isOwner(resource.data.userId) &&
+                       request.resource.data.diff(resource.data).affectedKeys()
+                         .hasOnly(['isRead', 'readAt']);
+
+      // Users can delete their own notifications
+      allow delete: if isOwner(resource.data.userId);
+    }
+
+    // ===========================================================================
+    // Inventory Collection
+    // ===========================================================================
+
+    match /inventory/{inventoryId} {
+      // Public read for marketplace products
+      allow read: if get(/databases/$(database)/documents/products/$(resource.data.productId)).data.visibility in ['marketplace', 'both'];
+
+      // Tenant members can read their inventory
+      allow read: if isTenantMember(resource.data.tenantId);
+
+      // Sellers can create inventory records
+      allow create: if isSeller() &&
+                       request.resource.data.tenantId == getUserData().tenantId;
+
+      // Tenant members can update inventory
+      allow update: if isTenantMember(resource.data.tenantId);
+
+      // No deletion
+      allow delete: if false;
+
+      // Movements subcollection
+      match /movements/{movementId} {
+        // Tenant members can read movements
+        allow read: if isTenantMember(get(/databases/$(database)/documents/inventory/$(inventoryId)).data.tenantId);
+
+        // System creates movements
+        allow create: if isTenantMember(get(/databases/$(database)/documents/inventory/$(inventoryId)).data.tenantId);
+
+        // No updates or deletions
+        allow update, delete: if false;
+      }
+    }
+
+    // ===========================================================================
+    // Transactions Collection
+    // ===========================================================================
+
+    match /transactions/{transactionId} {
+      // Tenant members can read their transactions
+      allow read: if isAuthenticated() &&
+                     (isTenantMember(resource.data.tenantId) ||
+                      request.auth.uid == resource.data.buyerId ||
+                      isTenantMember(resource.data.sellerId));
+
+      // Only Cloud Functions/backend can create transactions (via Admin SDK)
+      allow create: if false;
+
+      // No direct updates (use functions)
+      allow update, delete: if false;
+    }
+
+    // ===========================================================================
+    // Wallets Collection
+    // ===========================================================================
+
+    match /wallets/{walletId} {
+      // Tenant members can read their wallet
+      allow read: if isTenantMember(resource.data.tenantId);
+
+      // System creates wallets
+      allow create: if isSeller();
+
+      // No direct updates (use functions)
+      allow update, delete: if false;
+    }
+
+    // ===========================================================================
+    // Withdrawals Collection
+    // ===========================================================================
+
+    match /withdrawals/{withdrawalId} {
+      // Tenant members can read their withdrawals
+      allow read: if isTenantMember(resource.data.tenantId);
+
+      // Sellers can create withdrawal requests
+      allow create: if isSeller() &&
+                       request.resource.data.tenantId == getUserData().tenantId;
+
+      // No updates or deletions after creation
+      allow update, delete: if false;
+    }
+
+    // ===========================================================================
+    // Reviews Collection
+    // ===========================================================================
+
+    match /reviews/{reviewId} {
+      // Public read for reviews
+      allow read: if true;
+
+      // Only buyers who purchased can create reviews.
+      // Requires an orderId field referencing a delivered order belonging to the user.
+      allow create: if isAuthenticated() &&
+                       request.resource.data.userId == request.auth.uid &&
+                       request.resource.data.orderId is string &&
+                       get(/databases/$(database)/documents/orders/$(request.resource.data.orderId)).data.buyerUserId == request.auth.uid &&
+                       get(/databases/$(database)/documents/orders/$(request.resource.data.orderId)).data.status == 'delivered';
+
+      // Authors can update their own reviews (only rating and comment)
+      allow update: if isOwner(resource.data.userId) &&
+                       request.resource.data.diff(resource.data).affectedKeys()
+                         .hasOnly(['rating', 'comment', 'updatedAt']);
+
+      // Authors can delete their own reviews
+      allow delete: if isOwner(resource.data.userId);
+    }
+
+    // ===========================================================================
+    // Invoices Collection (NFe, NFCe, NFSe)
+    // ===========================================================================
+
+    match /invoices/{invoiceId} {
+      // Tenant members can read their invoices
+      allow read: if isTenantMember(resource.data.tenantId);
+
+      // Buyers can read invoices for their orders
+      allow read: if isAuthenticated() &&
+                     resource.data.customerId == request.auth.uid;
+
+      // System creates invoices
+      allow create: if isSeller() &&
+                       request.resource.data.tenantId == getUserData().tenantId;
+
+      // No updates or deletions (immutable)
+      allow update, delete: if false;
+    }
+
+    // ===========================================================================
+    // Wishlists Collection
+    // ===========================================================================
+
+    match /wishlists/{wishlistId} {
+      // Users can read their own wishlist items
+      allow read: if isAuthenticated() &&
+                     resource.data.userId == request.auth.uid;
+
+      // Users can create wishlist items for themselves
+      allow create: if isAuthenticated() &&
+                       request.resource.data.userId == request.auth.uid;
+
+      // Users can delete their own wishlist items
+      allow delete: if isAuthenticated() &&
+                       resource.data.userId == request.auth.uid;
+
+      // No updates needed (add/remove pattern)
+      allow update: if false;
+    }
+
+    // ===========================================================================
+    // Default: Deny all
+    // ===========================================================================
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
