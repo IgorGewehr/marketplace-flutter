@@ -57,15 +57,11 @@ class SellerOrdersNotifier extends AsyncNotifier<List<OrderModel>> {
     final user = ref.read(currentUserProvider).valueOrNull;
     if (user == null || !user.isSeller) return [];
 
-    try {
-      final repository = ref.read(orderRepositoryProvider);
-      final response = await repository.getSellerOrders(page: 1, limit: _pageSize);
-      _currentPage = 1;
-      _hasMore = response.hasMore;
-      return response.orders;
-    } catch (e) {
-      return [];
-    }
+    final repository = ref.read(orderRepositoryProvider);
+    final response = await repository.getSellerOrders(page: 1, limit: _pageSize);
+    _currentPage = 1;
+    _hasMore = response.hasMore;
+    return response.orders;
   }
 
   bool get hasMore => _hasMore;

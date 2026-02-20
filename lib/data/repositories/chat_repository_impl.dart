@@ -75,6 +75,7 @@ class ChatRepositoryImpl implements ChatRepository {
     required String text,
     String type = 'text',
     String? imageUrl,
+    String? replyToId,
   }) async {
     final response = await _apiClient.post<Map<String, dynamic>>(
       ApiConstants.chatMessages(chatId),
@@ -82,6 +83,7 @@ class ChatRepositoryImpl implements ChatRepository {
         'type': type,
         if (type == 'text') 'text': text,
         if (type == 'image' && imageUrl != null) 'imageUrl': imageUrl,
+        if (replyToId != null) 'replyToId': replyToId,
       },
     );
 

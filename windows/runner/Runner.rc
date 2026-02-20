@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "com.nexerp" "\0"
-            VALUE "FileDescription", "Rei do Brique" "\0"
+            VALUE "FileDescription", "Compre Aqui" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
             VALUE "InternalName", "nexmarket" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2026 com.nexerp. All rights reserved." "\0"
             VALUE "OriginalFilename", "nexmarket.exe" "\0"
-            VALUE "ProductName", "Rei do Brique" "\0"
+            VALUE "ProductName", "Compre Aqui" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

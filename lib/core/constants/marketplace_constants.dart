@@ -4,8 +4,11 @@ library;
 /// Payment hold duration in hours (24h after delivery confirmation)
 const int kPaymentHoldHours = 24;
 
+/// Maximum product price allowed for checkout (above this, negotiate directly)
+const double kCheckoutPriceLimit = 1000.0;
+
 /// Default platform fee percentage
-const double kDefaultPlatformFeePercentage = 10.0;
+const double kDefaultPlatformFeePercentage = 5.0;
 
 /// Default search radius in kilometers
 const int kDefaultSearchRadiusKm = 10;

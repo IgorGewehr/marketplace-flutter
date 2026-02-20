@@ -182,11 +182,13 @@ class _VariantCard extends StatelessWidget {
             icon: const Icon(Icons.edit_outlined, size: 20),
             onPressed: onEdit,
             color: AppColors.sellerAccent,
+            tooltip: 'Editar variante',
           ),
           IconButton(
             icon: const Icon(Icons.delete_outline, size: 20),
             onPressed: onDelete,
             color: AppColors.error,
+            tooltip: 'Excluir variante',
           ),
         ],
       ),

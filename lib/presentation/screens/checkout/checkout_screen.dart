@@ -10,6 +10,7 @@ import '../../providers/cart_provider.dart';
 import '../../providers/checkout_provider.dart';
 import '../../widgets/card_payment_form.dart';
 import '../../widgets/checkout/checkout_stepper.dart';
+import '../../widgets/shared/app_feedback.dart';
 import '../../widgets/shared/loading_overlay.dart';
 
 /// Checkout screen with multi-step flow
@@ -28,14 +29,14 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       // Validate cart is not empty
       final cart = ref.read(cartProvider);
       if (cart.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Seu carrinho está vazio')),
-        );
+        AppFeedback.showWarning(context, 'Seu carrinho está vazio');
         context.pop();
         return;
       }
       // Reset checkout when entering
       ref.read(checkoutProvider.notifier).reset();
+      // Pre-initialize MP SDK for card payments
+      ref.read(checkoutProvider.notifier).initializeMpSdk();
     });
   }
 
@@ -222,7 +223,7 @@ class _AddressCard extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: theme.colorScheme.surface,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: isSelected
@@ -354,7 +355,7 @@ class _PaymentMethodCard extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: theme.colorScheme.surface,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: isSelected
@@ -449,34 +450,31 @@ class _CardDetailsStep extends ConsumerWidget {
             ),
             const SizedBox(height: 20),
 
-            // Payment info - à vista only
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                  color: theme.colorScheme.primary,
-                  width: 2,
+            // Installment selector for credit card
+            if (checkoutState.paymentMethod == PaymentMethod.creditCard) ...[
+              Text('Parcelas', style: theme.textTheme.titleSmall),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<int>(
+                initialValue: checkoutState.installments,
+                decoration: const InputDecoration(
+                  border: OutlineInputBorder(),
+                  contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 ),
+                items: List.generate(12, (i) {
+                  final n = i + 1;
+                  final installmentValue = total / n;
+                  final label = n == 1
+                      ? '1x de ${Formatters.currency(installmentValue)} (à vista)'
+                      : '${n}x de ${Formatters.currency(installmentValue)}';
+                  return DropdownMenuItem(value: n, child: Text(label));
+                }),
+                onChanged: (value) {
+                  if (value != null) {
+                    ref.read(checkoutProvider.notifier).setInstallments(value);
+                  }
+                },
               ),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.radio_button_checked,
-                    color: theme.colorScheme.primary,
-                    size: 20,
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    '1x de ${Formatters.currency(total)} (à vista)',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            ],
           ] else
             CardPaymentForm(
               onTokenized: (tokenId) {
@@ -538,7 +536,7 @@ class _ReviewStep extends ConsumerWidget {
             margin: const EdgeInsets.only(bottom: 16),
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: theme.colorScheme.surface,
               borderRadius: BorderRadius.circular(12),
             ),
             child: Column(
@@ -660,7 +658,7 @@ class _ReviewSection extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: theme.colorScheme.surface,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(

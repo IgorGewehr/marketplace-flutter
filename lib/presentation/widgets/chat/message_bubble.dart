@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../data/models/message_model.dart';
+import '../shared/app_feedback.dart';
 
 /// Enhanced message bubble with reply, reactions, and link preview
 class MessageBubble extends StatelessWidget {
@@ -84,6 +85,14 @@ class MessageBubble extends StatelessWidget {
                               ),
                             );
                           },
+                          errorBuilder: (_, __, ___) => Container(
+                            width: 200,
+                            height: 150,
+                            color: AppColors.border,
+                            child: const Center(
+                              child: Icon(Icons.broken_image_outlined, color: AppColors.textHint),
+                            ),
+                          ),
                         ),
                       ),
                     if (message.text != null && message.text!.isNotEmpty) ...[
@@ -278,9 +287,9 @@ class MessageBubble extends StatelessWidget {
       backgroundColor: Colors.transparent,
       builder: (ctx) => Container(
         padding: const EdgeInsets.all(AppSpacing.l),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(
             top: Radius.circular(AppSpacing.radiusXXL),
           ),
         ),
@@ -314,10 +323,7 @@ class MessageBubble extends StatelessWidget {
               onTap: () {
                 Navigator.pop(ctx);
                 if (message.text != null) {
-                  // ignore: unused_import
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Texto copiado')),
-                  );
+                  AppFeedback.showSuccess(context, 'Texto copiado');
                 }
               },
             ),

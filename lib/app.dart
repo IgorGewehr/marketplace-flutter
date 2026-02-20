@@ -8,14 +8,14 @@ import 'core/theme/app_theme.dart';
 import 'presentation/providers/auth_providers.dart';
 
 /// Compre Aqui App
-class ReiDoBriqueApp extends ConsumerStatefulWidget {
-  const ReiDoBriqueApp({super.key});
+class CompreAquiApp extends ConsumerStatefulWidget {
+  const CompreAquiApp({super.key});
 
   @override
-  ConsumerState<ReiDoBriqueApp> createState() => _ReiDoBriqueAppState();
+  ConsumerState<CompreAquiApp> createState() => _CompreAquiAppState();
 }
 
-class _ReiDoBriqueAppState extends ConsumerState<ReiDoBriqueApp> {
+class _CompreAquiAppState extends ConsumerState<CompreAquiApp> {
   bool _fcmInitialized = false;
 
   @override

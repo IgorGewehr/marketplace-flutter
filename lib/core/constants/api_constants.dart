@@ -42,6 +42,7 @@ class ApiConstants {
   static const String orders = '/api/orders';
   static String orderById(String id) => '/api/orders/$id';
   static String orderStatus(String id) => '/api/orders/$id/status';
+  static String orderDispute(String id) => '/api/orders/$id/dispute';
 
   // === Payments Endpoints ===
   static const String paymentsCheckout = '/api/payments/checkout';
@@ -80,6 +81,7 @@ class ApiConstants {
   static const String notifications = '/api/notifications';
   static String notificationById(String id) => '/api/notifications/$id';
   static const String notificationsMarkAllRead = '/api/notifications/mark-all-read';
+  static const String notificationPreferences = '/api/notifications/preferences';
 
   // === Tenant Endpoints ===
   static const String tenants = '/api/tenants';

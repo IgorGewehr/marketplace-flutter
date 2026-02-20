@@ -6,14 +6,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../data/models/product_model.dart';
 import '../../../data/services/image_upload_service.dart';
 import '../../providers/auth_providers.dart';
+import '../../providers/mercadopago_provider.dart';
 import '../../providers/my_products_provider.dart';
 import '../../providers/products_provider.dart';
 import '../../widgets/seller/photo_picker_grid.dart';
 import '../../widgets/seller/variant_manager.dart';
+import '../../widgets/shared/app_feedback.dart';
 
 /// Product form screen for creating/editing products - Simplified for marketplace
 class ProductFormScreen extends ConsumerStatefulWidget {
@@ -110,9 +113,9 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
   }
 
   void _validateSelectedCategory() {
-    final categories = ref.read(categoriesProvider).valueOrNull ?? [];
-    final filtered = categories.where((c) => c != 'Todos').toList();
-    if (_selectedCategory != null && !filtered.contains(_selectedCategory)) {
+    final models = ref.read(categoryModelsProvider).valueOrNull ?? [];
+    final validIds = models.map((c) => c.id).toSet();
+    if (_selectedCategory != null && !validIds.contains(_selectedCategory)) {
       setState(() => _selectedCategory = null);
     }
   }
@@ -137,12 +140,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
 
     // Validate at least one photo
     if (_existingImageUrls.isEmpty && _newImageFiles.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Adicione pelo menos 1 foto do produto'),
-          backgroundColor: AppColors.error,
-        ),
-      );
+      AppFeedback.showWarning(context, 'Adicione pelo menos 1 foto do produto');
       return;
     }
 
@@ -192,7 +190,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
         description: _descriptionController.text.trim(),
         sku: null,
         barcode: null,
-        categoryId: _selectedCategory ?? 'Outros',
+        categoryId: _selectedCategory!,
         price: double.parse(_priceController.text.replaceAll(',', '.')),
         costPrice: null,
         compareAtPrice: null,
@@ -217,23 +215,13 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
       }
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content:
-                Text(_isEditing ? 'Produto atualizado!' : 'Produto criado!'),
-            backgroundColor: AppColors.secondary,
-          ),
-        );
+        AppFeedback.showSuccess(context, _isEditing ? 'Produto atualizado!' : 'Produto criado!');
         context.pop();
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erro: $e'),
-            backgroundColor: AppColors.error,
-          ),
-        );
+        // Gap #21: Show friendly error message instead of raw exception
+        AppFeedback.showError(context, 'Ocorreu um erro ao salvar o produto. Tente novamente.');
       }
     } finally {
       if (mounted) {
@@ -258,8 +246,71 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final categoriesAsync = ref.watch(categoriesProvider);
+    final categoriesAsync = ref.watch(categoryModelsProvider);
     final progress = _filledSections / _totalRequiredSections;
+
+    // B3: Gate - require MP connection for new products
+    final isMpConnected = ref.watch(isMpConnectedProvider);
+    if (!isMpConnected && !_isEditing) {
+      return Scaffold(
+        backgroundColor: AppColors.background,
+        appBar: AppBar(
+          backgroundColor: AppColors.sellerAccent,
+          foregroundColor: Colors.white,
+          title: const Text('Novo Produto'),
+        ),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.link_off,
+                  size: 64,
+                  color: AppColors.textHint,
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Mercado Pago necessário',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Conecte seu Mercado Pago para poder publicar produtos e receber pagamentos.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                ElevatedButton.icon(
+                  onPressed: () => context.push(AppRouter.sellerMpConnect),
+                  icon: const Icon(Icons.link),
+                  label: const Text('Conectar Mercado Pago'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.sellerAccent,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 14,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -410,6 +461,10 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                     ),
                     keyboardType: const TextInputType.numberWithOptions(
                         decimal: true),
+                    // Gap #3: Prevent invalid decimal input
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'^\d*[,.]?\d{0,2}')),
+                    ],
                     validator: (value) {
                       if (value == null || value.isEmpty) {
                         return 'Informe o preço';
@@ -450,21 +505,20 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                 error: (_, __) =>
                     const Text('Erro ao carregar categorias'),
                 data: (categories) {
-                  final filtered =
-                      categories.where((c) => c != 'Todos').toList();
+                  final validIds = categories.map((c) => c.id).toSet();
                   return DropdownButtonFormField<String>(
                     value: _selectedCategory != null &&
-                            filtered.contains(_selectedCategory)
+                            validIds.contains(_selectedCategory)
                         ? _selectedCategory
                         : null,
                     decoration: const InputDecoration(
                       labelText: 'Categoria *',
                       prefixIcon: Icon(Icons.category_outlined),
                     ),
-                    items: filtered
+                    items: categories
                         .map((cat) => DropdownMenuItem(
-                              value: cat,
-                              child: Text(cat),
+                              value: cat.id,
+                              child: Text(cat.name),
                             ))
                         .toList(),
                     onChanged: (value) {
@@ -683,7 +737,7 @@ class _SectionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.border),
       ),

@@ -9,6 +9,7 @@ import '../../../data/models/service_model.dart';
 import '../../../domain/repositories/service_repository.dart';
 import '../../providers/my_services_provider.dart';
 import '../../widgets/seller/photo_picker_grid.dart';
+import '../../widgets/shared/app_feedback.dart';
 
 /// Service form screen for creating/editing services
 class ServiceFormScreen extends ConsumerStatefulWidget {
@@ -106,23 +107,13 @@ class _ServiceFormScreenState extends ConsumerState<ServiceFormScreen> {
 
     // Validate at least one photo
     if (_existingImageUrls.isEmpty && _newImageFiles.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Adicione pelo menos 1 foto do serviço'),
-          backgroundColor: AppColors.error,
-        ),
-      );
+      AppFeedback.showWarning(context, 'Adicione pelo menos 1 foto do serviço');
       return;
     }
 
     // Validate service delivery method
     if (!_isRemote && !_isOnSite) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Selecione pelo menos um tipo de atendimento'),
-          backgroundColor: AppColors.error,
-        ),
-      );
+      AppFeedback.showWarning(context, 'Selecione pelo menos um tipo de atendimento');
       return;
     }
 
@@ -208,22 +199,12 @@ class _ServiceFormScreenState extends ConsumerState<ServiceFormScreen> {
       }
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(_isEditing ? 'Serviço atualizado!' : 'Serviço criado!'),
-            backgroundColor: AppColors.secondary,
-          ),
-        );
+        AppFeedback.showSuccess(context, _isEditing ? 'Serviço atualizado!' : 'Serviço criado!');
         context.pop();
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erro: $e'),
-            backgroundColor: AppColors.error,
-          ),
-        );
+        AppFeedback.showError(context, 'Erro ao salvar serviço. Tente novamente.');
       }
     } finally {
       if (mounted) {
@@ -524,7 +505,7 @@ class _ServiceFormScreenState extends ConsumerState<ServiceFormScreen> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: Theme.of(context).colorScheme.surface,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: AppColors.border),
               ),
@@ -602,7 +583,7 @@ class _ServiceFormScreenState extends ConsumerState<ServiceFormScreen> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: Theme.of(context).colorScheme.surface,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: AppColors.border),
               ),

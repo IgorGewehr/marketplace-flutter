@@ -35,6 +35,12 @@ final localStorageProvider = Provider<LocalStorageService>((ref) {
   return localStorageService;
 });
 
+/// Gap #25: Proper state provider for biometric setting
+final biometricEnabledProvider = StateProvider<bool>((ref) {
+  final localStorage = ref.read(localStorageProvider);
+  return localStorage.getBool('biometric_enabled') ?? false;
+});
+
 /// API Client Provider
 final apiClientProvider = Provider<ApiClient>((ref) {
   return ApiClient(localStorage: ref.read(localStorageProvider));

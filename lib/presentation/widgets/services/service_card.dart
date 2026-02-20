@@ -27,7 +27,7 @@ class ServiceCard extends ConsumerWidget {
     final isFavorite = ref.watch(isServiceFavoriteProvider(service.id));
 
     return Material(
-      color: Colors.white,
+      color: theme.colorScheme.surface,
       borderRadius: BorderRadius.circular(16),
       elevation: 0,
       child: InkWell(

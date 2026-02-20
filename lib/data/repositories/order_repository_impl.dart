@@ -91,6 +91,23 @@ class OrderRepositoryImpl implements OrderRepository {
   }
 
   @override
+  Future<OrderModel> confirmDelivery(String orderId) async {
+    final response = await _apiClient.post<Map<String, dynamic>>(
+      '${ApiConstants.orderById(orderId)}/confirm-delivery',
+    );
+    return OrderModel.fromJson(response);
+  }
+
+  @override
+  Future<OrderModel> disputeOrder(String orderId, {required String reason}) async {
+    final response = await _apiClient.post<Map<String, dynamic>>(
+      ApiConstants.orderDispute(orderId),
+      data: {'reason': reason},
+    );
+    return OrderModel.fromJson(response);
+  }
+
+  @override
   Future<String?> getOrderChatId(String orderId) async {
     final order = await getById(orderId);
     return order.chatId;

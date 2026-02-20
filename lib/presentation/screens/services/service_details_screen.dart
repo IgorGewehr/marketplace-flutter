@@ -22,6 +22,7 @@ class ServiceDetailsScreen extends ConsumerStatefulWidget {
 class _ServiceDetailsScreenState extends ConsumerState<ServiceDetailsScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  bool _isNavigatingToChat = false;
 
   @override
   void initState() {
@@ -48,14 +49,20 @@ class _ServiceDetailsScreenState extends ConsumerState<ServiceDetailsScreen>
   }
 
   Future<void> _navigateToChat(String tenantId) async {
+    if (_isNavigatingToChat) return;
     final isAuth = ref.read(isAuthenticatedProvider);
     if (!isAuth) {
       context.push('${AppRouter.login}?redirect=/service/${widget.serviceId}');
       return;
     }
-    final chat = await ref.read(chatsProvider.notifier).getOrCreateChat(tenantId);
-    if (chat != null && mounted) {
-      context.push('/chats/${chat.id}');
+    setState(() => _isNavigatingToChat = true);
+    try {
+      final chat = await ref.read(chatsProvider.notifier).getOrCreateChat(tenantId);
+      if (chat != null && mounted) {
+        context.push('/chats/${chat.id}');
+      }
+    } finally {
+      if (mounted) setState(() => _isNavigatingToChat = false);
     }
   }
 
@@ -364,8 +371,14 @@ class _ServiceDetailsScreenState extends ConsumerState<ServiceDetailsScreen>
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: IconButton(
-                    onPressed: _contactProvider,
-                    icon: const Icon(Icons.chat_bubble_outline),
+                    onPressed: _isNavigatingToChat ? null : _contactProvider,
+                    icon: _isNavigatingToChat
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.chat_bubble_outline),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -373,7 +386,9 @@ class _ServiceDetailsScreenState extends ConsumerState<ServiceDetailsScreen>
                 // Request quote / Instant booking
                 Expanded(
                   child: FilledButton(
-                    onPressed: service.instantBooking ? _contactProvider : _requestQuote,
+                    onPressed: _isNavigatingToChat
+                        ? null
+                        : (service.instantBooking ? _contactProvider : _requestQuote),
                     style: FilledButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       backgroundColor: theme.colorScheme.primary,

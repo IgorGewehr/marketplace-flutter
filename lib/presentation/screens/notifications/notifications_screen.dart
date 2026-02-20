@@ -44,8 +44,8 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
       backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('Notificações'),
-        backgroundColor: Colors.white,
-        foregroundColor: AppColors.textPrimary,
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        foregroundColor: Theme.of(context).colorScheme.onSurface,
         elevation: 0,
         centerTitle: true,
         actions: [
@@ -125,7 +125,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
   /// Filter chips row
   Widget _buildFilterChips() {
     return Container(
-      color: Colors.white,
+      color: Theme.of(context).colorScheme.surface,
       padding: const EdgeInsets.only(
         left: AppSpacing.m,
         right: AppSpacing.m,

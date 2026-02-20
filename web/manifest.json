@@ -1,11 +1,11 @@
 {
-    "name": "Rei do Brique",
-    "short_name": "Rei do Brique",
+    "name": "Compre Aqui",
+    "short_name": "Compre Aqui",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#42B4E6",
+    "theme_color": "#42B4E6",
+    "description": "Compre Aqui - Marketplace regional do Meio Oeste Catarinense",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

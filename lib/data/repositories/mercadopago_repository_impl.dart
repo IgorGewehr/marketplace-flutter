@@ -23,10 +23,14 @@ class MercadoPagoRepositoryImpl implements MercadoPagoRepository {
   }
 
   @override
-  Future<MpConnectionModel> exchangeOAuthCode(String code) async {
+  Future<MpConnectionModel> exchangeOAuthCode(String code, {String? state}) async {
     final response = await _apiClient.post<Map<String, dynamic>>(
       ApiConstants.mpOAuthCallback,
-      data: {'action': 'callback', 'code': code},
+      data: {
+        'action': 'callback',
+        'code': code,
+        if (state != null) 'state': state,
+      },
     );
     return MpConnectionModel.fromJson(response);
   }

@@ -48,6 +48,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       return;
     }
 
+    AppFeedback.showLoading(context, message: 'Criando sua conta...');
     try {
       final success = await ref.read(authNotifierProvider.notifier).register(
             displayName: _nameController.text.trim(),
@@ -55,15 +56,18 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             password: _passwordController.text,
           );
 
+      if (mounted) AppFeedback.hideLoading(context);
+
       if (success && mounted) {
         AppFeedback.showSuccess(
           context,
           'Conta criada com sucesso!',
           title: 'Bem-vindo!',
         );
-        context.go(AppRouter.completeProfile);
+        context.go(AppRouter.home);
       }
     } catch (e) {
+      if (mounted) AppFeedback.hideLoading(context);
       if (mounted) {
         AppFeedback.showError(
           context,
@@ -83,7 +87,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     setState(() => _isGoogleLoading = false);
 
     if (success && mounted) {
-      context.go(AppRouter.completeProfile);
+      context.go(AppRouter.home);
     }
   }
 

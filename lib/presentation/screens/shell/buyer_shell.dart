@@ -70,9 +70,10 @@ class _BuyerShellState extends ConsumerState<BuyerShell> {
       return;
     }
 
-    // 3. Check Mercado Pago connection
-    final isMpConnected = ref.read(isMpConnectedProvider);
-    if (!isMpConnected) {
+    // 3. Check Mercado Pago connection (skip if still loading)
+    final mpConnection = ref.read(mpConnectionProvider);
+    if (!mpConnection.isLoading &&
+        !(mpConnection.valueOrNull?.isConnected ?? false)) {
       _showMpConnectDialog();
       return;
     }
@@ -134,12 +135,15 @@ class _BuyerShellState extends ConsumerState<BuyerShell> {
     final user = ref.read(currentUserProvider).valueOrNull;
     final isSeller = user?.isSeller ?? false;
     final theme = Theme.of(context);
+    final outerContext = context;
 
-    showModalBottomSheet(
+    // Use .then() for navigation after the modal fully closes,
+    // preventing the modal barrier from staying on top of the new route.
+    showModalBottomSheet<String>(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (context) => SafeArea(
+      builder: (sheetContext) => SafeArea(
         child: Container(
           padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
           margin: const EdgeInsets.all(16),
@@ -170,19 +174,12 @@ class _BuyerShellState extends ConsumerState<BuyerShell> {
               // Seller mode entry — prominent for sellers
               if (isSeller) ...[
                 _SellerModeMenuCard(
-                  onTap: () {
-                    Navigator.pop(context);
-                    ref.read(sellerModeProvider.notifier).setMode(true);
-                    this.context.go('/seller');
-                  },
+                  onTap: () => Navigator.pop(sheetContext, 'seller_mode'),
                 ),
                 const SizedBox(height: 12),
               ] else ...[
                 _BecomeSellerMenuCard(
-                  onTap: () {
-                    Navigator.pop(context);
-                    this.context.push(AppRouter.becomeSeller);
-                  },
+                  onTap: () => Navigator.pop(sheetContext, 'become_seller'),
                 ),
                 const SizedBox(height: 12),
               ],
@@ -190,45 +187,25 @@ class _BuyerShellState extends ConsumerState<BuyerShell> {
               _MenuActionButton(
                 icon: Icons.person_outline,
                 label: 'Perfil',
-                onTap: () {
-                  Navigator.pop(context);
-                  if (isAuth) {
-                    this.context.push(AppRouter.profile);
-                  } else {
-                    this.context.push(AppRouter.login);
-                  }
-                },
+                onTap: () => Navigator.pop(sheetContext, 'profile'),
               ),
               const SizedBox(height: 8),
               _MenuActionButton(
                 icon: Icons.receipt_long_outlined,
                 label: 'Meus Pedidos',
-                onTap: () {
-                  Navigator.pop(context);
-                  if (isAuth) {
-                    this.context.push(AppRouter.orders);
-                  } else {
-                    this.context.push(AppRouter.login);
-                  }
-                },
+                onTap: () => Navigator.pop(sheetContext, 'orders'),
               ),
               const SizedBox(height: 8),
               _MenuActionButton(
                 icon: Icons.favorite_outline,
                 label: 'Favoritos',
-                onTap: () {
-                  Navigator.pop(context);
-                  this.context.push(AppRouter.favorites);
-                },
+                onTap: () => Navigator.pop(sheetContext, 'favorites'),
               ),
               const SizedBox(height: 8),
               _MenuActionButton(
                 icon: Icons.settings_outlined,
                 label: 'Configurações',
-                onTap: () {
-                  Navigator.pop(context);
-                  this.context.push(AppRouter.settings);
-                },
+                onTap: () => Navigator.pop(sheetContext, 'settings'),
               ),
               if (isAuth) ...[
                 const SizedBox(height: 8),
@@ -236,17 +213,50 @@ class _BuyerShellState extends ConsumerState<BuyerShell> {
                   icon: Icons.logout,
                   label: 'Sair',
                   isDestructive: true,
-                  onTap: () {
-                    Navigator.pop(context);
-                    ref.read(authNotifierProvider.notifier).signOut();
-                  },
+                  onTap: () => Navigator.pop(sheetContext, 'logout'),
                 ),
               ],
             ],
           ),
         ),
       ),
-    );
+    ).then((action) {
+      if (action == null || !mounted) return;
+
+      switch (action) {
+        case 'seller_mode':
+          // Check MP connection before entering seller mode
+          // Skip check if still loading to avoid false negatives
+          final mpConnection = ref.read(mpConnectionProvider);
+          if (!mpConnection.isLoading &&
+              !(mpConnection.valueOrNull?.isConnected ?? false)) {
+            _showMpConnectDialog();
+            return;
+          }
+          ref.read(sellerModeProvider.notifier).setMode(true);
+          outerContext.go('/seller');
+        case 'become_seller':
+          outerContext.push(AppRouter.becomeSeller);
+        case 'profile':
+          if (isAuth) {
+            outerContext.push(AppRouter.profile);
+          } else {
+            outerContext.push(AppRouter.login);
+          }
+        case 'orders':
+          if (isAuth) {
+            outerContext.push(AppRouter.orders);
+          } else {
+            outerContext.push(AppRouter.login);
+          }
+        case 'favorites':
+          outerContext.push(AppRouter.favorites);
+        case 'settings':
+          outerContext.push(AppRouter.settings);
+        case 'logout':
+          ref.read(authNotifierProvider.notifier).signOut();
+      }
+    });
   }
 
   @override

@@ -9,6 +9,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../providers/auth_providers.dart';
 import '../../providers/cart_provider.dart';
 import '../../providers/chat_provider.dart';
+import '../../providers/mercadopago_provider.dart';
 import '../../providers/products_provider.dart';
 import '../../providers/seller_mode_provider.dart';
 import '../../widgets/profile/profile_header.dart';
@@ -106,10 +107,19 @@ class ProfileScreen extends ConsumerWidget {
                   _SellerModeBanner(
                     isSellerMode: sellerMode,
                     onToggle: () {
-                      ref.read(sellerModeProvider.notifier).toggle();
                       if (!sellerMode) {
+                        // Entering seller mode — check MP connection first
+                        // Skip check if still loading to avoid false negatives
+                        final mpConnection = ref.read(mpConnectionProvider);
+                        if (!mpConnection.isLoading &&
+                            !(mpConnection.valueOrNull?.isConnected ?? false)) {
+                          _showMpConnectDialog(context);
+                          return;
+                        }
+                        ref.read(sellerModeProvider.notifier).setMode(true);
                         context.go(AppRouter.sellerDashboard);
                       } else {
+                        ref.read(sellerModeProvider.notifier).setMode(false);
                         context.go(AppRouter.home);
                       }
                     },
@@ -198,6 +208,54 @@ class ProfileScreen extends ConsumerWidget {
             ),
           );
         },
+      ),
+    );
+  }
+
+  void _showMpConnectDialog(BuildContext context) {
+    final theme = Theme.of(context);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        icon: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: AppColors.sellerAccent.withAlpha(25),
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(
+            Icons.account_balance_wallet_outlined,
+            color: AppColors.sellerAccent,
+            size: 32,
+          ),
+        ),
+        title: const Text('Conecte o Mercado Pago'),
+        titleTextStyle: theme.textTheme.titleLarge?.copyWith(
+          fontWeight: FontWeight.bold,
+        ),
+        content: const Text(
+          'Para acessar o modo vendedor, você precisa conectar sua conta do Mercado Pago.',
+          textAlign: TextAlign.center,
+        ),
+        actionsAlignment: MainAxisAlignment.center,
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton.icon(
+            onPressed: () {
+              Navigator.pop(ctx);
+              context.push(AppRouter.sellerMpConnect);
+            },
+            icon: const Icon(Icons.link, size: 18),
+            label: const Text('Conectar Mercado Pago'),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.sellerAccent,
+            ),
+          ),
+        ],
       ),
     );
   }

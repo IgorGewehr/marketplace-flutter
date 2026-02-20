@@ -22,15 +22,18 @@ class AuthRepositoryImpl implements AuthRepository {
     required String password,
     required String displayName,
   }) async {
-    // Create Firebase auth user
-    final userCredential = await _firebaseAuth.createUserWithEmailAndPassword(
-      email: email,
-      password: password,
-    );
+    // Only create Firebase user if password is provided (email/password flow).
+    // For Google sign-in, the Firebase account already exists.
+    if (password.isNotEmpty) {
+      final userCredential =
+          await _firebaseAuth.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+      await userCredential.user?.updateDisplayName(displayName);
+    }
 
-    await userCredential.user?.updateDisplayName(displayName);
-
-    // Register with backend
+    // Register with backend (idempotent)
     final response = await _apiClient.post<Map<String, dynamic>>(
       ApiConstants.authRegister,
       data: {
@@ -45,14 +48,14 @@ class AuthRepositoryImpl implements AuthRepository {
   @override
   Future<UserModel> completeProfile({
     required String phone,
-    required String cpfCnpj,
+    String? cpfCnpj,
     DateTime? birthDate,
   }) async {
     final response = await _apiClient.post<Map<String, dynamic>>(
       ApiConstants.authCompleteProfile,
       data: {
-        'phone': phone,
-        'cpfCnpj': cpfCnpj,
+        if (phone.isNotEmpty) 'phone': phone,
+        if (cpfCnpj != null && cpfCnpj.isNotEmpty) 'cpfCnpj': cpfCnpj,
         if (birthDate != null) 'birthDate': birthDate.toIso8601String(),
       },
     );

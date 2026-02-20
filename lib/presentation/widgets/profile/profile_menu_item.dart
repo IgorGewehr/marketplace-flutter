@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/theme/app_colors.dart';
-
 /// Reusable profile menu item widget
 class ProfileMenuItem extends StatelessWidget {
   final IconData icon;
@@ -27,12 +25,13 @@ class ProfileMenuItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final effectiveIconColor = isDestructive 
-        ? AppColors.error 
-        : iconColor ?? AppColors.textSecondary;
-    final effectiveLabelColor = isDestructive 
-        ? AppColors.error 
-        : AppColors.textPrimary;
+    final theme = Theme.of(context);
+    final effectiveIconColor = isDestructive
+        ? theme.colorScheme.error
+        : iconColor ?? theme.colorScheme.onSurfaceVariant;
+    final effectiveLabelColor = isDestructive
+        ? theme.colorScheme.error
+        : theme.colorScheme.onSurface;
 
     return Material(
       color: Colors.transparent,
@@ -74,9 +73,9 @@ class ProfileMenuItem extends StatelessWidget {
                       const SizedBox(height: 2),
                       Text(
                         subtitle!,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 13,
-                          color: AppColors.textSecondary,
+                          color: theme.colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ],
@@ -87,9 +86,9 @@ class ProfileMenuItem extends StatelessWidget {
               if (trailing != null)
                 trailing!
               else if (showChevron)
-                const Icon(
+                Icon(
                   Icons.chevron_right_rounded,
-                  color: AppColors.textHint,
+                  color: theme.colorScheme.onSurfaceVariant.withAlpha(120),
                 ),
             ],
           ),
@@ -112,10 +111,11 @@ class ProfileMenuSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: theme.colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
@@ -133,10 +133,10 @@ class ProfileMenuSection extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
               child: Text(
                 title!,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
-                  color: AppColors.textSecondary,
+                  color: theme.colorScheme.onSurfaceVariant,
                   letterSpacing: 0.5,
                 ),
               ),

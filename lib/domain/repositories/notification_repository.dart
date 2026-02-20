@@ -23,6 +23,9 @@ abstract class NotificationRepository {
 
   /// Delete all notifications
   Future<void> deleteAll();
+
+  /// Sync notification preferences with backend
+  Future<void> updatePreferences(Map<String, bool> preferences);
 }
 
 /// Response wrapper for paginated notification lists

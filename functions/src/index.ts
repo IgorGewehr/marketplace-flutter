@@ -34,6 +34,9 @@ validateConfig();
 
 const app = express();
 
+// Trust first proxy hop (Google's load balancer) for correct client IP in rate limiting
+app.set("trust proxy", 1);
+
 // CORS - Flutter mobile apps don't need permissive CORS
 app.use(cors({ origin: true }));
 

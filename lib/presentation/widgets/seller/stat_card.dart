@@ -27,6 +27,7 @@ class StatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final color = accentColor ?? AppColors.sellerAccent;
 
     return GestureDetector(
@@ -38,7 +39,7 @@ class StatCard extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.white.withAlpha(200),
+              color: theme.colorScheme.surface.withAlpha(200),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
                 color: color.withAlpha(30),
@@ -86,7 +87,7 @@ class StatCard extends StatelessWidget {
                         label,
                         style: TextStyle(
                           fontSize: 12,
-                          color: AppColors.textSecondary,
+                          color: theme.colorScheme.onSurfaceVariant,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -96,7 +97,7 @@ class StatCard extends StatelessWidget {
                         style: TextStyle(
                           fontSize: 22,
                           fontWeight: FontWeight.bold,
-                          color: AppColors.textPrimary,
+                          color: theme.colorScheme.onSurface,
                         ),
                       ),
                       if (subtitle != null) ...[
@@ -176,6 +177,7 @@ class BalanceStatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final color = accentColor ?? AppColors.secondary;
 
     return ClipRRect(
@@ -242,7 +244,7 @@ class BalanceStatCard extends StatelessWidget {
                       label,
                       style: TextStyle(
                         fontSize: 14,
-                        color: AppColors.textSecondary,
+                        color: theme.colorScheme.onSurfaceVariant,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
@@ -252,7 +254,7 @@ class BalanceStatCard extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 32,
                         fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimary,
+                        color: theme.colorScheme.onSurface,
                       ),
                     ),
                   ],

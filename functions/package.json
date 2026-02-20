@@ -1,6 +1,6 @@
 {
-  "name": "rei-do-brique-functions",
-  "description": "Cloud Functions for Rei do Brique Marketplace - Mercado Pago integration",
+  "name": "compre-aqui-functions",
+  "description": "Cloud Functions for Compre Aqui Marketplace - Mercado Pago integration",
   "scripts": {
     "build": "tsc",
     "build:watch": "tsc --watch",

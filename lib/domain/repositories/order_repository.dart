@@ -33,6 +33,12 @@ abstract class OrderRepository {
   /// Cancel order
   Future<OrderModel> cancel(String orderId, {String? reason});
 
+  /// Confirm delivery (buyer confirms receipt)
+  Future<OrderModel> confirmDelivery(String orderId);
+
+  /// Open a dispute for a problem with the order (buyer only)
+  Future<OrderModel> disputeOrder(String orderId, {required String reason});
+
   /// Get order chat
   Future<String?> getOrderChatId(String orderId);
 }

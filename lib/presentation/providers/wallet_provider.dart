@@ -53,6 +53,10 @@ class WalletNotifier extends AsyncNotifier<WalletModel?> {
     required String pixKey,
     String? pixKeyType,
   }) async {
+    if (amount <= 0) return false;
+    if (pixKey.isEmpty) return false;
+    if (amount > (state.valueOrNull?.balance.available ?? 0)) return false;
+
     try {
       final repository = ref.read(walletRepositoryProvider);
 

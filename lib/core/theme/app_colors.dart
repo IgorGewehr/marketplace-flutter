@@ -6,9 +6,9 @@ class AppColors {
   AppColors._();
 
   // === Primary Colors ===
-  static const Color primary = Color(0xFF007BFF);
-  static const Color primaryLight = Color(0xFF4DA3FF);
-  static const Color primaryDark = Color(0xFF0056B3);
+  static const Color primary = Color(0xFF1D4ED8);
+  static const Color primaryLight = Color(0xFF3B82F6);
+  static const Color primaryDark = Color(0xFF1E3A8A);
 
   // === Secondary Colors ===
   static const Color secondary = Color(0xFF00C853);

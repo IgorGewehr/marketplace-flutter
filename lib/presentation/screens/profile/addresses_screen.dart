@@ -1,9 +1,12 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../data/models/address_model.dart';
 import '../../providers/address_provider.dart';
+import '../../widgets/shared/app_feedback.dart';
 import '../../widgets/shared/illustrated_empty_state.dart';
 
 /// Addresses screen backed by API
@@ -18,8 +21,8 @@ class AddressesScreen extends ConsumerWidget {
       backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('Meus Endereços'),
-        backgroundColor: Colors.white,
-        foregroundColor: AppColors.textPrimary,
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        foregroundColor: Theme.of(context).colorScheme.onSurface,
         elevation: 0,
         centerTitle: true,
       ),
@@ -88,21 +91,11 @@ class AddressesScreen extends ConsumerWidget {
               await ref.read(addressProvider.notifier).createAddress(newAddress);
             }
             if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Endereço salvo!'),
-                  backgroundColor: AppColors.secondary,
-                ),
-              );
+              AppFeedback.showSuccess(context, 'Endereço salvo!');
             }
           } catch (e) {
             if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Erro ao salvar: $e'),
-                  backgroundColor: AppColors.error,
-                ),
-              );
+              AppFeedback.showError(context, 'Erro ao salvar endereço. Tente novamente.');
             }
           }
         },
@@ -110,70 +103,37 @@ class AddressesScreen extends ConsumerWidget {
     );
   }
 
-  void _deleteAddress(BuildContext context, WidgetRef ref, AddressModel address) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Excluir endereço'),
-        content: Text('Deseja excluir "${address.label ?? 'Endereço'}"?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              try {
-                await ref.read(addressProvider.notifier).deleteAddress(address.id!);
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Endereço excluído'),
-                      backgroundColor: AppColors.secondary,
-                    ),
-                  );
-                }
-              } catch (e) {
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Erro: $e'),
-                      backgroundColor: AppColors.error,
-                    ),
-                  );
-                }
-              }
-            },
-            style: FilledButton.styleFrom(
-              backgroundColor: AppColors.error,
-            ),
-            child: const Text('Excluir'),
-          ),
-        ],
-      ),
+  void _deleteAddress(BuildContext context, WidgetRef ref, AddressModel address) async {
+    final confirmed = await AppFeedback.showConfirmation(
+      context,
+      title: 'Excluir endereço',
+      message: 'Tem certeza que deseja excluir este endereço?',
+      isDangerous: true,
     );
+
+    if (confirmed) {
+      try {
+        await ref.read(addressProvider.notifier).deleteAddress(address.id!);
+        if (context.mounted) {
+          AppFeedback.showSuccess(context, 'Endereço excluído');
+        }
+      } catch (e) {
+        if (context.mounted) {
+          AppFeedback.showError(context, 'Erro ao excluir endereço. Tente novamente.');
+        }
+      }
+    }
   }
 
   void _setAsDefault(BuildContext context, WidgetRef ref, AddressModel address) async {
     try {
       await ref.read(addressProvider.notifier).setDefault(address.id!);
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Endereço padrão atualizado'),
-            backgroundColor: AppColors.secondary,
-          ),
-        );
+        AppFeedback.showSuccess(context, 'Endereço padrão atualizado');
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erro: $e'),
-            backgroundColor: AppColors.error,
-          ),
-        );
+        AppFeedback.showError(context, 'Erro ao atualizar endereço padrão. Tente novamente.');
       }
     }
   }
@@ -196,7 +156,7 @@ class _AddressTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(12),
         border: address.isDefault
             ? Border.all(color: AppColors.primary, width: 2)
@@ -337,6 +297,7 @@ class _AddressFormSheetState extends State<_AddressFormSheet> {
   late TextEditingController _cityController;
   late TextEditingController _stateController;
   bool _isLoading = false;
+  bool _isLoadingCep = false;
 
   @override
   void initState() {
@@ -349,10 +310,42 @@ class _AddressFormSheetState extends State<_AddressFormSheet> {
     _neighborhoodController = TextEditingController(text: widget.address?.neighborhood);
     _cityController = TextEditingController(text: widget.address?.city);
     _stateController = TextEditingController(text: widget.address?.state);
+    _zipController.addListener(_onCepChanged);
+  }
+
+  // Gap #10: Auto-fill address via ViaCEP
+  void _onCepChanged() {
+    final cep = _zipController.text.replaceAll(RegExp(r'\D'), '');
+    if (cep.length == 8) {
+      _lookupCep(cep);
+    }
+  }
+
+  Future<void> _lookupCep(String cep) async {
+    setState(() => _isLoadingCep = true);
+    try {
+      final response = await Dio().get('https://viacep.com.br/ws/$cep/json/');
+      if (response.statusCode == 200) {
+        final data = response.data as Map<String, dynamic>;
+        if (data['erro'] != true && mounted) {
+          setState(() {
+            _streetController.text = data['logradouro'] ?? '';
+            _neighborhoodController.text = data['bairro'] ?? '';
+            _cityController.text = data['localidade'] ?? '';
+            _stateController.text = data['uf'] ?? '';
+          });
+        }
+      }
+    } catch (_) {
+      // Silent fail — user can fill manually
+    } finally {
+      if (mounted) setState(() => _isLoadingCep = false);
+    }
   }
 
   @override
   void dispose() {
+    _zipController.removeListener(_onCepChanged);
     _labelController.dispose();
     _zipController.dispose();
     _streetController.dispose();
@@ -391,11 +384,14 @@ class _AddressFormSheetState extends State<_AddressFormSheet> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    // Gap #10: Respect keyboard viewInsets so button isn't hidden
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: Container(
       height: MediaQuery.of(context).size.height * 0.85,
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
       ),
       child: Column(
         children: [
@@ -444,11 +440,25 @@ class _AddressFormSheetState extends State<_AddressFormSheet> {
                     const SizedBox(height: 16),
                     TextFormField(
                       controller: _zipController,
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         labelText: 'CEP',
-                        border: OutlineInputBorder(),
+                        border: const OutlineInputBorder(),
+                        suffixIcon: _isLoadingCep
+                            ? const Padding(
+                                padding: EdgeInsets.all(12),
+                                child: SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                ),
+                              )
+                            : null,
                       ),
                       keyboardType: TextInputType.number,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        LengthLimitingTextInputFormatter(8),
+                      ],
                       validator: (v) => v?.isEmpty == true ? 'Informe o CEP' : null,
                     ),
                     const SizedBox(height: 16),
@@ -555,6 +565,7 @@ class _AddressFormSheetState extends State<_AddressFormSheet> {
           ),
         ],
       ),
+    ),
     );
   }
 }

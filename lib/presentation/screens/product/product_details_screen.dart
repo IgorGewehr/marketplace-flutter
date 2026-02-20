@@ -1,17 +1,16 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/router/app_router.dart';
 import '../../../core/utils/formatters.dart';
-import '../../../data/models/tenant_model.dart';
 import '../../providers/auth_providers.dart';
 import '../../providers/cart_provider.dart';
 import '../../providers/chat_provider.dart';
 import '../../providers/products_provider.dart';
 import '../../providers/tenant_provider.dart';
 import '../../widgets/products/image_carousel.dart';
+import '../../widgets/shared/app_feedback.dart';
 import '../../widgets/shared/loading_overlay.dart';
 import '../../widgets/shared/whatsapp_button.dart';
 
@@ -47,36 +46,28 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
     final product = ref.read(productDetailProvider(widget.productId)).valueOrNull;
     if (product == null) return;
 
+    // Gap #1: Validate variant selection before adding to cart
+    if (product.hasVariants && product.variants.isNotEmpty && _selectedVariantId == null) {
+      AppFeedback.showWarning(context, 'Selecione uma variante antes de continuar');
+      return;
+    }
+
     setState(() => _isAddingToCart = true);
 
-    await ref.read(cartProvider.notifier).addToCart(product, quantity: _quantity);
+    await ref.read(cartProvider.notifier).addToCart(
+      product,
+      quantity: _quantity,
+      variant: _selectedVariantId,
+    );
 
     if (mounted) {
       setState(() => _isAddingToCart = false);
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('${product.name} adicionado ao carrinho'),
-          action: SnackBarAction(
-            label: 'Ver carrinho',
-            onPressed: () => context.push(AppRouter.cart),
-          ),
-        ),
+      AppFeedback.showSuccess(
+        context,
+        '${product.name} adicionado ao carrinho',
+        onTap: () => context.push(AppRouter.cart),
       );
-    }
-  }
-
-  void _buyNow() async {
-    final isAuth = ref.read(isAuthenticatedProvider);
-
-    if (!isAuth) {
-      context.push('${AppRouter.login}?redirect=${AppRouter.checkout}');
-      return;
-    }
-
-    await _addToCart();
-    if (mounted) {
-      context.push(AppRouter.checkout);
     }
   }
 
@@ -101,89 +92,16 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
     );
   }
 
-  Widget _buildBottomBarActions({
-    required ThemeData theme,
-    required bool isLoading,
-    required bool hasPaymentMethods,
-    required TenantModel? tenant,
-    required String productName,
-    required double productPrice,
-  }) {
-    if (isLoading) {
-      return Expanded(
-        child: OutlinedButton(
-          onPressed: null,
-          style: OutlinedButton.styleFrom(
-            padding: const EdgeInsets.symmetric(vertical: 14),
-          ),
-          child: const SizedBox(
-            width: 20,
-            height: 20,
-            child: CircularProgressIndicator(strokeWidth: 2),
-          ),
-        ),
-      );
+  Future<void> _openChat(String tenantId) async {
+    final isAuth = ref.read(isAuthenticatedProvider);
+    if (!isAuth) {
+      context.push('${AppRouter.login}?redirect=/product/${widget.productId}');
+      return;
     }
-
-    if (hasPaymentMethods) {
-      return Expanded(
-        child: Row(
-          children: [
-            Expanded(
-              child: OutlinedButton(
-                onPressed: _isAddingToCart ? null : _addToCart,
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                ),
-                child: _isAddingToCart
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.add_shopping_cart, size: 18),
-                          SizedBox(width: 6),
-                          Text('Carrinho'),
-                        ],
-                      ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              flex: 2,
-              child: FilledButton(
-                onPressed: _buyNow,
-                style: FilledButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  backgroundColor: theme.colorScheme.secondary,
-                ),
-                child: const Text('Comprar agora'),
-              ),
-            ),
-          ],
-        ),
-      );
+    final chat = await ref.read(chatsProvider.notifier).getOrCreateChat(tenantId);
+    if (chat != null && context.mounted) {
+      context.push('/chats/${chat.id}');
     }
-
-    // No payment methods — show WhatsApp if available
-    final whatsapp = tenant?.whatsapp;
-    if (whatsapp != null && whatsapp.isNotEmpty) {
-      return Expanded(
-        child: WhatsAppButton(
-          phoneNumber: whatsapp,
-          message:
-              'Olá! Tenho interesse no produto: $productName - ${Formatters.currency(productPrice)}',
-          label: 'WhatsApp',
-        ),
-      );
-    }
-
-    // Fallback: empty spacer
-    return const Spacer();
   }
 
   @override
@@ -245,6 +163,9 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                 ),
                 actions: [
                   IconButton(
+                    tooltip: ref.watch(isProductFavoriteProvider(product.id))
+                        ? 'Remover dos favoritos'
+                        : 'Adicionar aos favoritos',
                     onPressed: () {
                       ref.read(favoriteProductIdsProvider.notifier).toggleFavorite(product.id);
                     },
@@ -265,24 +186,15 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                     ),
                   ),
                   IconButton(
-                    onPressed: () {
-                      final shareText =
-                          '${product.name} - ${Formatters.currency(product.price)}\n'
-                          'Confira no Compre Aqui!';
-                      Clipboard.setData(ClipboardData(text: shareText));
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Link copiado para a área de transferência'),
-                        ),
-                      );
-                    },
+                    tooltip: 'Carrinho',
+                    onPressed: () => context.push(AppRouter.cart),
                     icon: Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
                         color: Colors.white.withAlpha(230),
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(Icons.share),
+                      child: const Icon(Icons.shopping_cart_outlined),
                     ),
                   ),
                 ],
@@ -491,16 +403,23 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                           spacing: 6,
                           runSpacing: 6,
                           children: product.tags.map((tag) {
-                            return Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: theme.colorScheme.surfaceContainerHighest,
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Text(
-                                '#$tag',
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: theme.colorScheme.onSurfaceVariant,
+                            return GestureDetector(
+                              onTap: () {
+                                ref.read(productFiltersProvider.notifier).state =
+                                    ProductFilters(tags: [tag]);
+                                context.push(AppRouter.search);
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: theme.colorScheme.surfaceContainerHighest,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Text(
+                                  '#$tag',
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: theme.colorScheme.primary,
+                                  ),
                                 ),
                               ),
                             );
@@ -536,6 +455,17 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                       const Divider(),
                       const SizedBox(height: 16),
 
+                      // WhatsApp seller button
+                      if (tenant?.whatsapp != null && tenant!.whatsapp!.isNotEmpty) ...[
+                        WhatsAppButton(
+                          phoneNumber: tenant.whatsapp!,
+                          message:
+                              'Olá! Tenho interesse no produto: ${product.name} - ${Formatters.currency(product.price)}',
+                          label: 'Chamar vendedor no WhatsApp',
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+
                       // Seller info
                       Text(
                         'Vendedor',
@@ -545,16 +475,8 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                       ),
                       const SizedBox(height: 12),
                       InkWell(
-                        onTap: () async {
-                          final isAuth = ref.read(isAuthenticatedProvider);
-                          if (!isAuth) {
-                            context.push('${AppRouter.login}?redirect=/product/${product.id}');
-                            return;
-                          }
-                          final chat = await ref.read(chatsProvider.notifier).getOrCreateChat(product.tenantId);
-                          if (chat != null && context.mounted) {
-                            context.push('/chats/${chat.id}');
-                          }
+                        onTap: () {
+                          context.push('/seller-profile/${product.tenantId}');
                         },
                         borderRadius: BorderRadius.circular(12),
                         child: Container(
@@ -668,7 +590,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                                     ),
                                     const SizedBox(height: 2),
                                     Text(
-                                      'Conversar com vendedor',
+                                      'Ver perfil do vendedor',
                                       style: theme.textTheme.bodySmall?.copyWith(
                                         color: theme.colorScheme.primary,
                                       ),
@@ -693,16 +615,12 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
         },
       ),
 
-      // Bottom action buttons
+      // OLX-style bottom bar: Comprar + Chat
       bottomNavigationBar: productAsync.when(
         loading: () => null,
         error: (_, __) => null,
         data: (product) {
           if (product == null) return null;
-
-          final hasPaymentMethods =
-              tenant?.marketplace?.paymentMethods.isNotEmpty ?? false;
-          final isTenantLoading = tenantAsync?.isLoading ?? true;
 
           return Container(
             padding: EdgeInsets.fromLTRB(
@@ -715,46 +633,68 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
               color: theme.colorScheme.surface,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withAlpha(10),
-                  blurRadius: 10,
+                  color: Colors.black.withAlpha(15),
+                  blurRadius: 12,
                   offset: const Offset(0, -4),
                 ),
               ],
             ),
             child: Row(
               children: [
-                // Chat with seller (always visible)
-                Container(
-                  decoration: BoxDecoration(
-                    border: Border.all(
-                      color: theme.colorScheme.outline.withAlpha(50),
+                // Comprar button (adds to cart)
+                Expanded(
+                  flex: 3,
+                  child: FilledButton.icon(
+                    onPressed: _isAddingToCart ? null : _addToCart,
+                    icon: _isAddingToCart
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Icon(Icons.shopping_bag_outlined, size: 20),
+                    label: const Text(
+                      'Comprar',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: IconButton(
-                    onPressed: () async {
-                      final isAuth = ref.read(isAuthenticatedProvider);
-                      if (!isAuth) {
-                        context.push('${AppRouter.login}?redirect=/product/${product.id}');
-                        return;
-                      }
-                      final chat = await ref.read(chatsProvider.notifier).getOrCreateChat(product.tenantId);
-                      if (chat != null && context.mounted) {
-                        context.push('/chats/${chat.id}');
-                      }
-                    },
-                    icon: const Icon(Icons.chat_bubble_outline),
-                    tooltip: 'Conversar com vendedor',
+                    style: FilledButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
                   ),
                 ),
                 const SizedBox(width: 12),
-                _buildBottomBarActions(
-                  theme: theme,
-                  isLoading: isTenantLoading,
-                  hasPaymentMethods: hasPaymentMethods,
-                  tenant: tenant,
-                  productName: product.name,
-                  productPrice: product.price,
+                // Chat button
+                Expanded(
+                  flex: 2,
+                  child: OutlinedButton.icon(
+                    onPressed: () => _openChat(product.tenantId),
+                    icon: const Icon(Icons.chat_bubble_outline, size: 20),
+                    label: const Text(
+                      'Chat',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      side: BorderSide(
+                        color: theme.colorScheme.outline.withAlpha(80),
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
                 ),
               ],
             ),

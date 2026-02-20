@@ -75,4 +75,14 @@ class AppConstants {
   static const Duration cacheDurationShort = Duration(minutes: 5);
   static const Duration cacheDurationMedium = Duration(hours: 1);
   static const Duration cacheDurationLong = Duration(days: 1);
+
+  // Support & Contact
+  static const String supportWhatsAppPhone = '5547997856405';
+  static const String supportEmail = 'suporte@compreaqui.com.br';
+
+  // External URLs
+  static const String helpUrl = 'https://compreaqui.com.br/ajuda';
+  static const String termsUrl = 'https://compreaqui.com.br/termos';
+  static const String privacyUrl = 'https://compreaqui.com.br/privacidade';
+  static const String cookiesUrl = 'https://compreaqui.com.br/cookies';
 }

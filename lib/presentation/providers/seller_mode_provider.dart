@@ -4,8 +4,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// Provider to track whether the app is in seller mode
 /// Persists the preference to local storage
 final sellerModeProvider = StateNotifierProvider<SellerModeNotifier, bool>((ref) {
-  return SellerModeNotifier();
+  return SellerModeNotifier(ref.read(sellerModeInitialValueProvider));
 });
+
+/// Holds the initial value loaded from SharedPreferences before app starts
+final sellerModeInitialValueProvider = StateProvider<bool>((ref) => false);
 
 /// Convenience provider to check if seller mode is active
 final isSellerModeProvider = Provider<bool>((ref) {
@@ -15,16 +18,15 @@ final isSellerModeProvider = Provider<bool>((ref) {
 class SellerModeNotifier extends StateNotifier<bool> {
   static const _key = 'seller_mode_active';
 
-  SellerModeNotifier() : super(false) {
-    _loadFromPrefs();
-  }
+  SellerModeNotifier(bool initialValue) : super(initialValue);
 
-  Future<void> _loadFromPrefs() async {
+  /// Call this once at app startup before navigation
+  static Future<bool> loadInitialValue() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      state = prefs.getBool(_key) ?? false;
+      return prefs.getBool(_key) ?? false;
     } catch (_) {
-      // Ignore errors, default to false
+      return false;
     }
   }
 

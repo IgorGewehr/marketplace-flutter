@@ -6,6 +6,7 @@ import 'package:webview_flutter/webview_flutter.dart';
 import '../../../core/utils/formatters.dart';
 import '../../providers/mercadopago_provider.dart';
 import '../../widgets/card_payment_form.dart';
+import '../../widgets/shared/app_feedback.dart';
 
 /// Tela de assinaturas da plataforma.
 ///
@@ -72,7 +73,19 @@ class _MpSubscriptionScreenState extends ConsumerState<MpSubscriptionScreen> {
       ),
       body: subscription.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Erro: $e')),
+        error: (_, __) => Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Text('Erro ao carregar assinatura'),
+              const SizedBox(height: 16),
+              FilledButton(
+                onPressed: () => ref.invalidate(mpSubscriptionProvider),
+                child: const Text('Tentar novamente'),
+              ),
+            ],
+          ),
+        ),
         data: (current) {
           if (current != null && !current.isCancelled) {
             return _buildCurrentSubscription(theme, current);
@@ -114,7 +127,7 @@ class _MpSubscriptionScreenState extends ConsumerState<MpSubscriptionScreen> {
                 Text(
                   subscription.planType.toString().toUpperCase(),
                   style: theme.textTheme.headlineMedium?.copyWith(
-                    color: Colors.white,
+                    color: theme.colorScheme.surface,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -122,7 +135,7 @@ class _MpSubscriptionScreenState extends ConsumerState<MpSubscriptionScreen> {
                 Text(
                   Formatters.currency(subscription.amount),
                   style: theme.textTheme.titleLarge?.copyWith(
-                    color: Colors.white,
+                    color: theme.colorScheme.surface,
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -136,7 +149,7 @@ class _MpSubscriptionScreenState extends ConsumerState<MpSubscriptionScreen> {
                   child: Text(
                     'Status: ${subscription.status}',
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color: Colors.white,
+                      color: theme.colorScheme.surface,
                     ),
                   ),
                 ),
@@ -295,14 +308,12 @@ class _MpSubscriptionScreenState extends ConsumerState<MpSubscriptionScreen> {
         if (_paymentMethod == 'pix' && result.initPoint != null) {
           _openPixSubscription(result.initPoint!);
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Assinatura criada com sucesso!')),
-          );
+          AppFeedback.showSuccess(context, 'Assinatura criada com sucesso!');
         }
       }
     } catch (e) {
       setState(() {
-        _error = 'Erro ao criar assinatura: $e';
+        _error = 'Erro ao criar assinatura. Tente novamente.';
       });
     } finally {
       if (mounted) {
@@ -355,9 +366,7 @@ class _MpSubscriptionScreenState extends ConsumerState<MpSubscriptionScreen> {
     if (confirmed == true) {
       await ref.read(mpSubscriptionProvider.notifier).cancel();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Assinatura cancelada')),
-        );
+        AppFeedback.showSuccess(context, 'Assinatura cancelada');
       }
     }
   }
@@ -401,7 +410,7 @@ class _PlanCard extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: theme.colorScheme.surface,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: isSelected

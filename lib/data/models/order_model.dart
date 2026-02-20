@@ -30,6 +30,8 @@ class OrderModel {
   final DateTime? deliveryConfirmedAt; // When buyer confirmed delivery
   final DateTime? paymentReleasedAt; // When payment was released to seller (24h after confirmation)
   final OrderPaymentSplit? paymentSplit; // Split payment configuration
+  final String? trackingCode; // Shipping tracking code
+  final String? shippingCompany; // Shipping carrier name
   final String? pixCode; // PIX copia e cola code (from payment creation)
   final String? pixQrCodeUrl; // PIX QR code image URL
   final DateTime? pixExpiration; // PIX payment expiration
@@ -63,6 +65,8 @@ class OrderModel {
     this.deliveryConfirmedAt,
     this.paymentReleasedAt,
     this.paymentSplit,
+    this.trackingCode,
+    this.shippingCompany,
     this.pixCode,
     this.pixQrCodeUrl,
     this.pixExpiration,
@@ -142,6 +146,8 @@ class OrderModel {
       paymentSplit: json['paymentSplit'] != null
           ? OrderPaymentSplit.fromJson(json['paymentSplit'] as Map<String, dynamic>)
           : null,
+      trackingCode: json['trackingCode'] as String?,
+      shippingCompany: json['shippingCompany'] as String?,
       pixCode: json['pixCode'] as String?,
       pixQrCodeUrl: json['pixQrCodeUrl'] as String?,
       pixExpiration: json['pixExpiration'] != null
@@ -184,6 +190,8 @@ class OrderModel {
       if (deliveryConfirmedAt != null) 'deliveryConfirmedAt': deliveryConfirmedAt!.toIso8601String(),
       if (paymentReleasedAt != null) 'paymentReleasedAt': paymentReleasedAt!.toIso8601String(),
       if (paymentSplit != null) 'paymentSplit': paymentSplit!.toJson(),
+      if (trackingCode != null) 'trackingCode': trackingCode,
+      if (shippingCompany != null) 'shippingCompany': shippingCompany,
       if (pixCode != null) 'pixCode': pixCode,
       if (pixQrCodeUrl != null) 'pixQrCodeUrl': pixQrCodeUrl,
       if (pixExpiration != null) 'pixExpiration': pixExpiration!.toIso8601String(),
@@ -219,6 +227,8 @@ class OrderModel {
     DateTime? deliveryConfirmedAt,
     DateTime? paymentReleasedAt,
     OrderPaymentSplit? paymentSplit,
+    String? trackingCode,
+    String? shippingCompany,
     String? pixCode,
     String? pixQrCodeUrl,
     DateTime? pixExpiration,
@@ -252,6 +262,8 @@ class OrderModel {
       deliveryConfirmedAt: deliveryConfirmedAt ?? this.deliveryConfirmedAt,
       paymentReleasedAt: paymentReleasedAt ?? this.paymentReleasedAt,
       paymentSplit: paymentSplit ?? this.paymentSplit,
+      trackingCode: trackingCode ?? this.trackingCode,
+      shippingCompany: shippingCompany ?? this.shippingCompany,
       pixCode: pixCode ?? this.pixCode,
       pixQrCodeUrl: pixQrCodeUrl ?? this.pixQrCodeUrl,
       pixExpiration: pixExpiration ?? this.pixExpiration,

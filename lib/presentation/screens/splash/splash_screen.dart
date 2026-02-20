@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/router/app_router.dart';
 import '../../providers/auth_providers.dart';
+import '../../providers/seller_mode_provider.dart';
 
 /// Splash Screen - Shows while checking auth state
 class SplashScreen extends ConsumerStatefulWidget {
@@ -47,6 +48,9 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     _checkAuthAndNavigate();
   }
 
+  int _retryCount = 0;
+  static const int _maxRetries = 20; // 10 seconds max (20 * 500ms)
+
   Future<void> _checkAuthAndNavigate() async {
     // Wait for animation and auth state
     await Future.delayed(const Duration(milliseconds: 2000));
@@ -57,7 +61,12 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
     switch (authStatus) {
       case AuthStatus.loading:
-        // Still loading, wait more
+        _retryCount++;
+        // Gap #6: Timeout after max retries instead of infinite polling
+        if (_retryCount >= _maxRetries) {
+          if (mounted) context.go(AppRouter.home);
+          return;
+        }
         await Future.delayed(const Duration(milliseconds: 500));
         if (mounted) _checkAuthAndNavigate();
         break;
@@ -68,7 +77,8 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
         context.go(AppRouter.completeProfile);
         break;
       case AuthStatus.authenticated:
-        context.go(AppRouter.home);
+        final isSellerMode = ref.read(sellerModeProvider);
+        context.go(isSellerMode ? AppRouter.sellerDashboard : AppRouter.home);
         break;
     }
   }

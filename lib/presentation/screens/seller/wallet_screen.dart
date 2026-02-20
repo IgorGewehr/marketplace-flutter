@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../data/models/transaction_model.dart';
-import '../../providers/auth_providers.dart';
 import '../../providers/wallet_provider.dart';
 import '../../widgets/seller/wallet_balance_card.dart';
 import '../../widgets/seller/transaction_tile.dart';
@@ -33,12 +32,12 @@ class WalletScreen extends ConsumerWidget {
               floating: true,
               backgroundColor: AppColors.background,
               elevation: 0,
-              title: const Text(
+              title: Text(
                 'Carteira',
                 style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimary,
+                  color: Theme.of(context).colorScheme.onSurface,
                 ),
               ),
             ),
@@ -52,7 +51,6 @@ class WalletScreen extends ConsumerWidget {
                     availableBalance: wallet?.balance.available ?? 0,
                     pendingBalance: wallet?.balance.pending ?? 0,
                     blockedBalance: wallet?.balance.blocked ?? 0,
-                    onWithdraw: () => _showWithdrawSheet(context, ref, wallet?.balance.available ?? 0),
                   ),
                   loading: () => const WalletBalanceCard(
                     availableBalance: 0,
@@ -65,18 +63,76 @@ class WalletScreen extends ConsumerWidget {
               ),
             ),
             
-            // Transaction History Header
-            const SliverPadding(
-              padding: EdgeInsets.symmetric(horizontal: 16),
+            // MP info banner
+            SliverPadding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
               sliver: SliverToBoxAdapter(
-                child: Text(
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF009EE3).withAlpha(15),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFF009EE3).withAlpha(40)),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF009EE3).withAlpha(30),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Icon(
+                          Icons.account_balance_wallet,
+                          color: Color(0xFF009EE3),
+                          size: 20,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Saques via Mercado Pago',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 14,
+                                color: Theme.of(context).colorScheme.onSurface,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Para sacar seu saldo, use o aplicativo do Mercado Pago. '
+                              'O dinheiro das vendas é depositado automaticamente na sua conta MP.',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            const SliverPadding(padding: EdgeInsets.only(top: 16)),
+
+            // Transaction History Header
+            SliverPadding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              sliver: SliverToBoxAdapter(
+                child: Builder(builder: (context) => Text(
                   'Histórico',
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary,
+                    color: Theme.of(context).colorScheme.onSurface,
                   ),
-                ),
+                )),
               ),
             ),
             const SliverPadding(padding: EdgeInsets.only(top: 8)),
@@ -200,9 +256,9 @@ class WalletScreen extends ConsumerWidget {
       backgroundColor: Colors.transparent,
       builder: (context) => Container(
         padding: const EdgeInsets.all(24),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -298,250 +354,6 @@ class WalletScreen extends ConsumerWidget {
     );
   }
 
-  void _showWithdrawSheet(BuildContext context, WidgetRef ref, double availableBalance) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => WithdrawSheet(
-        availableBalance: availableBalance,
-        onWithdraw: (amount, pixKey) async {
-          final success = await ref.read(walletProvider.notifier).requestWithdrawal(
-            amount: amount,
-            pixKey: pixKey,
-          );
-          return success;
-        },
-      ),
-    );
-  }
-}
-
-/// Bottom sheet for withdrawal
-class WithdrawSheet extends ConsumerStatefulWidget {
-  final double availableBalance;
-  final Future<bool> Function(double amount, String pixKey) onWithdraw;
-
-  const WithdrawSheet({
-    super.key,
-    required this.availableBalance,
-    required this.onWithdraw,
-  });
-
-  @override
-  ConsumerState<WithdrawSheet> createState() => _WithdrawSheetState();
-}
-
-class _WithdrawSheetState extends ConsumerState<WithdrawSheet> {
-  final _amountController = TextEditingController();
-  bool _isLoading = false;
-  bool _useFullBalance = false;
-
-  @override
-  void dispose() {
-    _amountController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _handleWithdraw() async {
-    final amount = _useFullBalance
-        ? widget.availableBalance
-        : double.tryParse(_amountController.text.replaceAll(',', '.'));
-
-    if (amount == null || amount <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Informe um valor válido'),
-          backgroundColor: AppColors.error,
-        ),
-      );
-      return;
-    }
-
-    if (amount > widget.availableBalance) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Saldo insuficiente'),
-          backgroundColor: AppColors.error,
-        ),
-      );
-      return;
-    }
-
-    setState(() => _isLoading = true);
-
-    // Use user's phone or email as PIX key
-    final user = ref.read(currentUserProvider).valueOrNull;
-    final pixKey = user?.phone ?? user?.email ?? '';
-
-    try {
-      final success = await widget.onWithdraw(amount, pixKey);
-      if (mounted) {
-        if (success) {
-          Navigator.pop(context);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Saque solicitado com sucesso!'),
-              backgroundColor: AppColors.secondary,
-            ),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Erro ao solicitar saque'),
-              backgroundColor: AppColors.error,
-            ),
-          );
-        }
-      }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final bottomPadding = MediaQuery.of(context).viewInsets.bottom;
-
-    return Container(
-      padding: EdgeInsets.fromLTRB(24, 24, 24, 24 + bottomPadding),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Handle
-          Center(
-            child: Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: AppColors.border,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-          ),
-          const SizedBox(height: 24),
-
-          // Title
-          const Text(
-            'Sacar para PIX',
-            style: TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-              color: AppColors.textPrimary,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'O saque será enviado para o CPF do seu cadastro',
-            style: TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 14,
-            ),
-          ),
-          const SizedBox(height: 24),
-
-          // Available balance
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: AppColors.secondary.withAlpha(15),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.account_balance_wallet, color: AppColors.secondary),
-                const SizedBox(width: 12),
-                const Text(
-                  'Saldo disponível:',
-                  style: TextStyle(color: AppColors.textSecondary),
-                ),
-                const Spacer(),
-                Text(
-                  'R\$ ${widget.availableBalance.toStringAsFixed(2).replaceAll('.', ',')}',
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.secondary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          // Use full balance toggle
-          CheckboxListTile(
-            value: _useFullBalance,
-            onChanged: (value) {
-              setState(() {
-                _useFullBalance = value ?? false;
-                if (_useFullBalance) {
-                  _amountController.text = widget.availableBalance.toStringAsFixed(2);
-                }
-              });
-            },
-            title: const Text('Sacar saldo total'),
-            contentPadding: EdgeInsets.zero,
-            controlAffinity: ListTileControlAffinity.leading,
-            activeColor: AppColors.sellerAccent,
-          ),
-
-          // Amount field
-          if (!_useFullBalance) ...[
-            const SizedBox(height: 8),
-            TextField(
-              controller: _amountController,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              decoration: const InputDecoration(
-                labelText: 'Valor do saque',
-                prefixText: 'R\$ ',
-              ),
-            ),
-          ],
-          const SizedBox(height: 24),
-
-          // Withdraw button
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: _isLoading ? null : _handleWithdraw,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.secondary,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              icon: _isLoading
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                      ),
-                    )
-                  : const Icon(Icons.pix),
-              label: const Text(
-                'Solicitar Saque',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ),
-          SizedBox(height: MediaQuery.of(context).padding.bottom),
-        ],
-      ),
-    );
-  }
 }
 
 class _DetailRow extends StatelessWidget {

@@ -74,6 +74,18 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
     }
 
     if (action === "url") {
+      // Validate required config before generating OAuth URL
+      if (!config.mercadoPago.clientId || !config.mercadoPago.oauthRedirectUri) {
+        functions.logger.error("Missing MP OAuth config", {
+          hasClientId: !!config.mercadoPago.clientId,
+          hasRedirectUri: !!config.mercadoPago.oauthRedirectUri,
+        });
+        res.status(500).json({
+          error: "Configuração do Mercado Pago incompleta. Entre em contato com o suporte.",
+        });
+        return;
+      }
+
       // Generate OAuth URL
       // Store state in Firestore for CSRF validation
       const state = `${tenantId}_${Date.now()}_${Math.random().toString(36).substring(2)}`;
@@ -117,8 +129,8 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
 
       const storedData = stateDoc.data()!;
 
-      // Validate state matches
-      if (state && storedData.state !== state) {
+      // Validate state matches (state is REQUIRED to prevent CSRF)
+      if (!state || storedData.state !== state) {
         functions.logger.error("OAuth state mismatch - possible CSRF attack", {
           tenantId,
           expected: storedData.state,
@@ -247,19 +259,10 @@ export async function handleOAuthCallback(req: Request, res: Response): Promise<
     return;
   }
 
-  // Return the code and state so the mobile WebView can intercept
-  // Use JSON.stringify to safely inject values into JavaScript context
-  res.send(`
-    <html><body>
-      <p>Processando autorização...</p>
-      <script>
-        // The WebView will intercept this URL change
-        var code = ${JSON.stringify(code)};
-        var state = ${JSON.stringify(state || "")};
-        window.location.href = '/mp-oauth-callback?code=' + encodeURIComponent(code) + '&state=' + encodeURIComponent(state);
-      </script>
-    </body></html>
-  `);
+  // Redirect so the mobile WebView can intercept the callback URL.
+  // Use a server-side 302 redirect instead of JS-based redirect for reliability.
+  const redirectUrl = `/mp-oauth-callback?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state || "")}`;
+  res.redirect(302, redirectUrl);
 }
 
 /**

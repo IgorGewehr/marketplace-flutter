@@ -1,27 +1,21 @@
-import 'dart:math';
+import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 import '../../providers/mercadopago_provider.dart';
+import '../../widgets/shared/app_feedback.dart';
 
-/// Allowed domains for navigation during the OAuth flow.
-const _allowedOAuthDomains = [
-  'auth.mercadopago.com',
-  'auth.mercadopago.com.br',
-  'www.mercadopago.com',
-  'www.mercadopago.com.br',
-  'mercadopago.com',
-  'mercadopago.com.br',
-  'accounts.google.com',
-];
+/// Timeout for the initial OAuth URL load.
+const _loadTimeoutSeconds = 30;
 
 /// Tela de conexao OAuth com Mercado Pago via WebView.
 ///
 /// O vendedor autoriza a plataforma a receber pagamentos em seu nome.
-/// Inclui protecao CSRF via state parameter e validacao de dominio.
+/// O state parameter para CSRF e gerenciado pelo backend.
 class MpConnectScreen extends ConsumerStatefulWidget {
   const MpConnectScreen({super.key});
 
@@ -35,44 +29,50 @@ class _MpConnectScreenState extends ConsumerState<MpConnectScreen> {
   double _loadingProgress = 0;
   String? _errorMessage;
   bool _isExchangingCode = false;
-
-  /// Random state nonce for CSRF protection
-  late final String _oauthState;
+  Timer? _loadTimeout;
 
   @override
   void initState() {
     super.initState();
-    _oauthState = _generateNonce();
     _loadOAuthUrl();
   }
 
-  /// Generates a cryptographically random nonce for OAuth state parameter.
-  String _generateNonce([int length = 32]) {
-    const chars =
-        'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    final random = Random.secure();
-    return List.generate(length, (_) => chars[random.nextInt(chars.length)])
-        .join();
+  @override
+  void dispose() {
+    _loadTimeout?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadOAuthUrl() async {
+    _loadTimeout?.cancel();
+
+    // Start a timeout — if the page hasn't loaded within the limit, show error
+    _loadTimeout = Timer(const Duration(seconds: _loadTimeoutSeconds), () {
+      if (_isLoading && mounted) {
+        setState(() {
+          _errorMessage =
+              'A página demorou muito para carregar. Verifique sua conexão e tente novamente.';
+          _isLoading = false;
+        });
+      }
+    });
+
     try {
       final url =
           await ref.read(mpConnectionProvider.notifier).getOAuthUrl();
 
-      // Append state parameter to the OAuth URL for CSRF protection
-      final uri = Uri.parse(url);
-      final urlWithState = uri.replace(
-        queryParameters: {
-          ...uri.queryParametersAll,
-          'state': [_oauthState],
-        },
-      ).toString();
+      if (kDebugMode) {
+        debugPrint('MP OAuth URL: $url');
+      }
 
-      _initWebView(urlWithState);
+      // Use the URL as-is from the backend — it already contains the state param
+      _initWebView(url);
     } catch (e) {
+      _loadTimeout?.cancel();
       setState(() {
-        _errorMessage = 'Erro ao gerar URL de autorização: $e';
+        _errorMessage =
+            'Não foi possível iniciar a conexão com o Mercado Pago. '
+            'Verifique sua conexão e tente novamente.';
         _isLoading = false;
       });
     }
@@ -96,11 +96,13 @@ class _MpConnectScreenState extends ConsumerState<MpConnectScreen> {
             });
           },
           onPageFinished: (url) {
+            _loadTimeout?.cancel();
             setState(() {
               _isLoading = false;
             });
           },
           onWebResourceError: (error) {
+            _loadTimeout?.cancel();
             setState(() {
               _isLoading = false;
               _errorMessage = 'Erro ao carregar página: ${error.description}';
@@ -116,21 +118,19 @@ class _MpConnectScreenState extends ConsumerState<MpConnectScreen> {
               return NavigationDecision.prevent;
             }
 
-            // Only allow navigation to known MP and auth domains
-            final host = uri.host;
-            final isAllowed = _allowedOAuthDomains.any(
-              (domain) => host == domain || host.endsWith('.$domain'),
-            );
-
-            // Also allow our own callback domain and initial load
-            if (!isAllowed && !uri.path.contains('mp-oauth-callback')) {
-              // Allow if it's our API/Cloud Functions domain
-              if (!host.contains('cloudfunctions.net') &&
-                  !host.contains('reidobrique.com.br')) {
-                return NavigationDecision.prevent;
-              }
+            // Intercept error callback
+            if (uri.path.contains('mp-oauth-callback') &&
+                uri.queryParameters.containsKey('error')) {
+              setState(() {
+                _errorMessage = uri.queryParameters['error'] ??
+                    'Autorização negada pelo Mercado Pago';
+              });
+              return NavigationDecision.prevent;
             }
 
+            // Allow all other navigation - the MP OAuth flow goes through
+            // multiple domains (login, 2FA, social auth, etc.) that we
+            // cannot predict or whitelist reliably.
             return NavigationDecision.navigate;
           },
         ),
@@ -147,15 +147,6 @@ class _MpConnectScreenState extends ConsumerState<MpConnectScreen> {
     final code = uri.queryParameters['code'];
     final state = uri.queryParameters['state'];
 
-    // Validate CSRF state parameter
-    if (state != _oauthState) {
-      setState(() {
-        _errorMessage =
-            'Erro de segurança: estado da requisição inválido. Tente novamente.';
-      });
-      return;
-    }
-
     if (code == null || code.isEmpty) {
       setState(() {
         _errorMessage = 'Código de autorização não encontrado';
@@ -168,21 +159,11 @@ class _MpConnectScreenState extends ConsumerState<MpConnectScreen> {
     });
 
     try {
-      await ref.read(mpConnectionProvider.notifier).exchangeCode(code);
+      // Pass the state from the URL so the backend can validate CSRF
+      await ref.read(mpConnectionProvider.notifier).exchangeCode(code, state: state);
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Row(
-              children: [
-                Icon(Icons.check_circle, color: Colors.white),
-                SizedBox(width: 8),
-                Text('Conta Mercado Pago conectada!'),
-              ],
-            ),
-            backgroundColor: Theme.of(context).colorScheme.secondary,
-          ),
-        );
+        AppFeedback.showSuccess(context, 'Conta Mercado Pago conectada!');
         context.pop(true);
       }
     } catch (e) {

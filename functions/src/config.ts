@@ -15,7 +15,7 @@ export const config = {
     oauthRedirectUri: process.env.MP_OAUTH_REDIRECT_URI || "",
   },
   platform: {
-    feePercentage: parseFloat(process.env.PLATFORM_FEE_PERCENTAGE || "10.0"),
+    feePercentage: parseFloat(process.env.PLATFORM_FEE_PERCENTAGE || "5.0"),
     paymentHoldHours: parseInt(process.env.PAYMENT_HOLD_HOURS || "24", 10),
   },
 };

@@ -429,6 +429,8 @@ bool _isProtectedRoute(String location) {
 
 /// Check if route requires seller status
 bool _isSellerRoute(String location) {
+  // MP connect is accessible during onboarding (before seller setup is complete)
+  if (location == AppRouter.sellerMpConnect) return false;
   return location.startsWith('/seller');
 }
 

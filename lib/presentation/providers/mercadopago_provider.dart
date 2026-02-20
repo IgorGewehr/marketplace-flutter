@@ -28,11 +28,11 @@ class MpConnectionNotifier extends AsyncNotifier<MpConnectionModel?> {
     return await repo.getOAuthUrl();
   }
 
-  Future<void> exchangeCode(String code) async {
-    state = const AsyncLoading();
-    state = await AsyncValue.guard(() async {
+  Future<void> exchangeCode(String code, {String? state}) async {
+    this.state = const AsyncLoading();
+    this.state = await AsyncValue.guard(() async {
       final repo = ref.read(mercadoPagoRepositoryProvider);
-      return await repo.exchangeOAuthCode(code);
+      return await repo.exchangeOAuthCode(code, state: state);
     });
   }
 

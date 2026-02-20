@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/router/app_router.dart';
 import '../../providers/auth_providers.dart';
+import '../../providers/mercadopago_provider.dart';
 import '../../widgets/auth/auth_button.dart';
 import '../../widgets/auth/auth_text_field.dart';
 import '../../widgets/auth/cpf_cnpj_field.dart';
@@ -43,11 +44,35 @@ class _BecomeSellerScreenState extends ConsumerState<BecomeSellerScreen> {
 
   bool _isSubmitting = false;
 
+  /// Tracks whether becomeSeller was called during this flow (or user was already a seller).
+  /// Used to prevent exiting in an inconsistent state.
+  bool _becameSellerDuringFlow = false;
+
   @override
   void initState() {
     super.initState();
     _confettiController =
         ConfettiController(duration: const Duration(seconds: 3));
+    // Resume at the correct step if the user is already a seller (e.g. came back after partial onboarding)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkExistingSellerStatus();
+    });
+  }
+
+  void _checkExistingSellerStatus() {
+    final user = ref.read(currentUserProvider).valueOrNull;
+    if (user != null && user.isSeller) {
+      _becameSellerDuringFlow = true;
+      final isMpConnected = ref.read(isMpConnectedProvider);
+      if (isMpConnected) {
+        setState(() => _currentStep = 4);
+        _pageController.jumpToPage(4);
+        _confettiController.play();
+      } else {
+        setState(() => _currentStep = 3);
+        _pageController.jumpToPage(3);
+      }
+    }
   }
 
   @override
@@ -94,9 +119,37 @@ class _BecomeSellerScreenState extends ConsumerState<BecomeSellerScreen> {
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
       );
+    } else if (_becameSellerDuringFlow) {
+      _showExitConfirmation();
     } else {
       context.pop();
     }
+  }
+
+  void _showExitConfirmation() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Sair do cadastro?'),
+        content: const Text(
+          'Sua loja já foi criada. Você pode conectar o Mercado Pago '
+          'depois pelo painel do vendedor.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Continuar cadastro'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              context.go(AppRouter.sellerDashboard);
+            },
+            child: const Text('Ir ao painel'),
+          ),
+        ],
+      ),
+    );
   }
 
   bool _canAdvance() {
@@ -129,6 +182,7 @@ class _BecomeSellerScreenState extends ConsumerState<BecomeSellerScreen> {
     setState(() => _isSubmitting = false);
 
     if (success) {
+      _becameSellerDuringFlow = true;
       setState(() => _currentStep++);
       _pageController.animateToPage(
         _currentStep,
@@ -145,63 +199,74 @@ class _BecomeSellerScreenState extends ConsumerState<BecomeSellerScreen> {
     final theme = Theme.of(context);
     final isWelcome = _currentStep == 0;
 
-    return Scaffold(
-      backgroundColor: isWelcome ? theme.colorScheme.surface : null,
-      body: SafeArea(
-        child: Column(
-          children: [
-            // Top bar with back button and progress
-            Padding(
-              padding: const EdgeInsets.fromLTRB(8, 8, 16, 0),
-              child: Row(
-                children: [
-                  IconButton(
-                    onPressed: _previousStep,
-                    icon: Icon(
-                      Icons.arrow_back,
-                      color: isWelcome ? theme.colorScheme.onSurface : null,
+    return PopScope(
+      canPop: _currentStep == 0 && !_becameSellerDuringFlow,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        if (_currentStep > 0) {
+          _previousStep();
+        } else {
+          _showExitConfirmation();
+        }
+      },
+      child: Scaffold(
+        backgroundColor: isWelcome ? theme.colorScheme.surface : null,
+        body: SafeArea(
+          child: Column(
+            children: [
+              // Top bar with back button and progress
+              Padding(
+                padding: const EdgeInsets.fromLTRB(8, 8, 16, 0),
+                child: Row(
+                  children: [
+                    IconButton(
+                      onPressed: _previousStep,
+                      icon: Icon(
+                        Icons.arrow_back,
+                        color: isWelcome ? theme.colorScheme.onSurface : null,
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(4),
-                      child: LinearProgressIndicator(
-                        value: (_currentStep + 1) / _totalSteps,
-                        minHeight: 6,
-                        backgroundColor: theme.colorScheme.surfaceContainerHighest,
-                        valueColor: AlwaysStoppedAnimation<Color>(
-                          theme.colorScheme.primary,
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(4),
+                        child: LinearProgressIndicator(
+                          value: (_currentStep + 1) / _totalSteps,
+                          minHeight: 6,
+                          backgroundColor: theme.colorScheme.surfaceContainerHighest,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            theme.colorScheme.primary,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    '${_currentStep + 1}/$_totalSteps',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
+                    const SizedBox(width: 12),
+                    Text(
+                      '${_currentStep + 1}/$_totalSteps',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
 
-            // Page content
-            Expanded(
-              child: PageView(
-                controller: _pageController,
-                physics: const NeverScrollableScrollPhysics(),
-                children: [
-                  _buildWelcomeStep(theme),
-                  _buildBusinessTypeStep(theme),
-                  _buildBusinessDataStep(theme),
-                  _buildMercadoPagoStep(theme),
-                  _buildConclusionStep(theme),
-                ],
+              // Page content
+              Expanded(
+                child: PageView(
+                  controller: _pageController,
+                  physics: const NeverScrollableScrollPhysics(),
+                  children: [
+                    _buildWelcomeStep(theme),
+                    _buildBusinessTypeStep(theme),
+                    _buildBusinessDataStep(theme),
+                    _buildMercadoPagoStep(theme),
+                    _buildConclusionStep(theme),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -485,7 +550,7 @@ class _BecomeSellerScreenState extends ConsumerState<BecomeSellerScreen> {
                 _InfoRow(
                   icon: Icons.percent,
                   label: 'Taxa por venda',
-                  value: '10%',
+                  value: '5%',
                 ),
                 const Divider(height: 24),
                 _InfoRow(

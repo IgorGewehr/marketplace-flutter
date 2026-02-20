@@ -29,12 +29,14 @@ class OrderTimeline extends StatelessWidget {
     );
   }
 
+  // Gap #16: Handle all status values including out_for_delivery and pending_payment
   int _getCurrentStepIndex() {
+    if (order.isDeliveryConfirmed) return 5;
     return switch (order.status) {
-      'pending' => 0,
+      'pending' || 'pending_payment' => 0,
       'confirmed' => 1,
       'preparing' || 'processing' => 2,
-      'shipped' || 'ready' => 3,
+      'shipped' || 'ready' || 'out_for_delivery' => 3,
       'delivered' => 4,
       'cancelled' || 'refunded' => -1,
       _ => 0,
@@ -85,6 +87,17 @@ class OrderTimeline extends StatelessWidget {
         date: _getDateForStatus('delivered'),
         description: 'Pedido finalizado',
       ),
+
+      // D5: Conditional delivery confirmation step
+      if (order.status == 'delivered' || order.isDeliveryConfirmed)
+        _TimelineStepData(
+          icon: Icons.verified_outlined,
+          title: 'Recebimento confirmado',
+          date: order.deliveryConfirmedAt,
+          description: order.isDeliveryConfirmed
+              ? 'Pagamento será liberado em até 24h'
+              : 'Aguardando confirmação do comprador',
+        ),
     ];
   }
 }

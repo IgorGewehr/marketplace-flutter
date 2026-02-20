@@ -40,7 +40,7 @@ class ProductCard extends ConsumerWidget {
     final photoCount = product.images.length;
 
     return Material(
-      color: Colors.white,
+      color: theme.colorScheme.surface,
       borderRadius: BorderRadius.circular(AppSpacing.radiusM),
       elevation: 0,
       child: InkWell(
@@ -120,18 +120,21 @@ class ProductCard extends ConsumerWidget {
                     Positioned(
                       top: AppSpacing.xs,
                       right: AppSpacing.xs,
-                      child: SizedBox(
-                        width: AppSpacing.touchTarget,
-                        height: AppSpacing.touchTarget,
-                        child: Material(
-                          color: Colors.transparent,
-                          child: InkWell(
-                            onTap: () {
-                              ref
-                                  .read(favoriteProductIdsProvider.notifier)
-                                  .toggleFavorite(product.id);
-                            },
-                            customBorder: const CircleBorder(),
+                      child: Semantics(
+                        label: isFavorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos',
+                        button: true,
+                        child: SizedBox(
+                          width: AppSpacing.touchTarget,
+                          height: AppSpacing.touchTarget,
+                          child: Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              onTap: () {
+                                ref
+                                    .read(favoriteProductIdsProvider.notifier)
+                                    .toggleFavorite(product.id);
+                              },
+                              customBorder: const CircleBorder(),
                             child: Center(
                               child: Container(
                                 width: 36,
@@ -157,6 +160,7 @@ class ProductCard extends ConsumerWidget {
                             ),
                           ),
                         ),
+                      ),
                       ),
                     ),
 

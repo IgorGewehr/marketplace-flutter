@@ -9,7 +9,7 @@ abstract class MercadoPagoRepository {
   Future<String> getOAuthUrl();
 
   /// Troca authorization code por tokens
-  Future<MpConnectionModel> exchangeOAuthCode(String code);
+  Future<MpConnectionModel> exchangeOAuthCode(String code, {String? state});
 
   /// Status da conexão OAuth
   Future<MpConnectionModel> getConnectionStatus();

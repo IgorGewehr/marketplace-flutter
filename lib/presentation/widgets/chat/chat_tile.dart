@@ -51,6 +51,7 @@ class ChatTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final avatarColor = _getAvatarColor(participantName);
 
     return Material(
@@ -163,7 +164,7 @@ class ChatTile extends StatelessWidget {
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: hasUnread ? FontWeight.w600 : FontWeight.w500,
-                              color: AppColors.textPrimary,
+                              color: theme.colorScheme.onSurface,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -221,8 +222,8 @@ class ChatTile extends StatelessWidget {
                             style: TextStyle(
                               fontSize: 14,
                               color: hasUnread
-                                  ? AppColors.textPrimary
-                                  : AppColors.textSecondary,
+                                  ? theme.colorScheme.onSurface
+                                  : theme.colorScheme.onSurfaceVariant,
                               fontWeight: hasUnread ? FontWeight.w500 : FontWeight.normal,
                             ),
                             maxLines: 1,

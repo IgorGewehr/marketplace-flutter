@@ -15,6 +15,7 @@ import '../../providers/auth_providers.dart';
 import '../../providers/chat_provider.dart';
 import '../../widgets/chat/message_bubble.dart';
 import '../../widgets/chat/message_input.dart';
+import '../../widgets/shared/app_feedback.dart';
 import '../../widgets/shared/error_state.dart';
 import '../../widgets/shared/shimmer_loading.dart';
 
@@ -116,8 +117,8 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        foregroundColor: AppColors.textPrimary,
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        foregroundColor: Theme.of(context).colorScheme.onSurface,
         elevation: 0,
         titleSpacing: 0,
         bottom: PreferredSize(
@@ -263,7 +264,8 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
           // Message input
           MessageInput(
             onSend: (text) {
-              ref.read(chatMessagesProvider(widget.chatId).notifier).sendMessage(text);
+              ref.read(chatMessagesProvider(widget.chatId).notifier)
+                  .sendMessage(text, replyToId: _replyingTo?.id);
               _cancelReply();
             },
             onAttachment: () => _showAttachmentOptions(context),
@@ -280,7 +282,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
   /// Order context card pinned at the top of the conversation
   Widget _buildOrderContextCard(ChatModel chat) {
     return Material(
-      color: Colors.white,
+      color: Theme.of(context).colorScheme.surface,
       child: InkWell(
         onTap: () {
           context.push(
@@ -363,9 +365,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
       }
     } on PlatformException {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Permissão de acesso à galeria necessária')),
-        );
+        AppFeedback.showWarning(context, 'Permissão de acesso à galeria necessária');
       }
     }
   }
@@ -377,12 +377,8 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
           .sendImageMessage(imageFile);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erro ao enviar imagem: $e'),
-            backgroundColor: AppColors.error,
-          ),
-        );
+        // Gap #21: Friendly error message
+        AppFeedback.showError(context, 'Erro ao enviar imagem. Tente novamente.');
       }
     }
   }
@@ -393,9 +389,9 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
       backgroundColor: Colors.transparent,
       builder: (ctx) => Container(
         padding: const EdgeInsets.all(AppSpacing.l),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(
             top: Radius.circular(AppSpacing.radiusXXL),
           ),
         ),
@@ -424,9 +420,9 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
               title: const Text('Denunciar', style: TextStyle(color: AppColors.error)),
               onTap: () {
                 Navigator.pop(ctx);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Denúncia registrada. Vamos analisar.')),
-                );
+                if (context.mounted) {
+                  AppFeedback.showInfo(context, 'Denúncia registrada. Vamos analisar.');
+                }
               },
             ),
             SizedBox(height: MediaQuery.of(ctx).padding.bottom),
@@ -442,9 +438,9 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
       backgroundColor: Colors.transparent,
       builder: (ctx) => Container(
         padding: const EdgeInsets.all(AppSpacing.l),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(
             top: Radius.circular(AppSpacing.radiusXXL),
           ),
         ),
@@ -491,9 +487,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
                       }
                     } on PlatformException {
                       if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Permissão de câmera necessária')),
-                        );
+                        AppFeedback.showWarning(context, 'Permissão de câmera necessária');
                       }
                     }
                   },
@@ -504,9 +498,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
                   color: AppColors.sellerAccent,
                   onTap: () {
                     Navigator.pop(ctx);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Envio de documentos em breve')),
-                    );
+                    AppFeedback.showInfo(context, 'Envio de documentos em breve');
                   },
                 ),
               ],

@@ -8,6 +8,7 @@ import '../../providers/auth_providers.dart';
 import '../../widgets/auth/auth_button.dart';
 import '../../widgets/auth/auth_text_field.dart';
 import '../../widgets/auth/social_login_buttons.dart';
+import '../../widgets/shared/app_feedback.dart';
 
 /// Login Screen
 class LoginScreen extends ConsumerStatefulWidget {
@@ -47,14 +48,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   Future<void> _handleGoogleLogin() async {
     setState(() => _isGoogleLoading = true);
+    AppFeedback.showLoading(context, message: 'Entrando com Google...');
 
-    final success =
-        await ref.read(authNotifierProvider.notifier).signInWithGoogle();
+    try {
+      final success =
+          await ref.read(authNotifierProvider.notifier).signInWithGoogle();
 
-    setState(() => _isGoogleLoading = false);
+      if (mounted) AppFeedback.hideLoading(context);
+      setState(() => _isGoogleLoading = false);
 
-    if (success && mounted) {
-      _navigateAfterLogin();
+      if (success && mounted) {
+        _navigateAfterLogin();
+      }
+    } catch (e) {
+      if (mounted) AppFeedback.hideLoading(context);
+      setState(() => _isGoogleLoading = false);
     }
   }
 

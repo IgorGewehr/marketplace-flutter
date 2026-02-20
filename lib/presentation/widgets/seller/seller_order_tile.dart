@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../core/utils/formatters.dart';
 import '../../../data/models/order_model.dart';
 
 /// Order tile for seller's orders list
@@ -24,7 +25,7 @@ class SellerOrderTile extends StatelessWidget {
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: isNew ? AppColors.sellerAccent : AppColors.border,
@@ -49,15 +50,20 @@ class SellerOrderTile extends StatelessWidget {
                 // Order number
                 Text(
                   order.orderNumber,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary,
+                    color: Theme.of(context).colorScheme.onSurface,
                   ),
                 ),
                 const Spacer(),
                 // Status badge
                 _OrderStatusBadge(status: order.status),
+                // F2: Payment split status chip
+                if (order.paymentSplit != null) ...[
+                  const SizedBox(width: 6),
+                  _PaymentChip(status: order.paymentSplit!.status),
+                ],
               ],
             ),
             const SizedBox(height: 10),
@@ -118,7 +124,7 @@ class SellerOrderTile extends StatelessWidget {
   }
 
   String _formatPrice(double price) {
-    return 'R\$ ${price.toStringAsFixed(2).replaceAll('.', ',')}';
+    return Formatters.currency(price);
   }
 
   String _getTimeAgo() {
@@ -190,4 +196,50 @@ class _StatusConfig {
   final Color color;
 
   _StatusConfig(this.label, this.color);
+}
+
+class _PaymentChip extends StatelessWidget {
+  final String status;
+
+  const _PaymentChip({required this.status});
+
+  @override
+  Widget build(BuildContext context) {
+    Color color;
+    String label;
+
+    switch (status) {
+      case 'pending':
+        color = AppColors.warning;
+        label = 'Pgto pendente';
+        break;
+      case 'held':
+        color = Colors.orange;
+        label = 'Pgto retido';
+        break;
+      case 'released':
+        color = AppColors.secondary;
+        label = 'Pgto liberado';
+        break;
+      default:
+        color = AppColors.textHint;
+        label = status;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withAlpha(20),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w600,
+          color: color,
+        ),
+      ),
+    );
+  }
 }

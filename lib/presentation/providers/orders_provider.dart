@@ -20,6 +20,7 @@ enum OrderStatus {
   delivered,
   cancelled,
   refunded,
+  disputed,
 }
 
 /// Order filter enum
@@ -154,6 +155,17 @@ class OrdersNotifier extends AsyncNotifier<OrdersState> {
       return false;
     }
   }
+
+  Future<bool> disputeOrder(String orderId, {required String reason}) async {
+    try {
+      final orderRepo = ref.read(orderRepositoryProvider);
+      await orderRepo.disputeOrder(orderId, reason: reason);
+      await refresh();
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
 }
 
 /// Orders provider
@@ -184,6 +196,7 @@ String getOrderStatusDisplay(String status) {
     'delivered' => 'Entregue',
     'cancelled' => 'Cancelado',
     'refunded' => 'Reembolsado',
+    'disputed' => 'Em disputa',
     _ => status,
   };
 }
@@ -196,6 +209,7 @@ int getOrderStatusColor(String status) {
     'shipped' || 'out_for_delivery' => 0xFF9C27B0, // Purple
     'delivered' => 0xFF4CAF50, // Green
     'cancelled' || 'refunded' => 0xFFF44336, // Red
+    'disputed' => 0xFFE65100, // Dark Orange
     _ => 0xFF757575, // Grey
   };
 }
@@ -285,6 +299,11 @@ OrderStatusInfo getOrderStatusInfo(String statusString) {
         label: 'Reembolsado',
         backgroundColor: Color(0xFFFFEBEE),
         textColor: Color(0xFFD32F2F),
+      ),
+    OrderStatus.disputed => const OrderStatusInfo(
+        label: 'Em disputa',
+        backgroundColor: Color(0xFFFFF3E0),
+        textColor: Color(0xFFE65100),
       ),
   };
 }

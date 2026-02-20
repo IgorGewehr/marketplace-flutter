@@ -58,4 +58,12 @@ class NotificationRepositoryImpl implements NotificationRepository {
   Future<void> deleteAll() async {
     await _apiClient.delete<void>(ApiConstants.notifications);
   }
+
+  @override
+  Future<void> updatePreferences(Map<String, bool> preferences) async {
+    await _apiClient.put<void>(
+      ApiConstants.notificationPreferences,
+      data: preferences,
+    );
+  }
 }

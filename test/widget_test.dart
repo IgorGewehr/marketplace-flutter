@@ -9,7 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   testWidgets('Placeholder test', (WidgetTester tester) async {
-    // TODO: Add widget tests for NexMarket app
+    // TODO: Add widget tests for Compre Aqui app
     expect(true, isTrue);
   });
 }

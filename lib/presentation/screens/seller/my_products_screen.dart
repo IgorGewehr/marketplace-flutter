@@ -6,6 +6,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../data/models/product_model.dart';
 import '../../providers/my_products_provider.dart';
 import '../../widgets/seller/my_product_card.dart';
+import '../../widgets/shared/app_feedback.dart';
 
 /// Screen showing seller's products with filters
 class MyProductsScreen extends ConsumerWidget {
@@ -30,12 +31,12 @@ class MyProductsScreen extends ConsumerWidget {
               pinned: true,
               backgroundColor: AppColors.background,
               elevation: 0,
-              title: const Text(
+              title: Text(
                 'Meus Produtos',
                 style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimary,
+                  color: Theme.of(context).colorScheme.onSurface,
                 ),
               ),
               actions: [
@@ -60,7 +61,7 @@ class MyProductsScreen extends ConsumerWidget {
                           hintText: 'Buscar produtos...',
                           prefixIcon: const Icon(Icons.search, color: AppColors.textHint),
                           filled: true,
-                          fillColor: Colors.white,
+                          fillColor: Theme.of(context).colorScheme.surface,
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
                             borderSide: BorderSide.none,
@@ -157,7 +158,7 @@ class MyProductsScreen extends ConsumerWidget {
                     children: [
                       const Icon(Icons.error_outline, size: 48, color: AppColors.error),
                       const SizedBox(height: 16),
-                      Text('Erro ao carregar: $error'),
+                      const Text('Erro ao carregar produtos. Puxe para atualizar.'),
                     ],
                   ),
                 ),
@@ -172,36 +173,20 @@ class MyProductsScreen extends ConsumerWidget {
     );
   }
 
-  void _confirmDelete(BuildContext context, WidgetRef ref, ProductModel product) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Excluir produto?'),
-        content: Text(
-          'Tem certeza que deseja excluir "${product.name}"? Esta ação não pode ser desfeita.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancelar'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              ref.read(myProductsProvider.notifier).deleteProduct(product.id);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Produto excluído'),
-                  backgroundColor: AppColors.secondary,
-                ),
-              );
-            },
-            style: TextButton.styleFrom(foregroundColor: AppColors.error),
-            child: const Text('Excluir'),
-          ),
-        ],
-      ),
+  void _confirmDelete(BuildContext context, WidgetRef ref, ProductModel product) async {
+    final confirmed = await AppFeedback.showConfirmation(
+      context,
+      title: 'Excluir produto',
+      message: 'Tem certeza que deseja excluir este produto?',
+      isDangerous: true,
     );
+
+    if (confirmed) {
+      ref.read(myProductsProvider.notifier).deleteProduct(product.id);
+      if (context.mounted) {
+        AppFeedback.showSuccess(context, 'Produto excluído');
+      }
+    }
   }
 }
 
@@ -224,7 +209,7 @@ class _FilterChip extends StatelessWidget {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? AppColors.sellerAccent : Colors.white,
+          color: isSelected ? AppColors.sellerAccent : Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
             color: isSelected ? AppColors.sellerAccent : AppColors.border,

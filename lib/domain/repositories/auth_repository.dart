@@ -12,7 +12,7 @@ abstract class AuthRepository {
   /// Complete user profile after registration
   Future<UserModel> completeProfile({
     required String phone,
-    required String cpfCnpj,
+    String? cpfCnpj,
     DateTime? birthDate,
   });
 

@@ -4,9 +4,11 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../data/models/order_model.dart';
+import '../../../core/utils/formatters.dart';
 import '../../providers/chat_provider.dart';
 import '../../providers/seller_orders_provider.dart';
 import '../../widgets/seller/order_actions.dart';
+import '../../widgets/shared/app_feedback.dart';
 
 /// Order details screen with status updates and actions
 class SellerOrderDetailsScreen extends ConsumerStatefulWidget {
@@ -37,21 +39,11 @@ class _SellerOrderDetailsScreenState extends ConsumerState<SellerOrderDetailsScr
         note: note,
       );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Status atualizado!'),
-            backgroundColor: AppColors.secondary,
-          ),
-        );
+        AppFeedback.showSuccess(context, 'Status atualizado!');
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erro: $e'),
-            backgroundColor: AppColors.error,
-          ),
-        );
+        AppFeedback.showError(context, 'Erro ao atualizar status. Tente novamente.');
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -105,15 +97,15 @@ class _SellerOrderDetailsScreenState extends ConsumerState<SellerOrderDetailsScr
       appBar: AppBar(
         backgroundColor: AppColors.background,
         elevation: 0,
+        foregroundColor: Theme.of(context).colorScheme.onSurface,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+          icon: const Icon(Icons.arrow_back),
           onPressed: () => context.pop(),
         ),
         title: const Text(
           'Detalhes do Pedido',
           style: TextStyle(
             fontWeight: FontWeight.bold,
-            color: AppColors.textPrimary,
           ),
         ),
       ),
@@ -134,6 +126,8 @@ class _SellerOrderDetailsScreenState extends ConsumerState<SellerOrderDetailsScr
   }
 
   Widget _buildContent(OrderModel order) {
+    final theme = Theme.of(context);
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -143,7 +137,7 @@ class _SellerOrderDetailsScreenState extends ConsumerState<SellerOrderDetailsScr
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: theme.colorScheme.surface,
               borderRadius: BorderRadius.circular(16),
               border: Border.all(color: AppColors.border),
             ),
@@ -154,10 +148,10 @@ class _SellerOrderDetailsScreenState extends ConsumerState<SellerOrderDetailsScr
                   children: [
                     Text(
                       order.orderNumber,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimary,
+                        color: theme.colorScheme.onSurface,
                       ),
                     ),
                     const Spacer(),
@@ -167,7 +161,7 @@ class _SellerOrderDetailsScreenState extends ConsumerState<SellerOrderDetailsScr
                 const SizedBox(height: 12),
                 Text(
                   'Pedido em ${_formatDate(order.createdAt)}',
-                  style: const TextStyle(color: AppColors.textHint),
+                  style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
                 ),
               ],
             ),
@@ -178,22 +172,23 @@ class _SellerOrderDetailsScreenState extends ConsumerState<SellerOrderDetailsScr
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: theme.colorScheme.surface,
               borderRadius: BorderRadius.circular(16),
               border: Border.all(color: AppColors.border),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   'Itens do pedido',
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary,
+                    color: theme.colorScheme.onSurface,
                   ),
                 ),
                 const SizedBox(height: 12),
+                // Gap #9: Show product images instead of generic icon
                 ...order.items.map((item) => Padding(
                   padding: const EdgeInsets.only(bottom: 12),
                   child: Row(
@@ -205,10 +200,22 @@ class _SellerOrderDetailsScreenState extends ConsumerState<SellerOrderDetailsScr
                           color: AppColors.surfaceVariant,
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child: const Icon(
-                          Icons.shopping_bag_outlined,
-                          color: AppColors.textHint,
-                        ),
+                        child: item.imageUrl != null && item.imageUrl!.isNotEmpty
+                            ? ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: Image.network(
+                                  item.imageUrl!,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) => const Icon(
+                                    Icons.shopping_bag_outlined,
+                                    color: AppColors.textHint,
+                                  ),
+                                ),
+                              )
+                            : const Icon(
+                                Icons.shopping_bag_outlined,
+                                color: AppColors.textHint,
+                              ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -280,7 +287,7 @@ class _SellerOrderDetailsScreenState extends ConsumerState<SellerOrderDetailsScr
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: theme.colorScheme.surface,
               borderRadius: BorderRadius.circular(16),
               border: Border.all(color: AppColors.border),
             ),
@@ -300,10 +307,10 @@ class _SellerOrderDetailsScreenState extends ConsumerState<SellerOrderDetailsScr
                       order.deliveryType == 'pickup'
                           ? 'Retirada na loja'
                           : 'Entrega',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimary,
+                        color: theme.colorScheme.onSurface,
                       ),
                     ),
                   ],
@@ -332,19 +339,19 @@ class _SellerOrderDetailsScreenState extends ConsumerState<SellerOrderDetailsScr
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: theme.colorScheme.surface,
               borderRadius: BorderRadius.circular(16),
               border: Border.all(color: AppColors.border),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   'Histórico',
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary,
+                    color: theme.colorScheme.onSurface,
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -393,6 +400,71 @@ class _SellerOrderDetailsScreenState extends ConsumerState<SellerOrderDetailsScr
               ],
             ),
           ),
+          // D4: Payment split info
+          if (order.paymentSplit != null) ...[
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surface,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.payments_outlined, color: AppColors.sellerAccent),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Pagamento',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: theme.colorScheme.onSurface,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Valor do vendedor', style: TextStyle(color: AppColors.textSecondary)),
+                      Text(
+                        _formatPrice(order.paymentSplit!.sellerAmount),
+                        style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.secondary),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Taxa plataforma (${order.paymentSplit!.platformFeePercentage.toStringAsFixed(0)}%)',
+                        style: const TextStyle(color: AppColors.textSecondary),
+                      ),
+                      Text(
+                        '- ${_formatPrice(order.paymentSplit!.platformFeeAmount)}',
+                        style: const TextStyle(color: AppColors.error),
+                      ),
+                    ],
+                  ),
+                  const Divider(height: 24),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Status', style: TextStyle(fontWeight: FontWeight.w600)),
+                      _PaymentSplitStatusChip(status: order.paymentSplit!.status, heldUntil: order.paymentSplit!.heldUntil),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+
           const SizedBox(height: 24),
 
           // Actions
@@ -420,7 +492,7 @@ class _SellerOrderDetailsScreenState extends ConsumerState<SellerOrderDetailsScr
   }
 
   String _formatPrice(double price) {
-    return 'R\$ ${price.toStringAsFixed(2).replaceAll('.', ',')}';
+    return Formatters.currency(price);
   }
 
   String _formatDate(DateTime date) {
@@ -501,6 +573,64 @@ class _StatusBadge extends StatelessWidget {
           color: color,
           fontWeight: FontWeight.bold,
           fontSize: 13,
+        ),
+      ),
+    );
+  }
+}
+
+class _PaymentSplitStatusChip extends StatelessWidget {
+  final String status;
+  final DateTime? heldUntil;
+
+  const _PaymentSplitStatusChip({required this.status, this.heldUntil});
+
+  @override
+  Widget build(BuildContext context) {
+    Color color;
+    String label;
+
+    switch (status) {
+      case 'pending':
+        color = AppColors.warning;
+        label = 'Pendente';
+        break;
+      case 'held':
+        color = Colors.orange;
+        final until = heldUntil != null
+            ? '${heldUntil!.day.toString().padLeft(2, '0')}/${heldUntil!.month.toString().padLeft(2, '0')}'
+            : '';
+        label = until.isNotEmpty ? 'Retido até $until' : 'Retido';
+        break;
+      case 'released':
+        color = AppColors.secondary;
+        label = 'Liberado';
+        break;
+      case 'refunded':
+        color = Colors.red;
+        label = 'Reembolsado';
+        break;
+      case 'disputed':
+        color = Colors.orange;
+        label = 'Em disputa';
+        break;
+      default:
+        color = AppColors.textHint;
+        label = status;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withAlpha(20),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontWeight: FontWeight.w600,
+          fontSize: 12,
         ),
       ),
     );

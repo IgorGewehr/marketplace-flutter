@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'app_feedback.dart';
+
 class WhatsAppButton extends StatelessWidget {
   final String phoneNumber;
   final String? message;
@@ -69,20 +71,15 @@ class WhatsAppButton extends StatelessWidget {
           _showError(context, 'Não foi possível abrir o WhatsApp');
         }
       }
-    } catch (e) {
+    } catch (_) {
       if (context.mounted) {
-        _showError(context, 'Erro ao abrir o WhatsApp: $e');
+        _showError(context, 'Não foi possível abrir o WhatsApp');
       }
     }
   }
 
   void _showError(BuildContext context, String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.red,
-      ),
-    );
+    AppFeedback.showError(context, message);
   }
 }
 
@@ -125,20 +122,15 @@ class WhatsAppFab extends StatelessWidget {
           _showError(context, 'Não foi possível abrir o WhatsApp');
         }
       }
-    } catch (e) {
+    } catch (_) {
       if (context.mounted) {
-        _showError(context, 'Erro ao abrir o WhatsApp: $e');
+        _showError(context, 'Não foi possível abrir o WhatsApp');
       }
     }
   }
 
   void _showError(BuildContext context, String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.red,
-      ),
-    );
+    AppFeedback.showError(context, message);
   }
 }
 
@@ -161,14 +153,9 @@ Future<bool> launchWhatsApp({
       );
       return true;
     }
-  } catch (e) {
+  } catch (_) {
     if (context != null && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Erro ao abrir o WhatsApp: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      AppFeedback.showError(context, 'Não foi possível abrir o WhatsApp');
     }
   }
   return false;

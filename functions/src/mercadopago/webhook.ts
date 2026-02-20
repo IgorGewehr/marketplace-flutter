@@ -70,8 +70,15 @@ export async function handleWebhook(req: Request, res: Response): Promise<void> 
   try {
     if (type === "payment") {
       await processPaymentNotification(dataId);
+    } else if (type === "mp-connect") {
+      await processSellerConnectionChange(dataId, action);
+    } else if (type === "topic_chargebacks_wh" || type === "chargeback") {
+      await processChargebackNotification(dataId);
+    } else if (type === "topic_claims_integration_wh" || type === "claim") {
+      functions.logger.warn("Claim/dispute notification received", { dataId, action });
+      // Claims require manual review - log for now
     } else {
-      functions.logger.info(`Unhandled webhook type: ${type}`);
+      functions.logger.info(`Unhandled webhook type: ${type}`, { dataId, action });
     }
     res.status(200).send("OK");
   } catch (error) {
@@ -92,34 +99,38 @@ async function processPaymentNotification(paymentId: string): Promise<void> {
 
   const db = admin.firestore();
 
-  // Try to determine which access token to use for fetching payment details.
-  // First try with platform token, if that fails, try seller tokens.
+  // Marketplace payments are created with seller tokens, so find the order first
+  // to get the tenant ID, then use the seller token to fetch payment details.
   let payment;
-  try {
-    payment = await getPayment(paymentId, config.mercadoPago.accessToken);
-  } catch {
-    // Platform token didn't work - payment may have been created with seller token.
-    // Try to find the order first to get the tenant ID, then use seller token.
-    functions.logger.info("Platform token failed for payment fetch, trying to find order for seller token");
 
-    // Search for order by payment gateway ID
-    const orderSnap = await db
-      .collection("orders")
-      .where("paymentGatewayId", "==", paymentId)
-      .limit(1)
-      .get();
+  // Search for order by payment gateway ID to get tenant context
+  const orderByGatewaySnap = await db
+    .collection("orders")
+    .where("paymentGatewayId", "==", paymentId)
+    .limit(1)
+    .get();
 
-    if (!orderSnap.empty) {
-      const tenantId = orderSnap.docs[0].data().tenantId;
+  if (!orderByGatewaySnap.empty) {
+    const tenantId = orderByGatewaySnap.docs[0].data().tenantId;
+    try {
+      const sellerToken = await getValidSellerToken(tenantId);
+      payment = await getPayment(paymentId, sellerToken);
+    } catch {
+      // Fallback to platform token
+      functions.logger.info("Seller token failed, trying platform token", { paymentId, tenantId });
       try {
-        const sellerToken = await getValidSellerToken(tenantId);
-        payment = await getPayment(paymentId, sellerToken);
+        payment = await getPayment(paymentId, config.mercadoPago.accessToken);
       } catch {
-        functions.logger.error("Failed to fetch payment with both platform and seller tokens", { paymentId });
+        functions.logger.error("Failed to fetch payment with both seller and platform tokens", { paymentId });
         return;
       }
-    } else {
-      functions.logger.error("Cannot fetch payment - no matching order found", { paymentId });
+    }
+  } else {
+    // No order found yet - try platform token as fallback
+    try {
+      payment = await getPayment(paymentId, config.mercadoPago.accessToken);
+    } catch {
+      functions.logger.error("Cannot fetch payment - no matching order and platform token failed", { paymentId });
       return;
     }
   }
@@ -141,14 +152,6 @@ async function processPaymentNotification(paymentId: string): Promise<void> {
   }
 
   const orderRef = db.collection("orders").doc(orderId);
-  const orderSnap = await orderRef.get();
-
-  if (!orderSnap.exists) {
-    functions.logger.error("Order not found", { orderId });
-    return;
-  }
-
-  const orderData = orderSnap.data()!;
   const now = admin.firestore.Timestamp.now();
 
   // Map MP status to our payment status
@@ -165,7 +168,6 @@ async function processPaymentNotification(paymentId: string): Promise<void> {
   };
 
   const newPaymentStatus = paymentStatusMap[payment.status] || "pending";
-  const currentPaymentStatus = orderData.paymentStatus;
 
   // Don't downgrade status (e.g., don't go from 'paid' back to 'pending')
   const statusPriority: Record<string, number> = {
@@ -175,50 +177,170 @@ async function processPaymentNotification(paymentId: string): Promise<void> {
     refunded: 3,
   };
 
-  if ((statusPriority[newPaymentStatus] ?? 0) <= (statusPriority[currentPaymentStatus] ?? 0)) {
-    if (newPaymentStatus === currentPaymentStatus) {
-      functions.logger.info("Payment status unchanged", { orderId, status: newPaymentStatus });
-      return;
+  // Use a Firestore transaction to atomically check order status + update order + update wallet.
+  // This prevents duplicate wallet increments if two identical webhooks arrive simultaneously.
+  let orderData: admin.firestore.DocumentData | undefined;
+  let notificationEvent: "approved" | "failed" | "refunded" | null = null;
+
+  try {
+    await db.runTransaction(async (transaction) => {
+      const orderSnap = await transaction.get(orderRef);
+
+      if (!orderSnap.exists) {
+        throw new Error("ORDER_NOT_FOUND");
+      }
+
+      orderData = orderSnap.data()!;
+      const currentPaymentStatus = orderData.paymentStatus;
+
+      if ((statusPriority[newPaymentStatus] ?? 0) <= (statusPriority[currentPaymentStatus] ?? 0)) {
+        if (newPaymentStatus === currentPaymentStatus) {
+          functions.logger.info("Payment status unchanged", { orderId, status: newPaymentStatus });
+          throw new Error("STATUS_UNCHANGED");
+        }
+        // Allow refunded status to override paid
+        if (newPaymentStatus !== "refunded" && currentPaymentStatus === "paid") {
+          functions.logger.info("Skipping status downgrade", {
+            orderId,
+            current: currentPaymentStatus,
+            new: newPaymentStatus,
+          });
+          throw new Error("STATUS_DOWNGRADE");
+        }
+      }
+
+      // Build update object
+      const updateData: Record<string, unknown> = {
+        paymentStatus: newPaymentStatus,
+        paymentGatewayId: payment.id.toString(),
+        "paymentSplit.mpPaymentId": payment.id.toString(),
+        updatedAt: now,
+      };
+
+      // If payment is approved, handle additional logic
+      if (newPaymentStatus === "paid" && currentPaymentStatus !== "paid") {
+        updateData.status = "confirmed";
+        updateData.paidAt = now;
+        updateData["paymentSplit.status"] = "held";
+
+        updateData.statusHistory = admin.firestore.FieldValue.arrayUnion({
+          status: "confirmed",
+          timestamp: now,
+          note: "Pagamento aprovado via Mercado Pago",
+        });
+
+        // Update seller wallet atomically within the same transaction
+        const tenantId = orderData.tenantId;
+        if (tenantId) {
+          // Use the stored payment split values from order creation (not current config)
+          const sellerAmount = orderData.paymentSplit?.sellerAmount || 0;
+
+          const walletRef = db.collection("wallets").doc(tenantId);
+          const walletSnap = await transaction.get(walletRef);
+          if (walletSnap.exists) {
+            const walletData = walletSnap.data()!;
+            transaction.update(walletRef, {
+              "balance.pending": (walletData.balance?.pending || 0) + sellerAmount,
+              "balance.total": (walletData.balance?.total || 0) + sellerAmount,
+              updatedAt: now,
+            });
+          } else {
+            transaction.set(walletRef, {
+              id: tenantId,
+              tenantId: tenantId,
+              status: "active",
+              balance: {
+                available: 0,
+                pending: sellerAmount,
+                blocked: 0,
+                total: sellerAmount,
+              },
+              gatewayProvider: "mercadopago",
+              createdAt: now,
+              updatedAt: now,
+            });
+          }
+        }
+
+        notificationEvent = "approved";
+      }
+
+      // If payment failed
+      if (newPaymentStatus === "failed") {
+        updateData["paymentSplit.status"] = "failed";
+
+        updateData.statusHistory = admin.firestore.FieldValue.arrayUnion({
+          status: "payment_failed",
+          timestamp: now,
+          note: `Pagamento recusado: ${payment.status_detail}`,
+        });
+
+        notificationEvent = "failed";
+      }
+
+      // If refunded
+      if (newPaymentStatus === "refunded") {
+        updateData.status = "cancelled";
+        updateData["paymentSplit.status"] = "refunded";
+
+        updateData.statusHistory = admin.firestore.FieldValue.arrayUnion({
+          status: "cancelled",
+          timestamp: now,
+          note: "Pagamento estornado",
+        });
+
+        // Reverse wallet balance atomically within the same transaction
+        const tenantId = orderData.tenantId;
+        if (tenantId && orderData.paymentSplit?.sellerAmount) {
+          const reverseAmount = orderData.paymentSplit.sellerAmount;
+          const walletRef = db.collection("wallets").doc(tenantId);
+          const walletSnap = await transaction.get(walletRef);
+
+          if (walletSnap.exists) {
+            const walletData = walletSnap.data()!;
+            const balance = walletData.balance || {};
+            const wasPending = orderData.paymentSplit?.status === "held";
+
+            if (wasPending) {
+              transaction.update(walletRef, {
+                "balance.pending": Math.max(0, (balance.pending || 0) - reverseAmount),
+                "balance.total": Math.max(0, (balance.total || 0) - reverseAmount),
+                updatedAt: now,
+              });
+            } else {
+              transaction.update(walletRef, {
+                "balance.available": Math.max(0, (balance.available || 0) - reverseAmount),
+                "balance.total": Math.max(0, (balance.total || 0) - reverseAmount),
+                updatedAt: now,
+              });
+            }
+          }
+        }
+
+        notificationEvent = "refunded";
+      }
+
+      // Apply the order update atomically
+      transaction.update(orderRef, updateData);
+    });
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    if (
+      errorMessage === "ORDER_NOT_FOUND" ||
+      errorMessage === "STATUS_UNCHANGED" ||
+      errorMessage === "STATUS_DOWNGRADE"
+    ) {
+      if (errorMessage === "ORDER_NOT_FOUND") {
+        functions.logger.error("Order not found", { orderId });
+      }
+      return; // Already logged inside the transaction
     }
-    // Allow refunded status to override paid
-    if (newPaymentStatus !== "refunded" && currentPaymentStatus === "paid") {
-      functions.logger.info("Skipping status downgrade", {
-        orderId,
-        current: currentPaymentStatus,
-        new: newPaymentStatus,
-      });
-      return;
-    }
+    throw error;
   }
 
-  // Build update object
-  const updateData: Record<string, unknown> = {
-    paymentStatus: newPaymentStatus,
-    paymentGatewayId: payment.id.toString(),
-    "paymentSplit.mpPaymentId": payment.id.toString(),
-    updatedAt: now,
-  };
-
-  // If payment is approved, handle additional logic
-  if (newPaymentStatus === "paid" && currentPaymentStatus !== "paid") {
-    // Update order status to confirmed
-    updateData.status = "confirmed";
-
-    // Record when payment was approved (used by release-payments scheduler)
-    updateData.paidAt = now;
-
-    // Set payment split to 'held' (payment is held for PAYMENT_HOLD_HOURS before release)
-    updateData["paymentSplit.status"] = "held";
-
-    // Add status history entry
-    const statusHistoryEntry = {
-      status: "confirmed",
-      timestamp: now,
-      note: "Pagamento aprovado via Mercado Pago",
-    };
-
-    updateData.statusHistory = admin.firestore.FieldValue.arrayUnion(statusHistoryEntry);
-
+  // Post-transaction side effects (QR code, transaction record, notifications)
+  // These run outside the transaction because they are idempotent side effects
+  if (notificationEvent === "approved" && orderData) {
     // Generate delivery QR code
     const qrCodeId = uuidv4();
     const qrCodeData = {
@@ -234,53 +356,17 @@ async function processPaymentNotification(paymentId: string): Promise<void> {
     };
 
     await db.collection("qr_codes").doc(qrCodeId).set(qrCodeData);
-    updateData.qrCodeId = qrCodeId;
+    await orderRef.update({ qrCodeId });
 
     functions.logger.info("Delivery QR code generated", { orderId, qrCodeId });
 
-    // Update seller wallet - add to pending balance
+    // Create transaction record
     const tenantId = orderData.tenantId;
     if (tenantId) {
-      const platformFeePercentage = config.platform.feePercentage;
       const total = orderData.total || 0;
-      const platformFee = Math.round(total * (platformFeePercentage / 100) * 100) / 100;
-      const sellerAmount = Math.round((total - platformFee) * 100) / 100;
+      const platformFee = orderData.paymentSplit?.platformFeeAmount || 0;
+      const sellerAmount = orderData.paymentSplit?.sellerAmount || 0;
 
-      updateData["paymentSplit.platformFeeAmount"] = platformFee;
-      updateData["paymentSplit.platformFeePercentage"] = platformFeePercentage;
-      updateData["paymentSplit.sellerAmount"] = sellerAmount;
-
-      // Update wallet pending balance
-      const walletRef = db.collection("wallets").doc(tenantId);
-      await db.runTransaction(async (transaction) => {
-        const walletSnap = await transaction.get(walletRef);
-        if (walletSnap.exists) {
-          const walletData = walletSnap.data()!;
-          transaction.update(walletRef, {
-            "balance.pending": (walletData.balance?.pending || 0) + sellerAmount,
-            "balance.total": (walletData.balance?.total || 0) + sellerAmount,
-            updatedAt: now,
-          });
-        } else {
-          // Create wallet if it doesn't exist
-          transaction.set(walletRef, {
-            id: tenantId,
-            tenantId: tenantId,
-            status: "active",
-            balance: {
-              available: 0,
-              pending: sellerAmount,
-              blocked: 0,
-              total: sellerAmount,
-            },
-            gatewayProvider: "mercadopago",
-            createdAt: now,
-            updatedAt: now,
-          });
-        }
-      });
-
-      // Create transaction record
       const txId = uuidv4();
       await db.collection("transactions").doc(txId).set({
         id: txId,
@@ -313,73 +399,180 @@ async function processPaymentNotification(paymentId: string): Promise<void> {
         platformFee,
       });
     }
-
-    // Send notifications
-    await sendPaymentNotifications(db, orderData, orderId, "approved");
   }
 
-  // If payment failed
-  if (newPaymentStatus === "failed") {
-    updateData["paymentSplit.status"] = "failed";
-
-    const statusHistoryEntry = {
-      status: "payment_failed",
-      timestamp: now,
-      note: `Pagamento recusado: ${payment.status_detail}`,
-    };
-    updateData.statusHistory = admin.firestore.FieldValue.arrayUnion(statusHistoryEntry);
-
-    await sendPaymentNotifications(db, orderData, orderId, "failed");
+  // Send notifications outside the transaction (fire-and-forget side effects)
+  if (notificationEvent && orderData) {
+    await sendPaymentNotifications(db, orderData, orderId, notificationEvent);
   }
 
-  // If refunded
-  if (newPaymentStatus === "refunded") {
-    updateData.status = "cancelled";
-    updateData["paymentSplit.status"] = "refunded";
+  functions.logger.info("Order updated", { orderId, newPaymentStatus });
+}
 
-    const statusHistoryEntry = {
-      status: "cancelled",
-      timestamp: now,
-      note: "Pagamento estornado",
-    };
-    updateData.statusHistory = admin.firestore.FieldValue.arrayUnion(statusHistoryEntry);
+/**
+ * Process seller MP connection/disconnection events.
+ * Fired when a seller links or unlinks their MP account via OAuth.
+ */
+async function processSellerConnectionChange(userId: string, action: string): Promise<void> {
+  if (!userId) return;
 
-    // Reverse wallet balance if needed
-    const tenantId = orderData.tenantId;
-    if (tenantId && orderData.paymentSplit?.sellerAmount) {
-      const reverseAmount = orderData.paymentSplit.sellerAmount;
-      const walletRef = db.collection("wallets").doc(tenantId);
+  const db = admin.firestore();
 
-      await db.runTransaction(async (transaction) => {
-        const walletSnap = await transaction.get(walletRef);
-        if (walletSnap.exists) {
-          const walletData = walletSnap.data()!;
-          const balance = walletData.balance || {};
-          const wasPending = orderData.paymentSplit?.status === "held";
+  // Find tenant by MP user ID
+  const tenantsSnap = await db
+    .collection("tenants")
+    .where("mpConnection.mpUserId", "==", parseInt(userId))
+    .limit(1)
+    .get();
 
-          if (wasPending) {
-            transaction.update(walletRef, {
-              "balance.pending": Math.max(0, (balance.pending || 0) - reverseAmount),
-              "balance.total": Math.max(0, (balance.total || 0) - reverseAmount),
-              updatedAt: now,
-            });
-          } else {
-            transaction.update(walletRef, {
-              "balance.available": Math.max(0, (balance.available || 0) - reverseAmount),
-              "balance.total": Math.max(0, (balance.total || 0) - reverseAmount),
-              updatedAt: now,
-            });
-          }
-        }
+  if (tenantsSnap.empty) {
+    functions.logger.warn("mp-connect: No tenant found for MP user", { userId, action });
+    return;
+  }
+
+  const tenantDoc = tenantsSnap.docs[0];
+  const tenantId = tenantDoc.id;
+
+  if (action === "mp-connect.disconnected" || action === "application.deauthorized") {
+    // Seller revoked access - mark as disconnected
+    await tenantDoc.ref.update({
+      "mpConnection.isConnected": false,
+      "mpConnection.disconnectedAt": admin.firestore.Timestamp.now(),
+      updatedAt: admin.firestore.Timestamp.now(),
+    });
+
+    // Clean up stored tokens
+    const privateRef = tenantDoc.ref.collection("private").doc("mp_oauth");
+    await privateRef.delete();
+
+    functions.logger.warn("Seller disconnected from MP via webhook", { tenantId, userId, action });
+
+    // Notify seller
+    const tenantData = tenantDoc.data();
+    const ownerId = tenantData?.ownerId;
+    if (ownerId) {
+      const notifId = uuidv4();
+      await db.collection("notifications").doc(notifId).set({
+        id: notifId,
+        userId: ownerId,
+        title: "Mercado Pago desconectado",
+        body: "Sua conta do Mercado Pago foi desconectada. Reconecte para continuar recebendo pagamentos.",
+        type: "mp_disconnected",
+        data: {},
+        isRead: false,
+        createdAt: admin.firestore.Timestamp.now(),
       });
     }
+  } else {
+    functions.logger.info("mp-connect event received", { tenantId, userId, action });
+  }
+}
 
-    await sendPaymentNotifications(db, orderData, orderId, "refunded");
+/**
+ * Process chargeback notifications.
+ * A chargeback means the buyer disputed the payment with their bank/card issuer.
+ */
+async function processChargebackNotification(paymentId: string): Promise<void> {
+  if (!paymentId) return;
+
+  const db = admin.firestore();
+
+  // Find order by payment ID
+  const orderSnap = await db
+    .collection("orders")
+    .where("paymentGatewayId", "==", paymentId)
+    .limit(1)
+    .get();
+
+  if (orderSnap.empty) {
+    functions.logger.warn("Chargeback: No order found for payment", { paymentId });
+    return;
   }
 
-  // Apply the update
-  await orderRef.update(updateData);
-  functions.logger.info("Order updated", { orderId, newPaymentStatus });
+  const orderDoc = orderSnap.docs[0];
+  const orderData = orderDoc.data();
+  const orderId = orderDoc.id;
+  const now = admin.firestore.Timestamp.now();
+
+  // Mark order as disputed
+  await orderDoc.ref.update({
+    paymentStatus: "refunded",
+    status: "cancelled",
+    "paymentSplit.status": "chargedback",
+    statusHistory: admin.firestore.FieldValue.arrayUnion({
+      status: "cancelled",
+      timestamp: now,
+      note: "Chargeback recebido - pagamento contestado pelo comprador",
+    }),
+    updatedAt: now,
+  });
+
+  // Reverse wallet balance
+  const tenantId = orderData.tenantId;
+  if (tenantId && orderData.paymentSplit?.sellerAmount) {
+    const reverseAmount = orderData.paymentSplit.sellerAmount;
+    const walletRef = db.collection("wallets").doc(tenantId);
+
+    await db.runTransaction(async (transaction) => {
+      const walletSnap = await transaction.get(walletRef);
+      if (walletSnap.exists) {
+        const walletData = walletSnap.data()!;
+        const balance = walletData.balance || {};
+        const splitStatus = orderData.paymentSplit?.status;
+
+        if (splitStatus === "held") {
+          transaction.update(walletRef, {
+            "balance.pending": Math.max(0, (balance.pending || 0) - reverseAmount),
+            "balance.total": Math.max(0, (balance.total || 0) - reverseAmount),
+            updatedAt: now,
+          });
+        } else if (splitStatus === "released") {
+          transaction.update(walletRef, {
+            "balance.available": Math.max(0, (balance.available || 0) - reverseAmount),
+            "balance.total": Math.max(0, (balance.total || 0) - reverseAmount),
+            updatedAt: now,
+          });
+        }
+      }
+    });
+  }
+
+  functions.logger.warn("Chargeback processed", { orderId, paymentId, tenantId });
+
+  // Notify seller and buyer
+  const orderNumber = orderData.orderNumber || orderId.substring(0, 8);
+
+  if (orderData.buyerUserId) {
+    const notifId = uuidv4();
+    await db.collection("notifications").doc(notifId).set({
+      id: notifId,
+      userId: orderData.buyerUserId,
+      title: "Contestação de pagamento",
+      body: `O pagamento do pedido #${orderNumber} foi contestado.`,
+      type: "chargeback",
+      data: { orderId },
+      isRead: false,
+      createdAt: now,
+    });
+  }
+
+  if (tenantId) {
+    const tenantDocSnap = await db.collection("tenants").doc(tenantId).get();
+    const ownerId = tenantDocSnap.data()?.ownerId;
+    if (ownerId) {
+      const notifId = uuidv4();
+      await db.collection("notifications").doc(notifId).set({
+        id: notifId,
+        userId: ownerId,
+        title: "Chargeback recebido",
+        body: `O pedido #${orderNumber} teve o pagamento contestado. Valor estornado.`,
+        type: "chargeback",
+        data: { orderId },
+        isRead: false,
+        createdAt: now,
+      });
+    }
+  }
 }
 
 /**
@@ -395,6 +588,17 @@ async function sendPaymentNotifications(
   const tenantId = orderData.tenantId as string;
   const orderNumber = (orderData.orderNumber as string) || orderId.substring(0, 8);
 
+  // Resolve seller's actual Firebase Auth UID from tenant
+  let sellerUserId: string | null = null;
+  if (tenantId) {
+    try {
+      const tenantDoc = await db.collection("tenants").doc(tenantId).get();
+      sellerUserId = tenantDoc.data()?.ownerId || null;
+    } catch {
+      functions.logger.warn("Failed to resolve seller UID from tenant", { tenantId });
+    }
+  }
+
   const messages: { userId: string; title: string; body: string; type: string }[] = [];
 
   switch (event) {
@@ -405,12 +609,14 @@ async function sendPaymentNotifications(
         body: `Seu pedido #${orderNumber} foi confirmado.`,
         type: "payment_approved",
       });
-      messages.push({
-        userId: tenantId, // Will resolve to seller's user ID
-        title: "Nova venda!",
-        body: `Pedido #${orderNumber} - Pagamento confirmado.`,
-        type: "new_sale",
-      });
+      if (sellerUserId) {
+        messages.push({
+          userId: sellerUserId,
+          title: "Nova venda!",
+          body: `Pedido #${orderNumber} - Pagamento confirmado.`,
+          type: "new_sale",
+        });
+      }
       break;
     case "failed":
       messages.push({

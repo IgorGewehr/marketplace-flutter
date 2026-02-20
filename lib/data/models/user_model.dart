@@ -58,8 +58,10 @@ class UserModel {
   /// Check if user has a tenant
   bool get hasTenant => tenantId != null;
 
-  /// Check if user has completed profile (has phone)
-  bool get hasCompletedProfile => phone != null && phone!.isNotEmpty;
+  /// Check if user has completed profile
+  /// Profile completion is no longer gated on phone — personal data is
+  /// collected only when the user wants to become a seller.
+  bool get hasCompletedProfile => true;
 
   /// Get default address
   AddressModel? get defaultAddress {

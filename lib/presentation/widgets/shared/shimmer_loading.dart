@@ -56,9 +56,11 @@ class _ShimmerCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final shimmerColor = Theme.of(context).colorScheme.surface;
+
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: shimmerColor,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
@@ -69,7 +71,7 @@ class _ShimmerCard extends StatelessWidget {
             flex: 3,
             child: Container(
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: shimmerColor,
                 borderRadius: BorderRadius.circular(16),
               ),
             ),
@@ -82,7 +84,7 @@ class _ShimmerCard extends StatelessWidget {
               width: 60,
               height: 20,
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: shimmerColor,
                 borderRadius: BorderRadius.circular(10),
               ),
             ),
@@ -95,7 +97,7 @@ class _ShimmerCard extends StatelessWidget {
               width: double.infinity,
               height: 16,
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: shimmerColor,
                 borderRadius: BorderRadius.circular(4),
               ),
             ),
@@ -107,7 +109,7 @@ class _ShimmerCard extends StatelessWidget {
               width: 100,
               height: 16,
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: shimmerColor,
                 borderRadius: BorderRadius.circular(4),
               ),
             ),
@@ -120,7 +122,7 @@ class _ShimmerCard extends StatelessWidget {
               width: 80,
               height: 20,
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: shimmerColor,
                 borderRadius: BorderRadius.circular(4),
               ),
             ),
@@ -139,10 +141,12 @@ class _ShimmerListItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final shimmerColor = Theme.of(context).colorScheme.surface;
+
     return Container(
       height: height,
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: shimmerColor,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
@@ -151,7 +155,7 @@ class _ShimmerListItem extends StatelessWidget {
           Container(
             width: height,
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: shimmerColor,
               borderRadius: BorderRadius.circular(12),
             ),
           ),
@@ -166,7 +170,7 @@ class _ShimmerListItem extends StatelessWidget {
                   width: double.infinity,
                   height: 16,
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: shimmerColor,
                     borderRadius: BorderRadius.circular(4),
                   ),
                 ),
@@ -175,7 +179,7 @@ class _ShimmerListItem extends StatelessWidget {
                   width: 120,
                   height: 14,
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: shimmerColor,
                     borderRadius: BorderRadius.circular(4),
                   ),
                 ),
@@ -184,7 +188,7 @@ class _ShimmerListItem extends StatelessWidget {
                   width: 80,
                   height: 18,
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: shimmerColor,
                     borderRadius: BorderRadius.circular(4),
                   ),
                 ),
@@ -221,7 +225,7 @@ class ShimmerBox extends StatelessWidget {
         width: width,
         height: height,
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: theme.colorScheme.surface,
           borderRadius: borderRadius ?? BorderRadius.circular(8),
         ),
       ),

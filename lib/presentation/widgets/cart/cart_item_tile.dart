@@ -40,7 +40,7 @@ class CartItemTile extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: theme.colorScheme.surface,
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
@@ -113,17 +113,19 @@ class CartItemTile extends StatelessWidget {
                   ),
                   child: Column(
                     children: [
-                      InkWell(
-                        onTap: () => onQuantityChanged(item.quantity + 1),
-                        borderRadius: const BorderRadius.vertical(
-                          top: Radius.circular(8),
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.all(6),
-                          child: Icon(
-                            Icons.add,
-                            size: 18,
-                            color: theme.colorScheme.primary,
+                      Tooltip(
+                        message: 'Aumentar quantidade',
+                        child: InkWell(
+                          onTap: () => onQuantityChanged(item.quantity + 1),
+                          borderRadius: const BorderRadius.vertical(
+                            top: Radius.circular(8),
+                          ),
+                          child: const Padding(
+                            padding: EdgeInsets.all(13),
+                            child: Icon(
+                              Icons.add,
+                              size: 18,
+                            ),
                           ),
                         ),
                       ),
@@ -139,21 +141,24 @@ class CartItemTile extends StatelessWidget {
                           ),
                         ),
                       ),
-                      InkWell(
-                        onTap: item.quantity > 1
-                            ? () => onQuantityChanged(item.quantity - 1)
-                            : null,
-                        borderRadius: const BorderRadius.vertical(
-                          bottom: Radius.circular(8),
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.all(6),
-                          child: Icon(
-                            Icons.remove,
-                            size: 18,
-                            color: item.quantity > 1
-                                ? theme.colorScheme.primary
-                                : theme.colorScheme.outline,
+                      Tooltip(
+                        message: 'Diminuir quantidade',
+                        child: InkWell(
+                          onTap: item.quantity > 1
+                              ? () => onQuantityChanged(item.quantity - 1)
+                              : null,
+                          borderRadius: const BorderRadius.vertical(
+                            bottom: Radius.circular(8),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.all(13),
+                            child: Icon(
+                              Icons.remove,
+                              size: 18,
+                              color: item.quantity > 1
+                                  ? theme.colorScheme.primary
+                                  : theme.colorScheme.outline,
+                            ),
                           ),
                         ),
                       ),

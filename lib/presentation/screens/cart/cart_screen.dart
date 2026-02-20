@@ -7,6 +7,7 @@ import '../../providers/auth_providers.dart';
 import '../../providers/cart_provider.dart';
 import '../../widgets/cart/cart_item_tile.dart';
 import '../../widgets/cart/cart_summary.dart';
+import '../../widgets/shared/app_feedback.dart';
 import '../../widgets/shared/empty_state.dart';
 import '../../widgets/shared/loading_overlay.dart';
 
@@ -108,26 +109,15 @@ class CartScreen extends ConsumerWidget {
     }
   }
 
-  void _showClearCartDialog(BuildContext context, WidgetRef ref) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Limpar carrinho'),
-        content: const Text('Tem certeza que deseja remover todos os itens?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () {
-              ref.read(cartProvider.notifier).clearCart();
-              Navigator.pop(context);
-            },
-            child: const Text('Limpar'),
-          ),
-        ],
-      ),
+  void _showClearCartDialog(BuildContext context, WidgetRef ref) async {
+    final confirmed = await AppFeedback.showConfirmation(
+      context,
+      title: 'Limpar carrinho',
+      message: 'Deseja remover todos os itens do carrinho?',
     );
+
+    if (confirmed) {
+      ref.read(cartProvider.notifier).clearCart();
+    }
   }
 }

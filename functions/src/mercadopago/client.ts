@@ -13,7 +13,7 @@ interface MpRequestOptions {
 interface MpPaymentRequest {
   transaction_amount: number;
   description: string;
-  payment_method_id: string;
+  payment_method_id?: string;
   payer: {
     email: string;
     first_name?: string;
@@ -28,6 +28,7 @@ interface MpPaymentRequest {
   notification_url?: string;
   external_reference?: string;
   application_fee?: number;
+  money_release_days?: number;
   metadata?: Record<string, unknown>;
 }
 
@@ -194,7 +195,7 @@ export function buildOAuthUrl(clientId: string, redirectUri: string, state: stri
     redirect_uri: redirectUri,
     state: state,
   });
-  return `https://auth.mercadopago.com.br/authorization?${params.toString()}`;
+  return `https://auth.mercadopago.com/authorization?${params.toString()}`;
 }
 
 /**

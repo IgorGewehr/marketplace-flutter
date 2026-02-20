@@ -25,6 +25,7 @@ abstract class ChatRepository {
     required String text,
     String type = 'text',
     String? imageUrl,
+    String? replyToId,
   });
 
   /// Send an image message

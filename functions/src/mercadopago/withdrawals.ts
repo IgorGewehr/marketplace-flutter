@@ -237,9 +237,30 @@ router.post("/withdraw", async (req: Request, res: Response): Promise<void> => {
       let accessToken: string;
       try {
         accessToken = await getValidSellerToken(tenantId);
-      } catch {
-        // Fallback to platform token if seller not connected
-        accessToken = config.mercadoPago.accessToken;
+      } catch (error) {
+        functions.logger.error("Failed to get seller token for withdrawal", { tenantId, error });
+        // Revert wallet balance since we can't proceed
+        const now2 = admin.firestore.Timestamp.now();
+        const revertBatch = db.batch();
+        revertBatch.update(db.collection("withdrawals").doc(withdrawalId), {
+          status: "failed",
+          failureReason: "Conta do Mercado Pago não conectada",
+          updatedAt: now2,
+        });
+        revertBatch.update(db.collection("transactions").doc(txId), {
+          status: "failed",
+          updatedAt: now2,
+        });
+        revertBatch.update(db.collection("wallets").doc(tenantId), {
+          "balance.available": admin.firestore.FieldValue.increment(amount),
+          "balance.blocked": admin.firestore.FieldValue.increment(-amount),
+          updatedAt: now2,
+        });
+        await revertBatch.commit();
+        res.status(400).json({
+          error: "Não foi possível conectar com o Mercado Pago. Reconecte sua conta MP.",
+        });
+        return;
       }
 
       const idempotencyKey = `withdrawal-${withdrawalId}`;

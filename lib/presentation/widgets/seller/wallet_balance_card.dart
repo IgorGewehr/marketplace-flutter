@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../core/utils/formatters.dart';
 
 /// Wallet balance card with prominent display
 class WalletBalanceCard extends StatelessWidget {
@@ -51,6 +52,8 @@ class WalletBalanceCard extends StatelessWidget {
   }
 
   Widget _buildContent(BuildContext context) {
+    final theme = Theme.of(context);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -92,23 +95,23 @@ class WalletBalanceCard extends StatelessWidget {
         const SizedBox(height: 24),
         
         // Label
-        const Text(
+        Text(
           'Saldo disponível',
           style: TextStyle(
             fontSize: 14,
-            color: AppColors.textSecondary,
+            color: theme.colorScheme.onSurfaceVariant,
             fontWeight: FontWeight.w500,
           ),
         ),
         const SizedBox(height: 4),
-        
+
         // Available balance
         Text(
           _formatPrice(availableBalance),
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 36,
             fontWeight: FontWeight.bold,
-            color: AppColors.textPrimary,
+            color: theme.colorScheme.onSurface,
           ),
         ),
         
@@ -194,7 +197,7 @@ class WalletBalanceCard extends StatelessWidget {
   }
 
   String _formatPrice(double price) {
-    return 'R\$ ${price.toStringAsFixed(2).replaceAll('.', ',')}';
+    return Formatters.currency(price);
   }
 }
 
@@ -228,7 +231,7 @@ class _BalanceItem extends StatelessWidget {
               ),
             ),
             Text(
-              'R\$ ${value.toStringAsFixed(2).replaceAll('.', ',')}',
+              Formatters.currency(value),
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w600,

@@ -10,6 +10,12 @@ import { getValidSellerToken } from "./oauth";
 const router = Router();
 
 /**
+ * Number of days after payment before auto-confirming delivery.
+ * Must match the value in release-payments.ts.
+ */
+const AUTO_CONFIRM_DAYS = 7;
+
+/**
  * POST /api/orders
  * Create a new order from the buyer's cart and process payment.
  *
@@ -149,32 +155,43 @@ router.post("/orders", async (req: Request, res: Response): Promise<void> => {
     const [firstName, ...lastNameParts] = buyerName.split(" ");
     const lastName = lastNameParts.join(" ") || firstName;
 
-    // Idempotency check: prevent duplicate order creation
+    // Idempotency check: prevent duplicate order creation (atomic)
     const idempotencyRef = db.collection("idempotency_keys").doc(idempotencyKey);
-    const idempotencyDoc = await idempotencyRef.get();
 
-    if (idempotencyDoc.exists) {
-      const existing = idempotencyDoc.data()!;
-      if (existing.status === "completed") {
-        // Already processed - return existing order
-        const existingOrder = await db.collection("orders").doc(orderId).get();
+    try {
+      await db.runTransaction(async (transaction) => {
+        const idempotencyDoc = await transaction.get(idempotencyRef);
+        if (idempotencyDoc.exists) {
+          const existing = idempotencyDoc.data()!;
+          if (existing.status === "processing") {
+            throw new Error("DUPLICATE_PROCESSING");
+          }
+          if (existing.status === "completed" && existing.orderId) {
+            throw new Error(`DUPLICATE_ORDER:${existing.orderId}`);
+          }
+        }
+        transaction.set(idempotencyRef, {
+          orderId,
+          status: "processing",
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      });
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (errorMessage === "DUPLICATE_PROCESSING") {
+        res.status(409).json({ error: "Pedido já está sendo processado. Aguarde." });
+        return;
+      }
+      if (errorMessage.startsWith("DUPLICATE_ORDER:")) {
+        const existingOrderId = errorMessage.split(":")[1];
+        const existingOrder = await db.collection("orders").doc(existingOrderId).get();
         if (existingOrder.exists) {
           res.status(201).json(serializeOrder(existingOrder.data()!));
           return;
         }
       }
-      if (existing.status === "processing") {
-        res.status(409).json({ error: "Pedido já está sendo processado. Aguarde." });
-        return;
-      }
+      throw error;
     }
-
-    // Mark as processing
-    await idempotencyRef.set({
-      orderId,
-      status: "processing",
-      createdAt: admin.firestore.Timestamp.now(),
-    });
 
     // Get seller's MP access token for marketplace split
     let sellerAccessToken: string;
@@ -206,7 +223,7 @@ router.post("/orders", async (req: Request, res: Response): Promise<void> => {
       // Create PIX payment
       const paymentReq: MpPaymentRequest = {
         transaction_amount: total,
-        description: `Pedido ${orderNumber} - Rei do Brique`,
+        description: `Pedido ${orderNumber} - Compre Aqui`,
         payment_method_id: "pix",
         payer: {
           email: buyerEmail,
@@ -222,6 +239,7 @@ router.post("/orders", async (req: Request, res: Response): Promise<void> => {
         notification_url: webhookUrl,
         external_reference: orderId,
         ...(useMarketplaceSplit ? { application_fee: platformFeeAmount } : {}),
+        money_release_days: Math.ceil((AUTO_CONFIRM_DAYS * 24 + config.platform.paymentHoldHours) / 24),
         metadata: {
           order_id: orderId,
           order_number: orderNumber,
@@ -259,8 +277,7 @@ router.post("/orders", async (req: Request, res: Response): Promise<void> => {
 
       const paymentReq: MpPaymentRequest = {
         transaction_amount: total,
-        description: `Pedido ${orderNumber} - Rei do Brique`,
-        payment_method_id: paymentMethod === "debitCard" ? "debit_card" : "credit_card",
+        description: `Pedido ${orderNumber} - Compre Aqui`,
         token: cardTokenId,
         installments: paymentMethod === "creditCard" ? installments : 1,
         payer: {
@@ -277,6 +294,7 @@ router.post("/orders", async (req: Request, res: Response): Promise<void> => {
         notification_url: webhookUrl,
         external_reference: orderId,
         ...(useMarketplaceSplit ? { application_fee: platformFeeAmount } : {}),
+        money_release_days: Math.ceil((AUTO_CONFIRM_DAYS * 24 + config.platform.paymentHoldHours) / 24),
         metadata: {
           order_id: orderId,
           order_number: orderNumber,
@@ -561,12 +579,11 @@ router.get("/payments/:orderId/status", async (req: Request, res: Response): Pro
     }
 
     // If we have a payment gateway ID, fetch live status from MP
-    if (data.paymentGatewayId) {
+    if (data.paymentGatewayId && data.tenantId) {
       try {
-        const payment = await getPayment(
-          data.paymentGatewayId,
-          config.mercadoPago.accessToken
-        );
+        // Use seller token first since marketplace payments are created with seller tokens
+        const sellerToken = await getValidSellerToken(data.tenantId);
+        const payment = await getPayment(data.paymentGatewayId, sellerToken);
         res.json({
           paymentStatus: mapMpStatus(payment.status),
           mpStatus: payment.status,
@@ -574,7 +591,7 @@ router.get("/payments/:orderId/status", async (req: Request, res: Response): Pro
         });
         return;
       } catch {
-        // Fallback to stored status
+        // Fallback to stored status if seller token fails
       }
     }
 
@@ -651,7 +668,7 @@ router.post("/payments/:orderId/regenerate-pix", async (req: Request, res: Respo
 
     const paymentReq: MpPaymentRequest = {
       transaction_amount: total,
-      description: `Pedido ${orderNumber} - Rei do Brique`,
+      description: `Pedido ${orderNumber} - Compre Aqui`,
       payment_method_id: "pix",
       payer: {
         email: buyerEmail,
@@ -957,7 +974,7 @@ router.post("/payments/link", async (req: Request, res: Response): Promise<void>
       body: JSON.stringify({
         items: [
           {
-            title: description || "Pagamento - Rei do Brique",
+            title: description || "Pagamento - Compre Aqui",
             quantity: 1,
             unit_price: parseFloat(amount),
             currency_id: "BRL",
@@ -999,6 +1016,125 @@ router.post("/payments/link", async (req: Request, res: Response): Promise<void>
   }
 });
 
+/**
+ * POST /api/orders/:id/dispute
+ * Buyer reports a problem with an order.
+ * If the payment is still within the refund window, triggers a full refund.
+ *
+ * Body:
+ *   reason: string (required) - Description of the problem
+ */
+router.post("/orders/:id/dispute", async (req: Request, res: Response): Promise<void> => {
+  const authReq = req as AuthenticatedRequest;
+  const uid = authReq.uid;
+  const orderId = String(req.params.id);
+  const { reason } = req.body;
+
+  if (!reason || !reason.trim()) {
+    res.status(400).json({ error: "Descreva o problema encontrado" });
+    return;
+  }
+
+  try {
+    const db = admin.firestore();
+    const orderRef = db.collection("orders").doc(orderId);
+    const orderDoc = await orderRef.get();
+
+    if (!orderDoc.exists) {
+      res.status(404).json({ error: "Pedido não encontrado" });
+      return;
+    }
+
+    const data = orderDoc.data()!;
+
+    // Only buyer can dispute
+    if (data.buyerUserId !== uid) {
+      res.status(403).json({ error: "Apenas o comprador pode reportar problemas" });
+      return;
+    }
+
+    // Can only dispute paid orders that haven't been released yet
+    if (data.paymentStatus !== "paid") {
+      res.status(400).json({ error: "Não é possível disputar este pedido" });
+      return;
+    }
+
+    if (data.paymentSplit?.status === "released") {
+      res.status(400).json({
+        error: "O pagamento já foi liberado. Entre em contato com o suporte para assistência.",
+      });
+      return;
+    }
+
+    // Already disputed?
+    if (data.disputeStatus) {
+      res.status(400).json({ error: "Já existe uma disputa aberta para este pedido" });
+      return;
+    }
+
+    const now = admin.firestore.Timestamp.now();
+
+    // Create a dispute record for mediation instead of immediate refund.
+    // The refund should only happen after admin review or after a timeout
+    // (e.g., 48 hours with no seller response).
+    const disputeData = {
+      orderId: orderId,
+      buyerUserId: uid,
+      sellerTenantId: data.tenantId,
+      reason: reason.trim(),
+      status: "open", // open -> under_review -> resolved_refund | resolved_denied
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      resolvedAt: null,
+      resolution: null,
+    };
+
+    await db.collection("disputes").add(disputeData);
+
+    // Update order status to disputed (do NOT refund yet)
+    await orderRef.update({
+      status: "disputed",
+      disputeStatus: "open",
+      disputeReason: reason.trim(),
+      disputeOpenedAt: now,
+      disputeOpenedBy: uid,
+      updatedAt: now,
+      statusHistory: admin.firestore.FieldValue.arrayUnion({
+        status: "disputed",
+        timestamp: now,
+        note: `Problema reportado pelo comprador: ${reason.trim()}`,
+        userId: uid,
+      }),
+    });
+
+    // Notify seller about the dispute (don't refund yet)
+    const orderNumber = data.orderNumber || orderId.substring(0, 8);
+    const tenantDoc = await db.collection("tenants").doc(data.tenantId).get();
+    const ownerId = tenantDoc.data()?.ownerId;
+
+    if (ownerId) {
+      const notifId = uuidv4();
+      await db.collection("notifications").doc(notifId).set({
+        id: notifId,
+        userId: ownerId,
+        title: "Problema reportado em pedido",
+        body: `Pedido #${orderNumber} teve um problema reportado pelo comprador. Você tem 48h para responder.`,
+        type: "order_disputed",
+        data: { orderId },
+        isRead: false,
+        createdAt: now,
+      });
+    }
+
+    res.status(200).json({
+      message: "Disputa aberta com sucesso. O vendedor será notificado.",
+      status: "open",
+    });
+  } catch (error) {
+    functions.logger.error("Error processing dispute", error);
+    res.status(500).json({ error: "Erro ao processar disputa" });
+  }
+});
+
 // ============================================================================
 // Helpers
 // ============================================================================
@@ -1025,6 +1161,7 @@ function serializeOrder(data: admin.firestore.DocumentData): Record<string, unkn
   const timestampFields = [
     "createdAt", "updatedAt", "estimatedDelivery",
     "paidAt", "paymentReleasedAt", "pixExpiration",
+    "deliveryConfirmedAt", "disputeOpenedAt",
   ];
 
   for (const field of timestampFields) {

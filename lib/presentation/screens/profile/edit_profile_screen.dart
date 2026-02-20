@@ -9,6 +9,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../data/services/image_upload_service.dart';
 import '../../providers/auth_providers.dart';
 import '../../providers/core_providers.dart';
+import '../../widgets/shared/app_feedback.dart';
 
 /// Edit profile screen
 class EditProfileScreen extends ConsumerStatefulWidget {
@@ -54,22 +55,12 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       ref.invalidate(currentUserProvider);
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Perfil atualizado com sucesso'),
-            backgroundColor: AppColors.secondary,
-          ),
-        );
+        AppFeedback.showSuccess(context, 'Perfil atualizado com sucesso');
         context.pop();
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Erro ao atualizar perfil. Tente novamente.'),
-            backgroundColor: AppColors.error,
-          ),
-        );
+        AppFeedback.showError(context, 'Erro ao atualizar perfil. Tente novamente.');
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -124,21 +115,11 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       ref.invalidate(currentUserProvider);
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Foto de perfil atualizada!'),
-            backgroundColor: AppColors.secondary,
-          ),
-        );
+        AppFeedback.showSuccess(context, 'Foto de perfil atualizada!');
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Erro ao selecionar imagem'),
-            backgroundColor: AppColors.error,
-          ),
-        );
+        AppFeedback.showError(context, 'Erro ao selecionar imagem');
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -153,8 +134,8 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('Editar Perfil'),
-        backgroundColor: Colors.white,
-        foregroundColor: AppColors.textPrimary,
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        foregroundColor: Theme.of(context).colorScheme.onSurface,
         elevation: 0,
         centerTitle: true,
       ),
@@ -313,9 +294,11 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     TextInputType? keyboardType,
     String? Function(String?)? validator,
   }) {
+    final theme = Theme.of(context);
+
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: theme.colorScheme.surface,
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
@@ -333,13 +316,13 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
         validator: validator,
         decoration: InputDecoration(
           labelText: label,
-          prefixIcon: Icon(icon, color: AppColors.textSecondary),
+          prefixIcon: Icon(icon, color: theme.colorScheme.onSurfaceVariant),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
             borderSide: BorderSide.none,
           ),
           filled: true,
-          fillColor: enabled ? Colors.white : AppColors.background,
+          fillColor: enabled ? theme.colorScheme.surface : AppColors.background,
         ),
       ),
     );

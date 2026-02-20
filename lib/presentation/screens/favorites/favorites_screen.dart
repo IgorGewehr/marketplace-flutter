@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/router/app_router.dart';
 import '../../providers/products_provider.dart';
 import '../../widgets/products/product_card.dart';
+import '../../widgets/shared/app_feedback.dart';
 import '../../widgets/shared/shimmer_loading.dart';
 
 /// Favorites screen showing all favorited products
@@ -19,9 +20,9 @@ class FavoritesScreen extends ConsumerWidget {
     return Scaffold(
       backgroundColor: theme.colorScheme.surface,
       appBar: AppBar(
-        title: const Text(
+        title: Text(
           'Favoritos',
-          style: TextStyle(color: Colors.black),
+          style: TextStyle(color: theme.colorScheme.onSurface),
         ),
         centerTitle: false,
         actions: [
@@ -141,9 +142,7 @@ class FavoritesScreen extends ConsumerWidget {
             onPressed: () {
               ref.read(favoriteProductIdsProvider.notifier).clearFavorites();
               Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Favoritos removidos')),
-              );
+              AppFeedback.showSuccess(context, 'Favoritos removidos');
             },
             child: const Text('Limpar tudo'),
           ),

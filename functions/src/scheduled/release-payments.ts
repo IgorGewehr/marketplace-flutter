@@ -4,54 +4,121 @@ import { v4 as uuidv4 } from "uuid";
 import { config } from "../config";
 
 /**
- * Scheduled function that releases held payments to sellers.
+ * Number of days after payment before auto-confirming delivery.
+ * If the buyer doesn't confirm or dispute within this period,
+ * the system auto-confirms and starts the release countdown.
+ */
+const AUTO_CONFIRM_DAYS = 7;
+
+/**
+ * Scheduled function that handles payment lifecycle:
  *
- * Runs every hour. Finds orders where:
- * - paymentStatus is "paid"
- * - paymentSplit.status is "held"
- * - paidAt + PAYMENT_HOLD_HOURS < now (hold period expired)
- * - paymentReleasedAt is not set (not yet released)
+ * 1. Auto-confirms delivery for old orders where the buyer didn't act
+ * 2. Releases payments that have been confirmed and held long enough
  *
- * For each qualifying order:
- * 1. Updates paymentSplit.status to 'released'
- * 2. Sets paymentReleasedAt timestamp
- * 3. Moves balance from pending to available in wallet
- * 4. Updates the transaction record to 'completed'
- * 5. Sends notification to seller
+ * Payment is only released AFTER the buyer confirms delivery (or auto-confirm).
+ * This protects buyers by giving them a window to report problems.
+ *
+ * Flow:
+ *   Payment approved → held (waiting for delivery)
+ *   Buyer confirms (or auto-confirm after 7 days) → deliveryConfirmedAt set
+ *   deliveryConfirmedAt + PAYMENT_HOLD_HOURS → released
  */
 export async function releaseHeldPayments(): Promise<void> {
   const db = admin.firestore();
-  const holdHours = config.platform.paymentHoldHours;
-  const cutoffTime = new Date(Date.now() - holdHours * 60 * 60 * 1000);
-  const cutoffTimestamp = admin.firestore.Timestamp.fromDate(cutoffTime);
   const now = admin.firestore.Timestamp.now();
 
-  functions.logger.info("Starting payment release check", {
-    holdHours,
-    cutoffTime: cutoffTime.toISOString(),
-  });
+  functions.logger.info("Starting payment lifecycle check");
 
   try {
-    // Query orders ready for payment release:
-    // paid + held + paidAt older than hold period
-    const ordersSnap = await db
+    // ================================================================
+    // Step 1: Auto-confirm old orders where buyer hasn't acted
+    // ================================================================
+    const autoConfirmCutoff = new Date(Date.now() - AUTO_CONFIRM_DAYS * 24 * 60 * 60 * 1000);
+    const autoConfirmTimestamp = admin.firestore.Timestamp.fromDate(autoConfirmCutoff);
+
+    // Find paid+held orders older than AUTO_CONFIRM_DAYS with no delivery confirmation
+    const unconfirmedSnap = await db
       .collection("orders")
       .where("paymentStatus", "==", "paid")
       .where("paymentSplit.status", "==", "held")
-      .where("paidAt", "<=", cutoffTimestamp)
+      .where("paidAt", "<=", autoConfirmTimestamp)
       .get();
 
-    if (ordersSnap.empty) {
+    let autoConfirmed = 0;
+    for (const orderDoc of unconfirmedSnap.docs) {
+      const orderData = orderDoc.data();
+
+      // Skip if already confirmed or already released
+      if (orderData.deliveryConfirmedAt || orderData.paymentReleasedAt) continue;
+
+      // Only auto-confirm orders that have actually been shipped/delivered
+      if (!["shipped", "delivered", "out_for_delivery"].includes(orderData.status)) {
+        functions.logger.info(`Skipping auto-confirm for order ${orderDoc.id} with status ${orderData.status}`);
+        continue;
+      }
+
+      try {
+        await orderDoc.ref.update({
+          deliveryConfirmedAt: now,
+          status: orderData.status === "shipped" || orderData.status === "ready" ? "delivered" : orderData.status,
+          statusHistory: admin.firestore.FieldValue.arrayUnion({
+            status: "delivered",
+            timestamp: now,
+            note: `Entrega confirmada automaticamente após ${AUTO_CONFIRM_DAYS} dias sem resposta do comprador`,
+          }),
+          updatedAt: now,
+        });
+
+        autoConfirmed++;
+
+        // Notify buyer that delivery was auto-confirmed
+        const buyerNotifId = uuidv4();
+        await db.collection("notifications").doc(buyerNotifId).set({
+          id: buyerNotifId,
+          userId: orderData.buyerUserId,
+          title: "Entrega confirmada automaticamente",
+          body: `Pedido #${orderData.orderNumber || orderDoc.id.substring(0, 8)} foi confirmado automaticamente. Se houve algum problema, entre em contato com o suporte.`,
+          type: "auto_delivery_confirmed",
+          data: { orderId: orderDoc.id },
+          isRead: false,
+          createdAt: now,
+        });
+
+        functions.logger.info("Auto-confirmed delivery", { orderId: orderDoc.id });
+      } catch (err) {
+        functions.logger.error("Error auto-confirming order", { orderId: orderDoc.id, error: err });
+      }
+    }
+
+    if (autoConfirmed > 0) {
+      functions.logger.info(`Auto-confirmed ${autoConfirmed} deliveries`);
+    }
+
+    // ================================================================
+    // Step 2: Release payments for confirmed deliveries past hold period
+    // ================================================================
+    const holdHours = config.platform.paymentHoldHours;
+    const releaseCutoff = new Date(Date.now() - holdHours * 60 * 60 * 1000);
+    const releaseCutoffTimestamp = admin.firestore.Timestamp.fromDate(releaseCutoff);
+
+    // Find orders that have delivery confirmation AND the hold period has expired
+    const confirmedSnap = await db
+      .collection("orders")
+      .where("paymentStatus", "==", "paid")
+      .where("paymentSplit.status", "==", "held")
+      .where("deliveryConfirmedAt", "<=", releaseCutoffTimestamp)
+      .get();
+
+    if (confirmedSnap.empty && autoConfirmed === 0) {
       functions.logger.info("No payments to release");
       return;
     }
 
-    functions.logger.info(`Found ${ordersSnap.size} payments to release`);
-
     let released = 0;
     let errors = 0;
 
-    for (const orderDoc of ordersSnap.docs) {
+    for (const orderDoc of confirmedSnap.docs) {
       try {
         const orderData = orderDoc.data();
         const orderId = orderDoc.id;
@@ -63,13 +130,13 @@ export async function releaseHeldPayments(): Promise<void> {
           continue;
         }
 
-        // Already released? Skip (double-check)
-        if (orderData.paymentReleasedAt) {
-          functions.logger.info("Payment already released, skipping", { orderId });
-          continue;
-        }
+        // Already released? Skip
+        if (orderData.paymentReleasedAt) continue;
 
-        // Query transaction record BEFORE the transaction (queries not allowed inside transactions)
+        // Must have delivery confirmation to release
+        if (!orderData.deliveryConfirmedAt) continue;
+
+        // Query transaction record BEFORE the Firestore transaction
         const txSnap = await db
           .collection("transactions")
           .where("orderId", "==", orderId)
@@ -79,12 +146,10 @@ export async function releaseHeldPayments(): Promise<void> {
 
         const txRef = txSnap.empty ? null : txSnap.docs[0].ref;
 
-        // Use a transaction for atomic updates
         await db.runTransaction(async (transaction) => {
-          // Re-read order to prevent race conditions
           const freshOrder = await transaction.get(orderDoc.ref);
           if (!freshOrder.exists || freshOrder.data()?.paymentReleasedAt) {
-            return; // Already processed
+            return;
           }
 
           // 1. Update order
@@ -115,7 +180,7 @@ export async function releaseHeldPayments(): Promise<void> {
             });
           }
 
-          // 3. Update transaction record to 'completed'
+          // 3. Update transaction record
           if (txRef) {
             transaction.update(txRef, {
               status: "completed",
@@ -124,23 +189,27 @@ export async function releaseHeldPayments(): Promise<void> {
           }
         });
 
-        // 4. Send notification to seller (outside transaction)
+        // 4. Notify seller - resolve actual Firebase Auth UID from tenant
         const orderNumber = orderData.orderNumber || orderId.substring(0, 8);
-        const notifId = uuidv4();
-        await db.collection("notifications").doc(notifId).set({
-          id: notifId,
-          userId: tenantId,
-          title: "Pagamento liberado!",
-          body: `R$ ${sellerAmount.toFixed(2)} do pedido #${orderNumber} foi liberado para sua carteira.`,
-          type: "payment_released",
-          data: { orderId },
-          isRead: false,
-          createdAt: now,
-        });
+        const tenantDoc = await db.collection("tenants").doc(tenantId).get();
+        const sellerUserId = tenantDoc.data()?.ownerId;
 
-        // Send FCM push notification
+        if (sellerUserId) {
+          const notifId = uuidv4();
+          await db.collection("notifications").doc(notifId).set({
+            id: notifId,
+            userId: sellerUserId,
+            title: "Pagamento liberado!",
+            body: `R$ ${sellerAmount.toFixed(2)} do pedido #${orderNumber} foi creditado na sua conta do Mercado Pago.`,
+            type: "payment_released",
+            data: { orderId },
+            isRead: false,
+            createdAt: now,
+          });
+        }
+
+        // Send FCM
         try {
-          // Find seller's user to get FCM token
           const usersSnap = await db
             .collection("users")
             .where("tenantId", "==", tenantId)
@@ -156,12 +225,9 @@ export async function releaseHeldPayments(): Promise<void> {
                   token,
                   notification: {
                     title: "Pagamento liberado!",
-                    body: `R$ ${sellerAmount.toFixed(2)} do pedido #${orderNumber} está disponível para saque.`,
+                    body: `R$ ${sellerAmount.toFixed(2)} do pedido #${orderNumber} já está disponível.`,
                   },
-                  data: {
-                    type: "payment_released",
-                    orderId,
-                  },
+                  data: { type: "payment_released", orderId },
                   android: { priority: "high" },
                   apns: { payload: { aps: { sound: "default" } } },
                 });
@@ -183,7 +249,11 @@ export async function releaseHeldPayments(): Promise<void> {
       }
     }
 
-    functions.logger.info("Payment release completed", { released, errors, total: ordersSnap.size });
+    functions.logger.info("Payment lifecycle check completed", {
+      autoConfirmed,
+      released,
+      errors,
+    });
   } catch (error) {
     functions.logger.error("Error in releaseHeldPayments", error);
     throw error;

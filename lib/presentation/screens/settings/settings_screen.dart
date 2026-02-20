@@ -3,11 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../core/constants/app_constants.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../providers/auth_providers.dart';
 import '../../providers/core_providers.dart';
 import '../../widgets/profile/profile_menu_item.dart';
+import '../../widgets/shared/app_feedback.dart';
 
 /// Settings screen
 class SettingsScreen extends ConsumerWidget {
@@ -19,8 +21,8 @@ class SettingsScreen extends ConsumerWidget {
       backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('Configurações'),
-        backgroundColor: Colors.white,
-        foregroundColor: AppColors.textPrimary,
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        foregroundColor: Theme.of(context).colorScheme.onSurface,
         elevation: 0,
         centerTitle: true,
       ),
@@ -70,26 +72,20 @@ class SettingsScreen extends ConsumerWidget {
                   ),
                   showChevron: false,
                 ),
+                // Gap #25: Use StateProvider instead of markNeedsBuild hack
                 ProfileMenuItem(
                   icon: Icons.fingerprint_rounded,
                   label: 'Biometria',
                   subtitle: 'Use impressão digital ou Face ID',
-                  trailing: Builder(
-                    builder: (ctx) {
-                      final localStorage = ref.read(localStorageProvider);
-                      final enabled = localStorage.getBool('biometric_enabled') ?? false;
-                      return Switch(
-                        value: enabled,
-                        onChanged: (value) {
-                          localStorage.setBool('biometric_enabled', value);
-                          ScaffoldMessenger.of(ctx).showSnackBar(
-                            SnackBar(
-                              content: Text(value ? 'Biometria ativada' : 'Biometria desativada'),
-                              duration: const Duration(seconds: 1),
-                            ),
-                          );
-                          (ctx as Element).markNeedsBuild();
-                        },
+                  trailing: Switch(
+                    value: ref.watch(biometricEnabledProvider),
+                    onChanged: (value) {
+                      ref.read(localStorageProvider).setBool('biometric_enabled', value);
+                      ref.read(biometricEnabledProvider.notifier).state = value;
+                      AppFeedback.showInfo(
+                        context,
+                        value ? 'Biometria ativada' : 'Biometria desativada',
+                        duration: const Duration(seconds: 1),
                       );
                     },
                   ),
@@ -105,7 +101,7 @@ class SettingsScreen extends ConsumerWidget {
                 ProfileMenuItem(
                   icon: Icons.help_outline_rounded,
                   label: 'Central de Ajuda',
-                  onTap: () => _openUrl(context, 'https://reidobrique.com.br/ajuda'),
+                  onTap: () => _openUrl(context, AppConstants.helpUrl),
                 ),
                 ProfileMenuItem(
                   icon: Icons.chat_bubble_outline_rounded,
@@ -115,7 +111,7 @@ class SettingsScreen extends ConsumerWidget {
                 ProfileMenuItem(
                   icon: Icons.bug_report_outlined,
                   label: 'Reportar um Problema',
-                  onTap: () => _openUrl(context, 'mailto:suporte@reidobrique.com.br?subject=Bug Report'),
+                  onTap: () => _openUrl(context, 'mailto:${AppConstants.supportEmail}?subject=Bug Report'),
                 ),
               ],
             ),
@@ -127,17 +123,17 @@ class SettingsScreen extends ConsumerWidget {
                 ProfileMenuItem(
                   icon: Icons.description_outlined,
                   label: 'Termos de Uso',
-                  onTap: () => _openUrl(context, 'https://reidobrique.com.br/termos'),
+                  onTap: () => _openUrl(context, AppConstants.termsUrl),
                 ),
                 ProfileMenuItem(
                   icon: Icons.privacy_tip_outlined,
                   label: 'Política de Privacidade',
-                  onTap: () => _openUrl(context, 'https://reidobrique.com.br/privacidade'),
+                  onTap: () => _openUrl(context, AppConstants.privacyUrl),
                 ),
                 ProfileMenuItem(
                   icon: Icons.cookie_outlined,
                   label: 'Política de Cookies',
-                  onTap: () => _openUrl(context, 'https://reidobrique.com.br/cookies'),
+                  onTap: () => _openUrl(context, AppConstants.cookiesUrl),
                 ),
               ],
             ),
@@ -186,21 +182,16 @@ class SettingsScreen extends ConsumerWidget {
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     } else if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Não foi possível abrir o link')),
-      );
+      AppFeedback.showError(context, 'Não foi possível abrir o link');
     }
   }
 
   Future<void> _openWhatsApp(BuildContext context) async {
-    const phone = '5547997856405';
-    final uri = Uri.parse('https://wa.me/$phone?text=Olá, preciso de ajuda com o Compre Aqui');
+    final uri = Uri.parse('https://wa.me/${AppConstants.supportWhatsAppPhone}?text=Olá, preciso de ajuda com o Compre Aqui');
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     } else if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('WhatsApp não disponível')),
-      );
+      AppFeedback.showError(context, 'WhatsApp não disponível');
     }
   }
 
@@ -227,12 +218,7 @@ class SettingsScreen extends ConsumerWidget {
                   email: user!.email,
                 );
                 if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Email de redefinição de senha enviado'),
-                      backgroundColor: AppColors.secondary,
-                    ),
-                  );
+                  AppFeedback.showSuccess(context, 'Email de redefinição de senha enviado');
                 }
               }
             },
@@ -243,41 +229,60 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 
+  // Gap #12: Validate the "EXCLUIR" confirmation word
   void _showDeleteAccountDialog(BuildContext context, WidgetRef ref) {
+    final confirmController = TextEditingController();
     showDialog(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Excluir conta'),
-        content: const Text(
-          'Esta ação é permanente e não pode ser desfeita. '
-          'Todos os seus dados serão excluídos.\n\n'
-          'Digite "EXCLUIR" para confirmar.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () async {
-              Navigator.pop(dialogContext);
-              // Sign out and request deletion
-              await ref.read(authNotifierProvider.notifier).signOut();
-              if (context.mounted) {
-                context.go(AppRouter.login);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Solicitação de exclusão enviada. Você será notificado por email.'),
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) {
+          final isConfirmed = confirmController.text.trim().toUpperCase() == 'EXCLUIR';
+          return AlertDialog(
+            title: const Text('Excluir conta'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Esta ação é permanente e não pode ser desfeita. '
+                  'Todos os seus dados serão excluídos.\n\n'
+                  'Digite "EXCLUIR" para confirmar.',
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: confirmController,
+                  onChanged: (_) => setDialogState(() {}),
+                  decoration: const InputDecoration(
+                    border: OutlineInputBorder(),
+                    hintText: 'EXCLUIR',
                   ),
-                );
-              }
-            },
-            style: FilledButton.styleFrom(
-              backgroundColor: AppColors.error,
+                ),
+              ],
             ),
-            child: const Text('Excluir minha conta'),
-          ),
-        ],
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('Cancelar'),
+              ),
+              FilledButton(
+                onPressed: isConfirmed
+                    ? () async {
+                        Navigator.pop(dialogContext);
+                        await ref.read(authNotifierProvider.notifier).signOut();
+                        if (context.mounted) {
+                          context.go(AppRouter.login);
+                          AppFeedback.showInfo(context, 'Solicitação de exclusão enviada. Você será notificado por email.');
+                        }
+                      }
+                    : null,
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.error,
+                ),
+                child: const Text('Excluir minha conta'),
+              ),
+            ],
+          );
+        },
       ),
     );
   }

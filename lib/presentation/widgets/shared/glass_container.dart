@@ -32,7 +32,7 @@ class GlassContainer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final bgColor = color ?? Colors.white;
+    final bgColor = color ?? theme.colorScheme.surface;
     final border = borderColor ?? theme.colorScheme.outline.withAlpha(30);
     final radius = borderRadius ?? BorderRadius.circular(16);
 

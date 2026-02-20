@@ -7,6 +7,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'app.dart'; // Compre Aqui - Marketplace do Meio Oeste
 import 'core/config/app_config.dart';
 import 'data/datasources/local_storage_service.dart';
+import 'presentation/providers/seller_mode_provider.dart';
 
 /// Global instance initialized at startup, provided via Riverpod.
 final localStorageService = LocalStorageService();
@@ -45,9 +46,15 @@ void main() async {
     ),
   );
 
+  // Load seller mode before app starts so router navigates correctly
+  final isSellerMode = await SellerModeNotifier.loadInitialValue();
+
   runApp(
-    const ProviderScope(
-      child: ReiDoBriqueApp(),
+    ProviderScope(
+      overrides: [
+        sellerModeInitialValueProvider.overrideWith((_) => isSellerMode),
+      ],
+      child: const CompreAquiApp(),
     ),
   );
 }

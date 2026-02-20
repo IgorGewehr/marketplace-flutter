@@ -140,7 +140,20 @@ class AuthNotifier extends Notifier<AsyncValue<void>> {
         idToken: googleAuth.idToken,
       );
 
-      await _auth.signInWithCredential(credential);
+      final userCredential = await _auth.signInWithCredential(credential);
+
+      // Register with backend (idempotent — backend handles existing users)
+      try {
+        await ref.read(authRepositoryProvider).register(
+              email: userCredential.user!.email!,
+              password: '',
+              displayName: userCredential.user!.displayName ?? '',
+            );
+      } catch (_) {
+        // User may already exist in backend — that's fine
+      }
+
+      ref.invalidate(currentUserProvider);
     });
     return !state.hasError;
   }

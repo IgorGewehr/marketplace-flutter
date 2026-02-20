@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../core/utils/formatters.dart';
 import '../../providers/auth_providers.dart';
+import '../../providers/seller_mode_provider.dart';
 import '../../providers/seller_orders_provider.dart';
 import '../../providers/wallet_provider.dart';
 import '../../widgets/shared/shimmer_loading.dart';
@@ -57,19 +59,31 @@ class SellerDashboardScreen extends ConsumerWidget {
                       final storeName = user?.displayName ?? 'Minha Loja';
                       return Text(
                         storeName,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
-                          color: AppColors.textPrimary,
+                          color: Theme.of(context).colorScheme.onSurface,
                         ),
                       );
                     },
                   ),
                 ],
               ),
-              actions: const [
-                SellerModeToggle(),
-                SizedBox(width: 16),
+              actions: [
+                const SellerModeToggle(),
+                const SizedBox(width: 4),
+                IconButton(
+                  onPressed: () {
+                    ref.read(sellerModeProvider.notifier).setMode(false);
+                    context.go('/');
+                  },
+                  icon: Icon(
+                    Icons.shopping_bag_outlined,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                  tooltip: 'Voltar para compras',
+                ),
+                const SizedBox(width: 4),
               ],
             ),
             
@@ -109,20 +123,20 @@ class SellerDashboardScreen extends ConsumerWidget {
                         child: walletAsync.when(
                           data: (wallet) => StatCard(
                             icon: Icons.trending_up_rounded,
-                            label: 'Vendas do mês',
+                            label: 'Saldo total',
                             value: _formatPrice(wallet?.balance.total ?? 0),
                             accentColor: AppColors.sellerAccent,
                             onTap: () => context.push('/seller/wallet'),
                           ),
                           loading: () => const StatCard(
                             icon: Icons.trending_up_rounded,
-                            label: 'Vendas do mês',
+                            label: 'Saldo total',
                             value: 'R\$ 0,00',
                             isLoading: true,
                           ),
                           error: (_, __) => const StatCard(
                             icon: Icons.trending_up_rounded,
-                            label: 'Vendas do mês',
+                            label: 'Saldo total',
                             value: '-',
                           ),
                         ),
@@ -141,8 +155,53 @@ class SellerDashboardScreen extends ConsumerWidget {
                       ),
                     ],
                   ),
+                  const SizedBox(height: 16),
+
+                  // Back to shopping shortcut
+                  Material(
+                    borderRadius: BorderRadius.circular(12),
+                    color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(12),
+                      onTap: () {
+                        ref.read(sellerModeProvider.notifier).setMode(false);
+                        context.go('/');
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.shopping_bag_outlined,
+                              size: 20,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                'Voltar para compras',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
+                              ),
+                            ),
+                            Icon(
+                              Icons.arrow_forward_rounded,
+                              size: 18,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
                   const SizedBox(height: 24),
-                  
+
                   // Recent Orders Header
                   Row(
                     children: [
@@ -251,6 +310,6 @@ class SellerDashboardScreen extends ConsumerWidget {
   }
 
   String _formatPrice(double price) {
-    return 'R\$ ${price.toStringAsFixed(2).replaceAll('.', ',')}';
+    return Formatters.currency(price);
   }
 }
