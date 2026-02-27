@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/router/app_router.dart';
+import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/validators.dart';
 import '../../providers/auth_providers.dart';
 import '../../widgets/shared/app_feedback.dart';
@@ -10,7 +12,7 @@ import '../../widgets/auth/auth_button.dart';
 import '../../widgets/auth/auth_text_field.dart';
 import '../../widgets/auth/social_login_buttons.dart';
 
-/// Register Screen
+/// Register Screen — branded Compre aQUI experience
 class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key});
 
@@ -48,7 +50,6 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       return;
     }
 
-    AppFeedback.showLoading(context, message: 'Criando sua conta...');
     try {
       final success = await ref.read(authNotifierProvider.notifier).register(
             displayName: _nameController.text.trim(),
@@ -56,9 +57,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             password: _passwordController.text,
           );
 
-      if (mounted) AppFeedback.hideLoading(context);
+      if (!mounted) return;
 
-      if (success && mounted) {
+      if (success) {
         AppFeedback.showSuccess(
           context,
           'Conta criada com sucesso!',
@@ -67,27 +68,31 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         context.go(AppRouter.home);
       }
     } catch (e) {
-      if (mounted) AppFeedback.hideLoading(context);
-      if (mounted) {
-        AppFeedback.showError(
-          context,
-          e.toString(),
-          title: 'Erro ao criar conta',
-        );
-      }
+      if (!mounted) return;
+      AppFeedback.showError(
+        context,
+        e.toString(),
+        title: 'Erro ao criar conta',
+      );
     }
   }
 
   Future<void> _handleGoogleRegister() async {
     setState(() => _isGoogleLoading = true);
 
-    final success =
-        await ref.read(authNotifierProvider.notifier).signInWithGoogle();
+    try {
+      final success =
+          await ref.read(authNotifierProvider.notifier).signInWithGoogle();
 
-    setState(() => _isGoogleLoading = false);
+      if (!mounted) return;
+      setState(() => _isGoogleLoading = false);
 
-    if (success && mounted) {
-      context.go(AppRouter.home);
+      if (success) {
+        context.go(AppRouter.home);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isGoogleLoading = false);
     }
   }
 
@@ -96,255 +101,435 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     final theme = Theme.of(context);
     final authState = ref.watch(authNotifierProvider);
     final isLoading = authState.isLoading;
+    final topPadding = MediaQuery.of(context).padding.top;
 
     return Scaffold(
-      body: Column(
-        children: [
-          // Header with logo
-          Container(
-            width: double.infinity,
-            color: theme.colorScheme.surface,
-            child: SafeArea(
-              bottom: false,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-                child: Column(
-                  children: [
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: IconButton(
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [AppColors.primary, AppColors.primaryDark],
+          ),
+        ),
+        child: Column(
+          children: [
+            // ── Green gradient header ──
+            SizedBox(
+              height: topPadding + 170,
+              child: SafeArea(
+                bottom: false,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 8),
+                      _GlassBackButton(
                         onPressed: () => context.pop(),
-                        icon: Icon(Icons.arrow_back, color: theme.colorScheme.onSurface),
                       ),
-                    ),
-                    const SizedBox(height: 4),
-                    Image.asset(
-                      'assets/images/logo.png',
-                      height: 60,
-                      fit: BoxFit.contain,
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Criar conta',
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: theme.colorScheme.onSurface,
+                      const Spacer(),
+                      Center(
+                        child: Column(
+                          children: [
+                            // Icon instead of logo (shorter header for register)
+                            Container(
+                              width: 52,
+                              height: 52,
+                              decoration: BoxDecoration(
+                                color: Colors.white.withAlpha(40),
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: Colors.white.withAlpha(60),
+                                ),
+                              ),
+                              child: const Icon(
+                                Icons.person_add_rounded,
+                                color: Colors.white,
+                                size: 28,
+                              ),
+                            )
+                                .animate()
+                                .fadeIn(duration: 500.ms)
+                                .scale(
+                                  begin: const Offset(0.8, 0.8),
+                                  end: const Offset(1, 1),
+                                  duration: 500.ms,
+                                  curve: Curves.easeOutBack,
+                                ),
+                            const SizedBox(height: 12),
+                            Text(
+                              'Criar conta',
+                              style: theme.textTheme.headlineSmall?.copyWith(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            )
+                                .animate()
+                                .fadeIn(delay: 200.ms, duration: 400.ms)
+                                .slideY(begin: 0.2, end: 0),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Rápido e fácil, em poucos passos',
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: Colors.white.withAlpha(200),
+                              ),
+                            )
+                                .animate()
+                                .fadeIn(delay: 300.ms, duration: 400.ms),
+                          ],
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Rápido e fácil, em poucos passos',
-                      style: TextStyle(fontSize: 14, color: theme.colorScheme.onSurfaceVariant),
-                    ),
-                  ],
+                      const SizedBox(height: 20),
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
 
-          // White form section
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  children: [
-                    AuthTextField(
-                      controller: _nameController,
-                      label: 'Nome completo',
-                      hint: 'João Silva',
-                      prefixIcon: Icons.person_outline,
-                      keyboardType: TextInputType.name,
-                      textInputAction: TextInputAction.next,
-                      validator: Validators.validateName,
-                      enabled: !isLoading,
-                    ),
-
-                    const SizedBox(height: 20),
-
-                    AuthTextField(
-                      controller: _emailController,
-                      label: 'Email',
-                      hint: 'seu@email.com',
-                      prefixIcon: Icons.email_outlined,
-                      keyboardType: TextInputType.emailAddress,
-                      textInputAction: TextInputAction.next,
-                      validator: Validators.validateEmail,
-                      enabled: !isLoading,
-                    ),
-
-                    const SizedBox(height: 20),
-
-                    AuthTextField(
-                      controller: _passwordController,
-                      label: 'Senha',
-                      hint: 'Mínimo 6 caracteres',
-                      prefixIcon: Icons.lock_outlined,
-                      obscureText: true,
-                      textInputAction: TextInputAction.next,
-                      validator: Validators.validatePassword,
-                      enabled: !isLoading,
-                    ),
-
-                    const SizedBox(height: 20),
-
-                    AuthTextField(
-                      controller: _confirmPasswordController,
-                      label: 'Confirmar senha',
-                      hint: 'Repita a senha',
-                      prefixIcon: Icons.lock_outlined,
-                      obscureText: true,
-                      textInputAction: TextInputAction.done,
-                      validator: (value) => Validators.validatePasswordConfirmation(
-                        value,
-                        _passwordController.text,
-                      ),
-                      enabled: !isLoading,
-                      onSubmitted: (_) => _handleRegister(),
-                    ),
-
-                    const SizedBox(height: 20),
-
-                    // Terms checkbox
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+            // ── White form card ──
+            Expanded(
+              child: Container(
+                width: double.infinity,
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.vertical(
+                    top: Radius.circular(32),
+                  ),
+                ),
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
                       children: [
-                        SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: Checkbox(
-                            value: _acceptedTerms,
-                            onChanged: isLoading
-                                ? null
-                                : (value) {
-                                    setState(() => _acceptedTerms = value ?? false);
-                                  },
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(4),
-                            ),
+                        // Google sign-up first (quick option)
+                        SocialLoginButtons(
+                          onGooglePressed:
+                              isLoading ? null : _handleGoogleRegister,
+                          isLoading: _isGoogleLoading,
+                        )
+                            .animate()
+                            .fadeIn(delay: 200.ms, duration: 400.ms)
+                            .slideY(begin: 0.1, end: 0),
+
+                        const SizedBox(height: 24),
+
+                        const AuthDivider(text: 'ou cadastre com email')
+                            .animate()
+                            .fadeIn(delay: 300.ms, duration: 400.ms),
+
+                        const SizedBox(height: 24),
+
+                        // Name field
+                        AuthTextField(
+                          controller: _nameController,
+                          label: 'Nome completo',
+                          hint: 'João Silva',
+                          prefixIcon: Icons.person_outline,
+                          keyboardType: TextInputType.name,
+                          textInputAction: TextInputAction.next,
+                          validator: Validators.validateName,
+                          enabled: !isLoading,
+                        )
+                            .animate()
+                            .fadeIn(delay: 350.ms, duration: 400.ms)
+                            .slideY(begin: 0.15, end: 0),
+
+                        const SizedBox(height: 16),
+
+                        // Email field
+                        AuthTextField(
+                          controller: _emailController,
+                          label: 'Email',
+                          hint: 'seu@email.com',
+                          prefixIcon: Icons.email_outlined,
+                          keyboardType: TextInputType.emailAddress,
+                          textInputAction: TextInputAction.next,
+                          validator: Validators.validateEmail,
+                          enabled: !isLoading,
+                        )
+                            .animate()
+                            .fadeIn(delay: 400.ms, duration: 400.ms)
+                            .slideY(begin: 0.15, end: 0),
+
+                        const SizedBox(height: 16),
+
+                        // Password field
+                        AuthTextField(
+                          controller: _passwordController,
+                          label: 'Senha',
+                          hint: 'Mínimo 6 caracteres',
+                          prefixIcon: Icons.lock_outlined,
+                          obscureText: true,
+                          textInputAction: TextInputAction.next,
+                          validator: Validators.validatePassword,
+                          enabled: !isLoading,
+                        )
+                            .animate()
+                            .fadeIn(delay: 450.ms, duration: 400.ms)
+                            .slideY(begin: 0.15, end: 0),
+
+                        const SizedBox(height: 16),
+
+                        // Confirm password field
+                        AuthTextField(
+                          controller: _confirmPasswordController,
+                          label: 'Confirmar senha',
+                          hint: 'Repita a senha',
+                          prefixIcon: Icons.lock_outlined,
+                          obscureText: true,
+                          textInputAction: TextInputAction.done,
+                          validator: (value) =>
+                              Validators.validatePasswordConfirmation(
+                            value,
+                            _passwordController.text,
                           ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: GestureDetector(
-                            onTap: isLoading
-                                ? null
-                                : () {
-                                    setState(() => _acceptedTerms = !_acceptedTerms);
-                                  },
-                            child: RichText(
-                              text: TextSpan(
-                                style: theme.textTheme.bodyMedium,
-                                children: [
-                                  const TextSpan(text: 'Li e aceito os '),
-                                  TextSpan(
-                                    text: 'Termos de Uso',
-                                    style: TextStyle(
-                                      color: theme.colorScheme.primary,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                  const TextSpan(text: ' e '),
-                                  TextSpan(
-                                    text: 'Política de Privacidade',
-                                    style: TextStyle(
-                                      color: theme.colorScheme.primary,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ],
+                          enabled: !isLoading,
+                          onSubmitted: (_) => _handleRegister(),
+                        )
+                            .animate()
+                            .fadeIn(delay: 500.ms, duration: 400.ms)
+                            .slideY(begin: 0.15, end: 0),
+
+                        const SizedBox(height: 16),
+
+                        // Terms checkbox
+                        _TermsCheckbox(
+                          accepted: _acceptedTerms,
+                          isLoading: isLoading,
+                          onChanged: (value) {
+                            setState(() => _acceptedTerms = value);
+                          },
+                        )
+                            .animate()
+                            .fadeIn(delay: 550.ms, duration: 400.ms),
+
+                        const SizedBox(height: 20),
+
+                        // Error message
+                        if (authState.hasError)
+                          _ErrorBanner(
+                            message: getAuthErrorMessage(authState.error!),
+                          ),
+
+                        // Register button
+                        AuthButton(
+                          text: 'Criar conta',
+                          onPressed: isLoading ? null : _handleRegister,
+                          isLoading: isLoading && !_isGoogleLoading,
+                        )
+                            .animate()
+                            .fadeIn(delay: 600.ms, duration: 400.ms)
+                            .slideY(begin: 0.15, end: 0),
+
+                        const SizedBox(height: 28),
+
+                        // Login link
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              'Já tem conta? ',
+                              style: TextStyle(
+                                color: AppColors.textSecondary,
+                                fontSize: 14,
                               ),
                             ),
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 24),
-
-                    // Error message
-                    if (authState.hasError)
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(12),
-                        margin: const EdgeInsets.only(bottom: 16),
-                        decoration: BoxDecoration(
-                          color: theme.colorScheme.error.withAlpha((255 * 0.1).round()),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: theme.colorScheme.error.withAlpha((255 * 0.3).round()),
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.error_outline,
-                              color: theme.colorScheme.error,
-                              size: 20,
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
+                            GestureDetector(
+                              onTap: isLoading
+                                  ? null
+                                  : () => context.go(AppRouter.login),
                               child: Text(
-                                getAuthErrorMessage(authState.error!),
+                                'Entrar',
                                 style: TextStyle(
-                                  color: theme.colorScheme.error,
+                                  color: AppColors.primary,
+                                  fontWeight: FontWeight.bold,
                                   fontSize: 14,
                                 ),
                               ),
                             ),
                           ],
-                        ),
-                      ),
+                        )
+                            .animate()
+                            .fadeIn(delay: 700.ms, duration: 400.ms),
 
-                    // Register button
-                    AuthButton(
-                      text: 'Criar conta',
-                      onPressed: isLoading ? null : _handleRegister,
-                      isLoading: isLoading && !_isGoogleLoading,
-                    ),
-
-                    const SizedBox(height: 24),
-
-                    const AuthDivider(),
-
-                    const SizedBox(height: 24),
-
-                    // Google register
-                    SocialLoginButtons(
-                      onGooglePressed: isLoading ? null : _handleGoogleRegister,
-                      isLoading: _isGoogleLoading,
-                    ),
-
-                    const SizedBox(height: 32),
-
-                    // Login link
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          'Já tem conta? ',
-                          style: TextStyle(
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                        TextButton(
-                          onPressed: isLoading ? null : () => context.go(AppRouter.login),
-                          child: const Text(
-                            'Entrar',
-                            style: TextStyle(fontWeight: FontWeight.w600),
-                          ),
-                        ),
+                        const SizedBox(height: 24),
                       ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Shared Widgets ──
+
+class _GlassBackButton extends StatelessWidget {
+  final VoidCallback onPressed;
+
+  const _GlassBackButton({required this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onPressed,
+      child: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: Colors.white.withAlpha(40),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: Colors.white.withAlpha(60),
+          ),
+        ),
+        child: const Icon(
+          Icons.arrow_back_ios_new_rounded,
+          color: Colors.white,
+          size: 18,
+        ),
+      ),
+    );
+  }
+}
+
+class _TermsCheckbox extends StatelessWidget {
+  final bool accepted;
+  final bool isLoading;
+  final ValueChanged<bool> onChanged;
+
+  const _TermsCheckbox({
+    required this.accepted,
+    required this.isLoading,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return GestureDetector(
+      onTap: isLoading ? null : () => onChanged(!accepted),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: accepted
+              ? AppColors.primary.withAlpha(8)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: accepted
+                ? AppColors.primary.withAlpha(40)
+                : AppColors.border,
+          ),
+        ),
+        child: Row(
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              width: 22,
+              height: 22,
+              decoration: BoxDecoration(
+                color: accepted ? AppColors.primary : Colors.transparent,
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(
+                  color: accepted ? AppColors.primary : AppColors.textHint,
+                  width: 1.5,
+                ),
+              ),
+              child: accepted
+                  ? const Icon(Icons.check_rounded,
+                      color: Colors.white, size: 16)
+                  : null,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: RichText(
+                text: TextSpan(
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: AppColors.textSecondary,
+                    height: 1.4,
+                  ),
+                  children: [
+                    const TextSpan(text: 'Li e aceito os '),
+                    TextSpan(
+                      text: 'Termos de Uso',
+                      style: TextStyle(
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const TextSpan(text: ' e '),
+                    TextSpan(
+                      text: 'Política de Privacidade',
+                      style: TextStyle(
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ],
                 ),
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ErrorBanner extends StatelessWidget {
+  final String message;
+
+  const _ErrorBanner({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: AppColors.error.withAlpha(15),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: AppColors.error.withAlpha(50),
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: AppColors.error.withAlpha(25),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Icon(
+              Icons.error_outline_rounded,
+              color: AppColors.error,
+              size: 18,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              message,
+              style: const TextStyle(
+                color: AppColors.error,
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
           ),
         ],
       ),
-    );
+    ).animate().fadeIn(duration: 300.ms).shake(hz: 2, duration: 400.ms);
   }
 }

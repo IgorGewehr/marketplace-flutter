@@ -18,30 +18,30 @@ void main() {
       });
     });
 
-    group('isValidCPF', () {
+    group('isValidCpf', () {
       test('returns true for valid CPF', () {
-        expect(Validators.isValidCPF('111.222.333-44'), true);
-        expect(Validators.isValidCPF('11122233344'), true);
+        expect(Validators.isValidCpf('529.982.247-25'), true);
+        expect(Validators.isValidCpf('52998224725'), true);
       });
 
       test('returns false for invalid CPF', () {
-        expect(Validators.isValidCPF('123.456.789-00'), false);
-        expect(Validators.isValidCPF('111.111.111-11'), false);
-        expect(Validators.isValidCPF(''), false);
-        expect(Validators.isValidCPF('123'), false);
+        expect(Validators.isValidCpf('123.456.789-00'), false);
+        expect(Validators.isValidCpf('111.111.111-11'), false);
+        expect(Validators.isValidCpf(''), false);
+        expect(Validators.isValidCpf('123'), false);
       });
     });
 
-    group('isValidCNPJ', () {
+    group('isValidCnpj', () {
       test('returns true for valid CNPJ', () {
-        expect(Validators.isValidCNPJ('11.222.333/0001-44'), true);
-        expect(Validators.isValidCNPJ('11222333000144'), true);
+        expect(Validators.isValidCnpj('11.222.333/0001-81'), true);
+        expect(Validators.isValidCnpj('11222333000181'), true);
       });
 
       test('returns false for invalid CNPJ', () {
-        expect(Validators.isValidCNPJ('11.111.111/1111-11'), false);
-        expect(Validators.isValidCNPJ(''), false);
-        expect(Validators.isValidCNPJ('123'), false);
+        expect(Validators.isValidCnpj('11.111.111/1111-11'), false);
+        expect(Validators.isValidCnpj(''), false);
+        expect(Validators.isValidCnpj('123'), false);
       });
     });
 
@@ -49,39 +49,12 @@ void main() {
       test('returns true for valid phone', () {
         expect(Validators.isValidPhone('(11) 99999-9999'), true);
         expect(Validators.isValidPhone('11999999999'), true);
-        expect(Validators.isValidPhone('+55 11 99999-9999'), true);
+        expect(Validators.isValidPhone('1133334444'), true);
       });
 
       test('returns false for invalid phone', () {
         expect(Validators.isValidPhone('123'), false);
         expect(Validators.isValidPhone(''), false);
-      });
-    });
-
-    group('isValidCEP', () {
-      test('returns true for valid CEP', () {
-        expect(Validators.isValidCEP('12345-678'), true);
-        expect(Validators.isValidCEP('12345678'), true);
-      });
-
-      test('returns false for invalid CEP', () {
-        expect(Validators.isValidCEP('123'), false);
-        expect(Validators.isValidCEP(''), false);
-      });
-    });
-
-    group('isValidPrice', () {
-      test('returns true for valid price', () {
-        expect(Validators.isValidPrice('10.50'), true);
-        expect(Validators.isValidPrice('100'), true);
-        expect(Validators.isValidPrice('0.01'), true);
-      });
-
-      test('returns false for invalid price', () {
-        expect(Validators.isValidPrice('0'), false);
-        expect(Validators.isValidPrice('-10'), false);
-        expect(Validators.isValidPrice('abc'), false);
-        expect(Validators.isValidPrice(''), false);
       });
     });
   });

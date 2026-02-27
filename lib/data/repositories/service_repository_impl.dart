@@ -1,5 +1,3 @@
-import 'package:dio/dio.dart';
-
 import '../../core/constants/api_constants.dart';
 import '../../domain/repositories/service_repository.dart';
 import '../datasources/api_client.dart';

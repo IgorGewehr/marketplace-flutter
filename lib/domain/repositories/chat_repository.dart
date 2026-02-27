@@ -45,6 +45,12 @@ abstract class ChatRepository {
     required String tenantId,
     String? orderId,
   });
+
+  /// Update typing status for a user in a conversation
+  Future<void> updateTypingStatus(String chatId, String userId, bool isTyping);
+
+  /// Report a chat to moderation
+  Future<void> reportChat(String chatId, String reason, {String? details});
 }
 
 /// Response wrapper for paginated message lists

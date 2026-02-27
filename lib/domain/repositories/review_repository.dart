@@ -4,36 +4,30 @@ library;
 import '../../data/models/review_model.dart';
 
 abstract class ReviewRepository {
-  /// Get reviews for a product
-  Future<List<ReviewModel>> getProductReviews(String productId);
+  /// Fetch paginated reviews for a product.
+  Future<List<ReviewModel>> getProductReviews(
+    String productId, {
+    int page = 1,
+    int limit = 10,
+  });
 
-  /// Get reviews for a seller/tenant
-  Future<List<ReviewModel>> getSellerReviews(String tenantId);
+  /// Fetch paginated reviews for all products of a seller.
+  Future<List<ReviewModel>> getSellerReviews(
+    String tenantId, {
+    int page = 1,
+    int limit = 10,
+  });
 
-  /// Get review by ID
-  Future<ReviewModel?> getReviewById(String reviewId);
+  /// Returns the set of productIds already reviewed for a given order
+  /// by the current authenticated user.
+  Future<Set<String>> getReviewedProductIds(String orderId);
 
-  /// Create a new review
-  Future<ReviewModel> createReview(ReviewModel review);
-
-  /// Update review
-  Future<void> updateReview(ReviewModel review);
-
-  /// Delete review
-  Future<void> deleteReview(String reviewId);
-
-  /// Add seller response to review
-  Future<void> addSellerResponse(String reviewId, ReviewResponse response);
-
-  /// Mark review as helpful
-  Future<void> markAsHelpful(String reviewId, String userId);
-
-  /// Report review
-  Future<void> reportReview(String reviewId, String userId, String reason);
-
-  /// Get rating summary for target
-  Future<RatingSummary> getRatingSummary(String targetId, String targetType);
-
-  /// Check if user can review (has purchased)
-  Future<bool> canUserReview(String userId, String targetId);
+  /// Create a product review. Returns the created review.
+  Future<ReviewModel> createReview({
+    required String productId,
+    required String tenantId,
+    required String orderId,
+    required double rating,
+    String? comment,
+  });
 }

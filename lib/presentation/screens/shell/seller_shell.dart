@@ -48,7 +48,21 @@ class _SellerShellState extends ConsumerState<SellerShell> {
     }
   }
 
-  void _onFabPressed() {
+  Future<void> _onFabPressed() async {
+    // If the provider is still loading (initial fetch), wait for it
+    final isLoading = ref.read(isMpConnectionLoadingProvider);
+    if (isLoading) {
+      // Wait for the mpConnectionProvider to finish its initial load
+      final connection = await ref.read(mpConnectionProvider.future);
+      if (!mounted) return;
+      if (connection?.isConnected != true) {
+        _showMpConnectDialog();
+        return;
+      }
+      context.push('/seller/products/new');
+      return;
+    }
+
     // Check Mercado Pago connection before creating product
     final isMpConnected = ref.read(isMpConnectedProvider);
     if (!isMpConnected) {
@@ -62,7 +76,7 @@ class _SellerShellState extends ConsumerState<SellerShell> {
 
   void _showMpConnectDialog() {
     final theme = Theme.of(context);
-    showDialog(
+    showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -89,14 +103,11 @@ class _SellerShellState extends ConsumerState<SellerShell> {
         actionsAlignment: MainAxisAlignment.center,
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(ctx),
+            onPressed: () => Navigator.pop(ctx, false),
             child: const Text('Cancelar'),
           ),
           FilledButton.icon(
-            onPressed: () {
-              Navigator.pop(ctx);
-              context.push(AppRouter.sellerMpConnect);
-            },
+            onPressed: () => Navigator.pop(ctx, true),
             icon: const Icon(Icons.link, size: 18),
             label: const Text('Conectar Mercado Pago'),
             style: FilledButton.styleFrom(
@@ -105,7 +116,14 @@ class _SellerShellState extends ConsumerState<SellerShell> {
           ),
         ],
       ),
-    );
+    ).then((confirmed) async {
+      if (confirmed == true && mounted) {
+        final connected = await context.push<bool>(AppRouter.sellerMpConnect);
+        if (connected == true && mounted) {
+          context.push('/seller/products/new');
+        }
+      }
+    });
   }
 
   @override
@@ -134,12 +152,15 @@ class _SellerShellState extends ConsumerState<SellerShell> {
         AppFeedback.showInfo(context, 'Pressione novamente para voltar ao modo comprador');
       },
       child: Scaffold(
-        body: widget.child,
-        extendBody: true,
-        bottomNavigationBar: SellerBottomNav(
-          currentIndex: currentIndex,
-          onTap: _onTabTap,
-          onFabPressed: _onFabPressed,
+        body: Stack(
+          children: [
+            widget.child,
+            SellerBottomNav(
+              currentIndex: currentIndex,
+              onTap: _onTabTap,
+              onFabPressed: _onFabPressed,
+            ),
+          ],
         ),
       ),
     );

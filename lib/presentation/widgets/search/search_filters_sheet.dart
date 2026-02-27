@@ -14,7 +14,7 @@ class SearchFiltersSheet extends ConsumerStatefulWidget {
 
 class _SearchFiltersSheetState extends ConsumerState<SearchFiltersSheet> {
   late String _selectedCategory;
-  RangeValues _priceRange = const RangeValues(0, 10000);
+  RangeValues _priceRange = const RangeValues(0, 50000);
   String _sortBy = 'recent';
   final _tagController = TextEditingController();
   List<String> _tags = [];
@@ -33,7 +33,7 @@ class _SearchFiltersSheetState extends ConsumerState<SearchFiltersSheet> {
     }
     _priceRange = RangeValues(
       filters.minPrice ?? 0,
-      filters.maxPrice ?? 10000,
+      filters.maxPrice ?? 50000,
     );
     _sortBy = filters.sortBy;
     _tags = List.from(filters.tags ?? []);
@@ -54,7 +54,7 @@ class _SearchFiltersSheetState extends ConsumerState<SearchFiltersSheet> {
     ref.read(productFiltersProvider.notifier).state = currentFilters.copyWith(
       category: categoryId,
       minPrice: _priceRange.start > 0 ? _priceRange.start : null,
-      maxPrice: _priceRange.end < 10000 ? _priceRange.end : null,
+      maxPrice: _priceRange.end < 50000 ? _priceRange.end : null,
       sortBy: _sortBy,
       tags: _tags.isNotEmpty ? _tags : null,
       page: 1, // Reset to first page
@@ -65,7 +65,7 @@ class _SearchFiltersSheetState extends ConsumerState<SearchFiltersSheet> {
   void _clearFilters() {
     setState(() {
       _selectedCategory = 'Todos';
-      _priceRange = const RangeValues(0, 10000);
+      _priceRange = const RangeValues(0, 50000);
       _sortBy = 'recent';
       _tags = [];
       _tagController.clear();
@@ -159,6 +159,11 @@ class _SearchFiltersSheetState extends ConsumerState<SearchFiltersSheet> {
                           },
                           selectedColor: theme.colorScheme.primaryContainer,
                           checkmarkColor: theme.colorScheme.primary,
+                          labelStyle: TextStyle(
+                            color: isSelected
+                                ? theme.colorScheme.primary
+                                : theme.colorScheme.onSurface,
+                          ),
                         );
                       }).toList(),
                     ),
@@ -182,8 +187,8 @@ class _SearchFiltersSheetState extends ConsumerState<SearchFiltersSheet> {
                         style: theme.textTheme.bodyMedium,
                       ),
                       Text(
-                        _priceRange.end >= 10000
-                            ? 'R\$ 10.000+'
+                        _priceRange.end >= 50000
+                            ? 'R\$ 50.000+'
                             : Formatters.currency(_priceRange.end),
                         style: theme.textTheme.bodyMedium,
                       ),
@@ -192,7 +197,7 @@ class _SearchFiltersSheetState extends ConsumerState<SearchFiltersSheet> {
                   RangeSlider(
                     values: _priceRange,
                     min: 0,
-                    max: 10000,
+                    max: 50000,
                     divisions: 100,
                     labels: RangeLabels(
                       Formatters.currency(_priceRange.start),
@@ -263,7 +268,6 @@ class _SearchFiltersSheetState extends ConsumerState<SearchFiltersSheet> {
                       _buildSortChip('recent', 'Mais recentes'),
                       _buildSortChip('price_asc', 'Menor preço'),
                       _buildSortChip('price_desc', 'Maior preço'),
-                      _buildSortChip('relevance', 'Relevância'),
                     ],
                   ),
                 ],

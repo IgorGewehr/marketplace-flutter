@@ -1,24 +1,109 @@
+import 'dart:async';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/models/notification_model.dart';
+import 'auth_providers.dart';
 import 'core_providers.dart';
+
+/// Serialize Firestore Timestamps to ISO-8601 strings so NotificationModel.fromJson works.
+Map<String, dynamic> _serializeFirestoreNotification(Map<String, dynamic> data) {
+  final result = <String, dynamic>{};
+  for (final entry in data.entries) {
+    result[entry.key] = _serializeValue(entry.value);
+  }
+  return result;
+}
+
+dynamic _serializeValue(dynamic value) {
+  if (value is Timestamp) {
+    return value.toDate().toIso8601String();
+  } else if (value is Map<String, dynamic>) {
+    return _serializeFirestoreNotification(value);
+  } else if (value is Map) {
+    return _serializeFirestoreNotification(Map<String, dynamic>.from(value));
+  } else if (value is List) {
+    return value.map(_serializeValue).toList();
+  }
+  return value;
+}
 
 /// Notifications provider
 class NotificationsNotifier extends AsyncNotifier<List<NotificationModel>> {
+  StreamSubscription<QuerySnapshot>? _firestoreSubscription;
+
   @override
   Future<List<NotificationModel>> build() async {
+    final user = ref.watch(currentUserProvider).valueOrNull;
+
+    // Set up Firestore real-time listener when user is logged in
+    if (user != null) {
+      _setupRealtimeListener(user.id);
+    }
+
+    // Clean up subscription on dispose
+    ref.onDispose(() {
+      _firestoreSubscription?.cancel();
+    });
+
+    // Initial load via REST API
     return _fetchNotifications();
   }
 
+  /// Listen to the notifications Firestore collection for the current user.
+  /// New/updated docs are merged into state on top of any REST-loaded data.
+  void _setupRealtimeListener(String userId) {
+    _firestoreSubscription?.cancel();
+    _firestoreSubscription = FirebaseFirestore.instance
+        .collection('notifications')
+        .where('userId', isEqualTo: userId)
+        .orderBy('createdAt', descending: true)
+        .limit(50)
+        .snapshots()
+        .listen(
+      (snapshot) {
+        if (snapshot.docs.isEmpty) return;
+
+        final firestoreNotifs = snapshot.docs
+            .map((doc) {
+              try {
+                final data = _serializeFirestoreNotification(doc.data());
+                // Ensure the document id is present
+                if (!data.containsKey('id') || (data['id'] as String?)?.isEmpty == true) {
+                  data['id'] = doc.id;
+                }
+                return NotificationModel.fromJson(data);
+              } catch (_) {
+                return null;
+              }
+            })
+            .whereType<NotificationModel>()
+            .toList();
+
+        // Merge with existing state: Firestore wins on conflicts (same id)
+        final current = state.valueOrNull ?? [];
+        final currentMap = {for (final n in current) n.id: n};
+        for (final n in firestoreNotifs) {
+          currentMap[n.id] = n;
+        }
+
+        // Sort by createdAt descending
+        final merged = currentMap.values.toList()
+          ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+        state = AsyncValue.data(merged);
+      },
+      onError: (_) {
+        // Silent fail — REST data remains available
+      },
+    );
+  }
+
   Future<List<NotificationModel>> _fetchNotifications() async {
-    try {
-      final repo = ref.read(notificationRepositoryProvider);
-      final response = await repo.getNotifications();
-      return response.notifications;
-    } catch (e) {
-      // Return empty list on error (e.g. not authenticated)
-      return [];
-    }
+    final repo = ref.read(notificationRepositoryProvider);
+    final response = await repo.getNotifications();
+    return response.notifications;
   }
 
   Future<void> refresh() async {
@@ -72,6 +157,20 @@ class NotificationsNotifier extends AsyncNotifier<List<NotificationModel>> {
     } catch (_) {
       // Revert on failure
       state = AsyncValue.data(notifications);
+    }
+  }
+
+  Future<void> deleteNotification(String id) async {
+    // Optimistic update: remove from list immediately
+    state = AsyncValue.data(
+      state.valueOrNull?.where((n) => n.id != id).toList() ?? [],
+    );
+    try {
+      final repo = ref.read(notificationRepositoryProvider);
+      await repo.delete(id);
+    } catch (_) {
+      // Revert on failure
+      ref.invalidateSelf();
     }
   }
 

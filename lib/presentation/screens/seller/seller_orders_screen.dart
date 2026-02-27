@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../providers/seller_orders_provider.dart';
 import '../../widgets/seller/seller_order_tile.dart';
+import '../../widgets/shared/shimmer_loading.dart';
 
 /// Screen showing orders received by seller
 class SellerOrdersScreen extends ConsumerWidget {
@@ -27,16 +28,16 @@ class SellerOrdersScreen extends ConsumerWidget {
             SliverAppBar(
               floating: true,
               pinned: true,
-              backgroundColor: AppColors.background,
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
               elevation: 0,
               title: Row(
                 children: [
-                  Text(
+                  const Text(
                     'Pedidos',
                     style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
-                      color: Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
                   if (newOrdersCount > 0) ...[
@@ -150,12 +151,7 @@ class SellerOrdersScreen extends ConsumerWidget {
                       if (index >= orders.length) {
                         // Load more trigger
                         notifier.loadMore();
-                        return const Center(
-                          child: Padding(
-                            padding: EdgeInsets.all(16),
-                            child: CircularProgressIndicator(color: AppColors.sellerAccent),
-                          ),
-                        );
+                        return const ShimmerLoading(itemCount: 1, isGrid: false, height: 100);
                       }
                       final order = orders[index];
                       return SellerOrderTile(
@@ -167,10 +163,8 @@ class SellerOrdersScreen extends ConsumerWidget {
                   ),
                 );
               },
-              loading: () => const SliverFillRemaining(
-                child: Center(
-                  child: CircularProgressIndicator(color: AppColors.sellerAccent),
-                ),
+              loading: () => SliverToBoxAdapter(
+                child: const ShimmerLoading(itemCount: 4, isGrid: false, height: 100),
               ),
               error: (_, __) => const SliverFillRemaining(
                 child: Center(

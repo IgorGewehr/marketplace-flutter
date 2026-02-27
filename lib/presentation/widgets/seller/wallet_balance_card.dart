@@ -3,14 +3,14 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_text_styles.dart';
 import '../../../core/utils/formatters.dart';
 
-/// Wallet balance card with prominent display
+/// Wallet balance card — informative only (no withdrawal action)
 class WalletBalanceCard extends StatelessWidget {
   final double availableBalance;
   final double pendingBalance;
   final double blockedBalance;
-  final VoidCallback? onWithdraw;
   final bool isLoading;
 
   const WalletBalanceCard({
@@ -18,7 +18,6 @@ class WalletBalanceCard extends StatelessWidget {
     required this.availableBalance,
     this.pendingBalance = 0,
     this.blockedBalance = 0,
-    this.onWithdraw,
     this.isLoading = false,
   });
 
@@ -57,93 +56,119 @@ class WalletBalanceCard extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Header
-        Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppColors.secondary.withAlpha(30),
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: const Icon(
-                Icons.account_balance_wallet_rounded,
-                color: AppColors.secondary,
-                size: 28,
-              ),
-            ),
-            const Spacer(),
-            if (onWithdraw != null && availableBalance > 0)
-              ElevatedButton.icon(
-                onPressed: onWithdraw,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.secondary,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                icon: const Icon(Icons.pix, size: 18),
-                label: const Text(
-                  'Sacar',
-                  style: TextStyle(fontWeight: FontWeight.w600),
-                ),
-              ),
-          ],
+        // Header icon
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: AppColors.secondary.withAlpha(30),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: const Icon(
+            Icons.account_balance_wallet_rounded,
+            color: AppColors.secondary,
+            size: 28,
+          ),
         ),
         const SizedBox(height: 24),
-        
+
         // Label
         Text(
-          'Saldo disponível',
-          style: TextStyle(
-            fontSize: 14,
+          'Total ganho',
+          style: AppTextStyles.balanceSmall.copyWith(
             color: theme.colorScheme.onSurfaceVariant,
-            fontWeight: FontWeight.w500,
           ),
         ),
         const SizedBox(height: 4),
 
-        // Available balance
-        Text(
-          _formatPrice(availableBalance),
-          style: TextStyle(
-            fontSize: 36,
-            fontWeight: FontWeight.bold,
-            color: theme.colorScheme.onSurface,
-          ),
+        // Total balance (released + held) — animates from 0 on first render
+        TweenAnimationBuilder<double>(
+          tween: Tween<double>(begin: 0, end: availableBalance + pendingBalance),
+          duration: const Duration(milliseconds: 700),
+          curve: Curves.easeOut,
+          builder: (context, animatedValue, _) {
+            return Text(
+              _formatPrice(animatedValue),
+              style: AppTextStyles.balanceLarge.copyWith(
+                color: theme.colorScheme.onSurface,
+              ),
+            );
+          },
         ),
-        
-        // Additional balances
+
+        // Additional balances breakdown
         if (pendingBalance > 0 || blockedBalance > 0) ...[
           const SizedBox(height: 16),
           const Divider(color: AppColors.divider),
           const SizedBox(height: 12),
           Row(
             children: [
+              if (availableBalance > 0)
+                Expanded(
+                  child: _BalanceItem(
+                    label: 'Liberado',
+                    value: availableBalance,
+                    icon: Icons.check_circle_outline,
+                    color: AppColors.secondary,
+                  ),
+                ),
+              if (availableBalance > 0 && pendingBalance > 0)
+                const SizedBox(width: 16),
               if (pendingBalance > 0)
                 Expanded(
                   child: _BalanceItem(
-                    label: 'Pendente',
+                    label: 'Aguardando entrega',
                     value: pendingBalance,
                     icon: Icons.schedule,
                     color: AppColors.warning,
                   ),
                 ),
-              if (pendingBalance > 0 && blockedBalance > 0)
-                const SizedBox(width: 16),
-              if (blockedBalance > 0)
-                Expanded(
-                  child: _BalanceItem(
-                    label: 'Bloqueado',
-                    value: blockedBalance,
-                    icon: Icons.lock_outline,
-                    color: AppColors.error,
-                  ),
-                ),
             ],
           ),
+          if (blockedBalance > 0) ...[
+            const SizedBox(height: 12),
+            const Divider(color: AppColors.divider),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Icon(Icons.lock_outline, color: AppColors.balanceBlocked, size: 18),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Saldo bloqueado',
+                        style: AppTextStyles.statSubtitle.copyWith(
+                          color: AppColors.textHint,
+                        ),
+                      ),
+                      Text(
+                        Formatters.currency(blockedBalance),
+                        style: AppTextStyles.balanceSmall.copyWith(
+                          color: AppColors.balanceBlocked,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Tooltip(
+                  message: 'Disputas ou reembolsos em processamento',
+                  child: Icon(
+                    Icons.info_outline,
+                    size: 14,
+                    color: AppColors.textHint,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Disputas ou reembolsos em processamento',
+              style: AppTextStyles.badge.copyWith(
+                color: AppColors.balanceBlocked,
+              ),
+            ),
+          ],
         ],
       ],
     );
@@ -153,26 +178,13 @@ class WalletBalanceCard extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Container(
-              width: 52,
-              height: 52,
-              decoration: BoxDecoration(
-                color: AppColors.surfaceVariant,
-                borderRadius: BorderRadius.circular(14),
-              ),
-            ),
-            const Spacer(),
-            Container(
-              width: 100,
-              height: 44,
-              decoration: BoxDecoration(
-                color: AppColors.surfaceVariant,
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-          ],
+        Container(
+          width: 52,
+          height: 52,
+          decoration: BoxDecoration(
+            color: AppColors.surfaceVariant,
+            borderRadius: BorderRadius.circular(14),
+          ),
         ),
         const SizedBox(height: 24),
         Container(
@@ -220,25 +232,24 @@ class _BalanceItem extends StatelessWidget {
       children: [
         Icon(icon, color: color, size: 18),
         const SizedBox(width: 6),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 11,
-                color: AppColors.textHint,
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: AppTextStyles.statSubtitle.copyWith(
+                  color: AppColors.textHint,
+                ),
               ),
-            ),
-            Text(
-              Formatters.currency(value),
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: color,
+              Text(
+                Formatters.currency(value),
+                style: AppTextStyles.balanceSmall.copyWith(
+                  color: color,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ],
     );

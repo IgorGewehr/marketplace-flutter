@@ -137,7 +137,7 @@ router.get("/me", async (req: Request, res: Response): Promise<void> => {
 router.patch("/me", async (req: Request, res: Response): Promise<void> => {
   const authReq = req as AuthenticatedRequest;
   const uid = authReq.uid;
-  const { displayName, phone, photoURL } = req.body;
+  const { displayName, phone, photoURL, cpfCnpj, favoriteProductIds } = req.body;
 
   try {
     const db = admin.firestore();
@@ -153,8 +153,16 @@ router.patch("/me", async (req: Request, res: Response): Promise<void> => {
     const updateData: Record<string, unknown> = { updatedAt: now };
 
     if (displayName !== undefined) updateData.displayName = displayName;
-    if (phone !== undefined) updateData.phone = phone;
+    if (phone !== undefined) updateData.phone = phone || null;
     if (photoURL !== undefined) updateData.photoURL = photoURL;
+    if (cpfCnpj !== undefined) {
+      updateData.cpfCnpj = cpfCnpj && String(cpfCnpj).replace(/\D/g, "")
+        ? String(cpfCnpj).replace(/\D/g, "")
+        : null;
+    }
+    if (favoriteProductIds !== undefined && Array.isArray(favoriteProductIds)) {
+      updateData.favoriteProductIds = favoriteProductIds;
+    }
 
     await userRef.update(updateData);
 
@@ -202,8 +210,7 @@ router.post("/complete-profile", async (req: Request, res: Response): Promise<vo
     };
 
     if (cpfCnpj) {
-      updateData.document = cpfCnpj.replace(/\D/g, "");
-      updateData.documentType = cpfCnpj.replace(/\D/g, "").length > 11 ? "CNPJ" : "CPF";
+      updateData.cpfCnpj = cpfCnpj.replace(/\D/g, "");
     }
 
     if (birthDate) {
@@ -234,7 +241,7 @@ router.post("/complete-profile", async (req: Request, res: Response): Promise<vo
 router.post("/become-seller", async (req: Request, res: Response): Promise<void> => {
   const authReq = req as AuthenticatedRequest;
   const uid = authReq.uid;
-  const { tradeName, documentNumber, documentType, phone, whatsapp } = req.body;
+  const { tradeName, documentNumber, documentType, phone, whatsapp, address } = req.body;
 
   if (!tradeName || !documentNumber || !documentType) {
     res.status(400).json({ error: "tradeName, documentNumber e documentType sao obrigatorios" });
@@ -265,12 +272,19 @@ router.post("/become-seller", async (req: Request, res: Response): Promise<void>
     // Create tenant
     const tenantData: Record<string, unknown> = {
       id: tenantId,
+      // name mirrors tradeName so TenantModel.name is never empty
+      name: tradeName,
       tradeName,
       documentNumber: documentNumber.replace(/\D/g, ""),
       documentType,
+      // ownerUserId: used by Flutter TenantModel.fromJson
       ownerUserId: uid,
+      // ownerId: used by backend Cloud Functions for notifications
+      ownerId: uid,
       phone: phone || userData.phone || null,
+      // Stored as whatsapp (legacy) — whatsappEnabled controls visibility
       whatsapp: whatsapp || null,
+      whatsappEnabled: Boolean(whatsapp),
       isActive: true,
       marketplaceStats: {
         totalProducts: 0,
@@ -285,6 +299,10 @@ router.post("/become-seller", async (req: Request, res: Response): Promise<void>
       createdAt: now,
       updatedAt: now,
     };
+
+    if (address && typeof address === "string" && address.trim().length > 0) {
+      tenantData.address = address.trim();
+    }
 
     await db.collection("tenants").doc(tenantId).set(tenantData);
 
@@ -335,6 +353,49 @@ router.post("/me/fcm-token", async (req: Request, res: Response): Promise<void> 
   } catch (error) {
     functions.logger.error("Error registering FCM token", error);
     res.status(500).json({ error: "Erro ao registrar token" });
+  }
+});
+
+/**
+ * DELETE /api/auth/me
+ * Permanently delete the current user's account.
+ * - Soft-disables the tenant (if seller)
+ * - Deletes the Firestore user document
+ * - Deletes the Firebase Auth account
+ */
+router.delete("/me", async (req: Request, res: Response): Promise<void> => {
+  const authReq = req as AuthenticatedRequest;
+  const uid = authReq.uid;
+
+  try {
+    const db = admin.firestore();
+    const userRef = db.collection("users").doc(uid);
+    const userDoc = await userRef.get();
+
+    if (userDoc.exists) {
+      const userData = userDoc.data()!;
+
+      // Soft-disable tenant so existing orders/data remain intact
+      if (userData.tenantId) {
+        await db.collection("tenants").doc(userData.tenantId).update({
+          isActive: false,
+          deletedAt: admin.firestore.Timestamp.now(),
+        });
+      }
+
+      // Delete user document
+      await userRef.delete();
+    }
+
+    // Delete Firebase Auth account
+    await admin.auth().deleteUser(uid);
+
+    functions.logger.info("User account deleted", { uid });
+
+    res.json({ success: true });
+  } catch (error) {
+    functions.logger.error("Error deleting account", error);
+    res.status(500).json({ error: "Erro ao excluir conta" });
   }
 });
 

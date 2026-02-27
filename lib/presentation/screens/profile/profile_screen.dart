@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -14,6 +16,7 @@ import '../../providers/products_provider.dart';
 import '../../providers/seller_mode_provider.dart';
 import '../../widgets/profile/profile_header.dart';
 import '../../widgets/profile/profile_menu_item.dart';
+import '../../widgets/shared/shimmer_loading.dart';
 
 /// Profile screen
 class ProfileScreen extends ConsumerWidget {
@@ -28,8 +31,8 @@ class ProfileScreen extends ConsumerWidget {
       backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('Meu Perfil'),
-        backgroundColor: Theme.of(context).colorScheme.surface,
-        foregroundColor: Theme.of(context).colorScheme.onSurface,
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
         elevation: 0,
         centerTitle: true,
         actions: [
@@ -40,7 +43,7 @@ class ProfileScreen extends ConsumerWidget {
         ],
       ),
       body: userAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => const ShimmerLoading(itemCount: 4, isGrid: false, height: 64),
         error: (_, __) => Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -58,8 +61,10 @@ class ProfileScreen extends ConsumerWidget {
           ),
         ),
         data: (user) {
+          // If user is null but we're in the middle of signing out,
+          // show a spinner — the router redirect will navigate away momentarily.
           if (user == null) {
-            return const Center(child: Text('Usuário não encontrado'));
+            return const Center(child: CircularProgressIndicator());
           }
 
           final isSeller = user.type == 'seller' || user.type == 'full';
@@ -77,7 +82,10 @@ class ProfileScreen extends ConsumerWidget {
                   onEditAvatar: () {
                     context.push(AppRouter.editProfile);
                   },
-                ),
+                )
+                    .animate()
+                    .fadeIn(duration: 350.ms)
+                    .slideY(begin: 0.1, curve: Curves.easeOut),
                 const SizedBox(height: 24),
 
                 // Account section
@@ -100,13 +108,17 @@ class ProfileScreen extends ConsumerWidget {
                       onTap: () => context.push(AppRouter.orders),
                     ),
                   ],
-                ),
+                )
+                    .animate()
+                    .fadeIn(delay: 100.ms, duration: 350.ms)
+                    .slideY(begin: 0.1, curve: Curves.easeOut),
 
                 // Seller mode banner — prominent switch
                 if (isSeller) ...[
                   _SellerModeBanner(
                     isSellerMode: sellerMode,
                     onToggle: () {
+                      HapticFeedback.mediumImpact();
                       if (!sellerMode) {
                         // Entering seller mode — check MP connection first
                         // Skip check if still loading to avoid false negatives
@@ -123,7 +135,10 @@ class ProfileScreen extends ConsumerWidget {
                         context.go(AppRouter.home);
                       }
                     },
-                  ),
+                  )
+                      .animate()
+                      .fadeIn(delay: 200.ms, duration: 350.ms)
+                      .slideY(begin: 0.1, curve: Curves.easeOut),
                   const SizedBox(height: 16),
                   ProfileMenuSection(
                     title: 'VENDEDOR',
@@ -147,11 +162,17 @@ class ProfileScreen extends ConsumerWidget {
                         onTap: () => context.push(AppRouter.sellerWallet),
                       ),
                     ],
-                  ),
+                  )
+                      .animate()
+                      .fadeIn(delay: 300.ms, duration: 350.ms)
+                      .slideY(begin: 0.1, curve: Curves.easeOut),
                 ] else ...[
                   _BecomeSellerBanner(
                     onTap: () => context.push(AppRouter.becomeSeller),
-                  ),
+                  )
+                      .animate()
+                      .fadeIn(delay: 200.ms, duration: 350.ms)
+                      .slideY(begin: 0.1, curve: Curves.easeOut),
                 ],
 
                 // App section
@@ -179,7 +200,10 @@ class ProfileScreen extends ConsumerWidget {
                       onTap: () => _openUrl(AppConstants.privacyUrl),
                     ),
                   ],
-                ),
+                )
+                    .animate()
+                    .fadeIn(delay: 400.ms, duration: 350.ms)
+                    .slideY(begin: 0.1, curve: Curves.easeOut),
 
                 // Logout section
                 ProfileMenuSection(
@@ -192,7 +216,10 @@ class ProfileScreen extends ConsumerWidget {
                       onTap: () => _showLogoutConfirmation(context, ref),
                     ),
                   ],
-                ),
+                )
+                    .animate()
+                    .fadeIn(delay: 500.ms, duration: 350.ms)
+                    .slideY(begin: 0.1, curve: Curves.easeOut),
 
                 // Version
                 const SizedBox(height: 8),
@@ -267,24 +294,26 @@ class ProfileScreen extends ConsumerWidget {
   void _showLogoutConfirmation(BuildContext context, WidgetRef ref) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Sair da conta'),
         content: const Text('Tem certeza que deseja sair?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Cancelar'),
           ),
           FilledButton(
             onPressed: () {
-              Navigator.pop(context);
-              // Gap #2: Clear user-scoped state on logout
+              HapticFeedback.heavyImpact();
+              Navigator.pop(dialogContext);
+              // Clear user-scoped state on logout
               ref.read(cartProvider.notifier).clearCart();
               ref.read(favoriteProductIdsProvider.notifier).clearFavorites();
               ref.invalidate(chatsProvider);
               ref.invalidate(searchHistoryProvider);
+              // Sign out — router redirect will navigate to /login automatically
+              // when authStatusProvider transitions to unauthenticated.
               ref.read(authNotifierProvider.notifier).signOut();
-              context.go(AppRouter.login);
             },
             style: FilledButton.styleFrom(
               backgroundColor: AppColors.error,

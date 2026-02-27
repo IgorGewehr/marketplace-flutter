@@ -20,6 +20,8 @@ import productsRouter from "./routes/products";
 import servicesRouter from "./routes/services";
 import notificationsRouter from "./routes/notifications";
 import cartRouter from "./routes/cart";
+import sellerRouter from "./routes/seller";
+import reviewsRouter from "./routes/reviews";
 import { releaseHeldPayments } from "./scheduled/release-payments";
 
 // Initialize Firebase Admin
@@ -89,6 +91,33 @@ app.get("/api/mp-oauth-callback", handleOAuthCallback);
 // Marketplace browsing (public - no auth required so anyone can browse)
 app.use("/api/marketplace", marketplaceRouter);
 
+// Public user profile endpoint (no auth — returns only safe public fields)
+app.get("/api/users/:userId/public", async (req: express.Request, res: express.Response) => {
+  try {
+    const userId = String(req.params.userId);
+    if (!userId) {
+      res.status(400).json({ error: "userId is required" });
+      return;
+    }
+    const userDoc = await admin.firestore().collection("users").doc(userId).get();
+    if (!userDoc.exists) {
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
+    const data = userDoc.data()!;
+    res.json({
+      id: userId,
+      displayName: data.displayName || data.name || null,
+      photoURL: data.photoURL || data.avatarUrl || null,
+      type: data.type || "buyer",
+      tenantId: data.tenantId || null,
+    });
+  } catch (error) {
+    functions.logger.error("Error fetching public user profile", { error });
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 // ============================================================================
 // Authenticated Routes
 // ============================================================================
@@ -133,6 +162,12 @@ app.use("/api/notifications", notificationsRouter);
 
 // Cart
 app.use("/api/cart", cartRouter);
+
+// Seller Profile & Analytics
+app.use("/api/seller", sellerRouter);
+
+// Reviews (create + check)
+app.use("/api/reviews", reviewsRouter);
 
 // ============================================================================
 // Error handler
@@ -223,14 +258,14 @@ export const onReviewCreated = functionsV1
           if (!productSnap.exists) return;
 
           const product = productSnap.data()!;
-          const currentRating = product.averageRating || 0;
+          const currentRating = product.rating || product.averageRating || 0;
           const currentCount = product.reviewCount || 0;
           const newCount = currentCount + 1;
           const newRating =
             (currentRating * currentCount + review.rating) / newCount;
 
           transaction.update(productRef, {
-            averageRating: Math.round(newRating * 10) / 10,
+            rating: Math.round(newRating * 10) / 10,
             reviewCount: newCount,
             updatedAt: now,
           });
@@ -246,14 +281,14 @@ export const onReviewCreated = functionsV1
 
           const tenant = tenantSnap.data()!;
           const stats = tenant.marketplaceStats || {};
-          const currentRating = stats.averageRating || 0;
+          const currentRating = stats.rating || stats.averageRating || 0;
           const currentCount = stats.totalReviews || 0;
           const newCount = currentCount + 1;
           const newRating =
             (currentRating * currentCount + review.rating) / newCount;
 
           transaction.update(tenantRef, {
-            "marketplaceStats.averageRating": Math.round(newRating * 10) / 10,
+            "marketplaceStats.rating": Math.round(newRating * 10) / 10,
             "marketplaceStats.totalReviews": newCount,
             updatedAt: now,
           });

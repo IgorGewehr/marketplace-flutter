@@ -6,9 +6,9 @@ class AppColors {
   AppColors._();
 
   // === Primary Colors ===
-  static const Color primary = Color(0xFF1D4ED8);
-  static const Color primaryLight = Color(0xFF3B82F6);
-  static const Color primaryDark = Color(0xFF1E3A8A);
+  static const Color primary = Color(0xFF4CAF50);
+  static const Color primaryLight = Color(0xFF81C784);
+  static const Color primaryDark = Color(0xFF388E3C);
 
   // === Secondary Colors ===
   static const Color secondary = Color(0xFF00C853);
@@ -46,6 +46,31 @@ class AppColors {
   static const Color statusShipped = Color(0xFF5C6BC0);
   static const Color statusDelivered = Color(0xFF66BB6A);
   static const Color statusCancelled = Color(0xFFEF5350);
+
+  // === Rating Colors ===
+  static const Color rating = Color(0xFFFFC107);
+  static const Color ratingDark = Color(0xFFF57F17);
+  static const Color ratingLight = Color(0xFFFFECB3);
+  static const Color ratingInactive = Color(0xFFE0E0E0);
+
+  // === Quick Access Colors ===
+  static const Color quickFavorites = Color(0xFFEF5350);
+  static const Color quickPromo = Color(0xFFFB8C00);
+  static const Color quickServices = Color(0xFF43A047);
+  static const Color quickCategories = Color(0xFF8E24AA);
+
+  // === Feedback Toast Colors ===
+  static const Color feedbackSuccessBg = Color(0xFF065F46);
+  static const Color feedbackSuccessIcon = Color(0xFF10B981);
+  static const Color feedbackErrorBg = Color(0xFF991B1B);
+  static const Color feedbackErrorIcon = Color(0xFFEF4444);
+  static const Color feedbackWarningBg = Color(0xFF92400E);
+  static const Color feedbackWarningIcon = Color(0xFFF59E0B);
+  static const Color feedbackInfoBg = Color(0xFF1E40AF);
+  static const Color feedbackInfoIcon = Color(0xFF3B82F6);
+
+  // === Balance Colors ===
+  static const Color balanceBlocked = Color(0xFFF57C00);
 
   // === Divider & Border Colors ===
   static const Color divider = Color(0xFFE0E0E0);
@@ -106,7 +131,7 @@ class AppColors {
 
   static ColorScheme get darkColorScheme => const ColorScheme.dark(
         primary: primaryLight,
-        onPrimary: Color(0xFF002D6E),
+        onPrimary: Color(0xFF1B5E20),
         primaryContainer: primaryDark,
         secondary: secondaryLight,
         onSecondary: Color(0xFF003919),

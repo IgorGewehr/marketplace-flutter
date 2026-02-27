@@ -111,13 +111,7 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
 
     const existingSnap = await existingQuery.limit(1).get();
 
-    if (!existingSnap.empty) {
-      // Return existing chat
-      res.json(serializeTimestamps(existingSnap.docs[0].data()));
-      return;
-    }
-
-    // Get user and tenant info for display names
+    // Get user and tenant info for display names (needed for both new and existing chats)
     const [userDoc, tenantDoc] = await Promise.all([
       db.collection("users").doc(uid).get(),
       db.collection("tenants").doc(tenantId).get(),
@@ -128,6 +122,47 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
 
     if (!tenantDoc.exists) {
       res.status(404).json({ error: "Loja não encontrada" });
+      return;
+    }
+
+    // Resolve tenant display name — prefer tradeName/name, fall back to owner user's displayName
+    let resolvedTenantName =
+      (tenantData?.tradeName || tenantData?.name || tenantData?.businessName || "").toString().trim();
+    if (!resolvedTenantName) {
+      const ownerUserId = (tenantData?.ownerUserId || tenantData?.ownerId || "") as string;
+      if (ownerUserId) {
+        try {
+          const ownerDoc = await db.collection("users").doc(ownerUserId).get();
+          resolvedTenantName = (ownerDoc.data()?.displayName as string | undefined || "").trim();
+        } catch {
+          // Non-fatal
+        }
+      }
+    }
+    if (!resolvedTenantName) resolvedTenantName = "Loja";
+
+    const resolvedBuyerName =
+      (userData?.displayName || userData?.name || "").toString().trim() || "Cliente";
+
+    if (!existingSnap.empty) {
+      const existingDoc = existingSnap.docs[0];
+      const existingData = existingDoc.data();
+
+      // Patch stale/missing participant names in place so the AppBar always shows
+      // the actual names, even for chats created before these fields were added.
+      const patch: Record<string, unknown> = {};
+      if (!existingData.tenantName || existingData.tenantName === "Loja") {
+        patch.tenantName = resolvedTenantName;
+      }
+      if (!existingData.buyerName || existingData.buyerName === "Cliente") {
+        patch.buyerName = resolvedBuyerName;
+      }
+      if (Object.keys(patch).length > 0) {
+        await existingDoc.ref.update(patch);
+        Object.assign(existingData, patch);
+      }
+
+      res.json({ id: existingDoc.id, ...serializeTimestamps(existingData) });
       return;
     }
 
@@ -149,8 +184,8 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
       tenantId,
       buyerUserId: uid,
       orderId: orderId || null,
-      tenantName: tenantData?.name || tenantData?.businessName || "Loja",
-      buyerName: userData?.displayName || userData?.name || "Cliente",
+      tenantName: resolvedTenantName,
+      buyerName: resolvedBuyerName,
       status: "active",
       lastMessage: null,
       unreadByBuyer: 0,

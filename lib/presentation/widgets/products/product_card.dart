@@ -1,5 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -11,7 +13,7 @@ import '../../providers/products_provider.dart';
 
 /// Enhanced product card widget - OLX style layout
 /// Shows: image with photo count + favorite + badges, price, name, location, relative time
-class ProductCard extends ConsumerWidget {
+class ProductCard extends ConsumerStatefulWidget {
   final ProductModel product;
   final bool showBadge;
 
@@ -21,30 +23,49 @@ class ProductCard extends ConsumerWidget {
     this.showBadge = true,
   });
 
+  @override
+  ConsumerState<ProductCard> createState() => _ProductCardState();
+}
+
+class _ProductCardState extends ConsumerState<ProductCard> {
+  bool _isPressed = false;
+
   /// Check if product was created less than 24 hours ago
   bool get _isNew {
-    final diff = DateTime.now().difference(product.createdAt);
+    final diff = DateTime.now().difference(widget.product.createdAt);
     return diff.inHours < 24;
   }
 
   /// Check if product has a discount (negotiable or compare-at price)
-  bool get _hasDiscount => product.hasDiscount;
+  bool get _hasDiscount => widget.product.hasDiscount;
 
   /// Get discount percentage
-  int get _discountPercent => product.discountPercentage;
+  int get _discountPercent => widget.product.discountPercentage;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isFavorite = ref.watch(isProductFavoriteProvider(product.id));
-    final photoCount = product.images.length;
+    final isFavorite = ref.watch(isProductFavoriteProvider(widget.product.id));
+    final photoCount = widget.product.images.length;
+    final product = widget.product;
 
-    return Material(
+    return AnimatedScale(
+      scale: _isPressed ? 0.96 : 1.0,
+      duration: const Duration(milliseconds: 120),
+      curve: Curves.easeInOut,
+      child: Material(
       color: theme.colorScheme.surface,
       borderRadius: BorderRadius.circular(AppSpacing.radiusM),
       elevation: 0,
-      child: InkWell(
-        onTap: () => context.push('/product/${product.id}'),
+      child: GestureDetector(
+        onTapDown: (_) => setState(() => _isPressed = true),
+        onTapUp: (_) {
+          setState(() => _isPressed = false);
+          context.push('/product/${widget.product.id}');
+        },
+        onTapCancel: () => setState(() => _isPressed = false),
+        child: InkWell(
+        onTap: null,
         borderRadius: BorderRadius.circular(AppSpacing.radiusM),
         child: Container(
           decoration: BoxDecoration(
@@ -61,37 +82,40 @@ class ProductCard extends ConsumerWidget {
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    // Image
-                    product.images.isNotEmpty
-                        ? CachedNetworkImage(
-                            imageUrl: product.images.first.url,
-                            fit: BoxFit.cover,
-                            memCacheWidth: 400,
-                            placeholder: (_, __) => Container(
+                    // Image with Hero transition
+                    Hero(
+                      tag: 'product_image_${product.id}',
+                      child: product.images.isNotEmpty
+                          ? CachedNetworkImage(
+                              imageUrl: product.images.first.url,
+                              fit: BoxFit.cover,
+                              memCacheWidth: 400,
+                              placeholder: (_, __) => Container(
+                                color: theme.colorScheme.surfaceContainerHighest,
+                                child: const Icon(
+                                  Icons.image_outlined,
+                                  size: 40,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                              errorWidget: (_, __, ___) => Container(
+                                color: theme.colorScheme.surfaceContainerHighest,
+                                child: const Icon(
+                                  Icons.broken_image_outlined,
+                                  size: 40,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                            )
+                          : Container(
                               color: theme.colorScheme.surfaceContainerHighest,
                               child: const Icon(
-                                Icons.image_outlined,
+                                Icons.inventory_2_outlined,
                                 size: 40,
                                 color: Colors.grey,
                               ),
                             ),
-                            errorWidget: (_, __, ___) => Container(
-                              color: theme.colorScheme.surfaceContainerHighest,
-                              child: const Icon(
-                                Icons.broken_image_outlined,
-                                size: 40,
-                                color: Colors.grey,
-                              ),
-                            ),
-                          )
-                        : Container(
-                            color: theme.colorScheme.surfaceContainerHighest,
-                            child: const Icon(
-                              Icons.inventory_2_outlined,
-                              size: 40,
-                              color: Colors.grey,
-                            ),
-                          ),
+                    ),
 
                     // Top-left badges column (Novo, Desconto)
                     Positioned(
@@ -100,12 +124,12 @@ class ProductCard extends ConsumerWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          if (_isNew && showBadge)
+                          if (_isNew && widget.showBadge)
                             _ProductBadge(
                               label: 'NOVO',
                               color: AppColors.secondary,
                             ),
-                          if (_hasDiscount && showBadge) ...[
+                          if (_hasDiscount && widget.showBadge) ...[
                             if (_isNew) const SizedBox(height: AppSpacing.xs),
                             _ProductBadge(
                               label: '-$_discountPercent%',
@@ -130,6 +154,7 @@ class ProductCard extends ConsumerWidget {
                             color: Colors.transparent,
                             child: InkWell(
                               onTap: () {
+                                HapticFeedback.lightImpact();
                                 ref
                                     .read(favoriteProductIdsProvider.notifier)
                                     .toggleFavorite(product.id);
@@ -302,6 +327,8 @@ class ProductCard extends ConsumerWidget {
             ],
           ),
         ),
+      ),
+      ),
       ),
     );
   }

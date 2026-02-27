@@ -1,3 +1,4 @@
+import 'package:collection/collection.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/models/service_model.dart';
@@ -61,7 +62,7 @@ class MyServicesNotifier extends AsyncNotifier<List<ServiceModel>> {
 
   @override
   Future<List<ServiceModel>> build() async {
-    final user = ref.read(currentUserProvider).valueOrNull;
+    final user = ref.watch(currentUserProvider).valueOrNull;
     if (user == null || !user.isSeller) return [];
 
     try {
@@ -96,7 +97,8 @@ class MyServicesNotifier extends AsyncNotifier<List<ServiceModel>> {
   Future<void> toggleServiceStatus(String serviceId) async {
     state = await AsyncValue.guard(() async {
       final current = state.valueOrNull ?? [];
-      final service = current.firstWhere((s) => s.id == serviceId);
+      final service = current.firstWhereOrNull((s) => s.id == serviceId);
+      if (service == null) return current;
       final newStatus = service.status == 'active' ? 'draft' : 'active';
 
       final updatedService = await _repository.update(
@@ -111,7 +113,8 @@ class MyServicesNotifier extends AsyncNotifier<List<ServiceModel>> {
   Future<void> toggleServiceAvailability(String serviceId) async {
     state = await AsyncValue.guard(() async {
       final current = state.valueOrNull ?? [];
-      final service = current.firstWhere((s) => s.id == serviceId);
+      final service = current.firstWhereOrNull((s) => s.id == serviceId);
+      if (service == null) return current;
 
       final updatedService = await _repository.update(
         serviceId,

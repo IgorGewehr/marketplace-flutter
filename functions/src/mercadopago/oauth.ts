@@ -91,12 +91,22 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
       const state = `${tenantId}_${Date.now()}_${Math.random().toString(36).substring(2)}`;
 
       const db = admin.firestore();
+      const expiresAt = admin.firestore.Timestamp.fromDate(
+        new Date(Date.now() + 10 * 60 * 1000) // 10 min expiry
+      );
+
+      // Store in tenant's private collection (for POST callback validation)
       await db.collection("tenants").doc(tenantId).collection("private").doc("oauth_state").set({
         state,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        expiresAt: admin.firestore.Timestamp.fromDate(
-          new Date(Date.now() + 10 * 60 * 1000) // 10 min expiry
-        ),
+        expiresAt,
+      });
+
+      // Also store in top-level collection for GET callback lookup (browser flow)
+      await db.collection("mp_oauth_states").doc(state).set({
+        tenantId,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        expiresAt,
       });
 
       const oauthUrl = buildOAuthUrl(
@@ -233,7 +243,9 @@ function escapeHtml(str: string): string {
  * GET /api/mp-oauth-callback
  * OAuth callback handler (redirect URI for MP).
  * This endpoint is called by Mercado Pago after seller authorization.
- * Returns a simple HTML page that the WebView can parse.
+ *
+ * Performs the full token exchange server-side so the mobile app only needs
+ * to poll for connection status (no WebView required).
  */
 export async function handleOAuthCallback(req: Request, res: Response): Promise<void> {
   const code = req.query.code as string;
@@ -242,33 +254,150 @@ export async function handleOAuthCallback(req: Request, res: Response): Promise<
 
   if (error) {
     const safeError = escapeHtml(error);
-    res.status(400).send(`
-      <html><body>
-        <h1>Erro na autorização</h1>
-        <p>${safeError}</p>
-        <script>
-          window.location.href = 'mp-oauth-callback?error=' + encodeURIComponent(${JSON.stringify(error)});
-        </script>
-      </body></html>
-    `);
+    res.status(400).send(callbackHtml(
+      "Erro na autorização",
+      safeError,
+      true,
+    ));
     return;
   }
 
-  if (!code) {
-    res.status(400).send("Missing authorization code");
+  if (!code || !state) {
+    res.status(400).send(callbackHtml(
+      "Dados incompletos",
+      "Código de autorização ou estado ausente.",
+      true,
+    ));
     return;
   }
 
-  // Redirect so the mobile WebView can intercept the callback URL.
-  // Use a server-side 302 redirect instead of JS-based redirect for reliability.
-  const redirectUrl = `/mp-oauth-callback?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state || "")}`;
-  res.redirect(302, redirectUrl);
+  try {
+    const db = admin.firestore();
+
+    // Look up tenantId from the top-level state index
+    const stateDocRef = db.collection("mp_oauth_states").doc(state);
+    const stateDoc = await stateDocRef.get();
+
+    if (!stateDoc.exists) {
+      res.status(400).send(callbackHtml(
+        "Link expirado",
+        "Esta autorização já foi usada ou expirou. Volte ao app e tente novamente.",
+        true,
+      ));
+      return;
+    }
+
+    const stateData = stateDoc.data()!;
+    const tenantId = stateData.tenantId as string;
+
+    // Validate expiration
+    if (stateData.expiresAt && stateData.expiresAt.toDate() < new Date()) {
+      await stateDocRef.delete();
+      res.status(400).send(callbackHtml(
+        "Autorização expirada",
+        "O tempo para autorizar expirou. Volte ao app e tente novamente.",
+        true,
+      ));
+      return;
+    }
+
+    // Delete state documents to prevent replay attacks
+    await stateDocRef.delete();
+    await db.collection("tenants").doc(tenantId)
+      .collection("private").doc("oauth_state").delete()
+      .catch(() => {}); // Ignore if already deleted
+
+    // Exchange authorization code for tokens
+    const tokens = await exchangeOAuthCode(
+      config.mercadoPago.clientId,
+      config.mercadoPago.clientSecret,
+      code,
+      config.mercadoPago.oauthRedirectUri
+    );
+
+    // Store tokens securely
+    await storeSellerMpTokens(tenantId, {
+      accessToken: tokens.access_token,
+      refreshToken: tokens.refresh_token,
+      mpUserId: tokens.user_id,
+      publicKey: tokens.public_key,
+      expiresIn: tokens.expires_in,
+    });
+
+    functions.logger.info("Seller connected to MP via browser OAuth", {
+      tenantId,
+      mpUserId: tokens.user_id,
+    });
+
+    res.send(callbackHtml(
+      "Conta conectada!",
+      "Sua conta do Mercado Pago foi conectada com sucesso. Volte ao aplicativo para continuar.",
+      false,
+    ));
+  } catch (err) {
+    functions.logger.error("Error in OAuth callback exchange", err);
+    res.status(500).send(callbackHtml(
+      "Erro ao conectar",
+      "Ocorreu um erro ao processar a autorização. Volte ao app e tente novamente.",
+      true,
+    ));
+  }
+}
+
+/**
+ * Render a mobile-friendly HTML page for the OAuth callback result.
+ */
+function callbackHtml(title: string, message: string, isError: boolean): string {
+  const safeTitle = escapeHtml(title);
+  const safeMessage = escapeHtml(message);
+  const color = isError ? "#E53935" : "#00A650";
+  const icon = isError ? "&#10007;" : "&#10003;";
+  const deepLinkStatus = isError ? "error" : "success";
+  const deepLinkUrl = `nexmarket://mp-oauth-callback?status=${deepLinkStatus}`;
+
+  return `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>${safeTitle}</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      text-align: center; padding: 60px 24px; background: #fafafa; margin: 0; }
+    .icon { font-size: 64px; color: ${color}; }
+    h1 { font-size: 22px; color: #1a1a1a; margin: 16px 0 8px; }
+    p { font-size: 16px; color: #666; line-height: 1.5; max-width: 320px; margin: 0 auto; }
+    .hint { margin-top: 32px; font-size: 14px; color: #999; }
+  </style>
+</head>
+<body>
+  <div class="icon">${icon}</div>
+  <h1>${safeTitle}</h1>
+  <p>${safeMessage}</p>
+  <p class="hint">Você já pode fechar esta janela.</p>
+  <script>
+    // Attempt to redirect back to the app via deep link
+    window.location.href = "${deepLinkUrl}";
+    // Fallback: if the redirect didn't work after 2s, the HTML is already visible
+    setTimeout(function() {
+      document.querySelector('.hint').textContent = 'Volte ao aplicativo para continuar.';
+    }, 2000);
+  </script>
+</body>
+</html>`;
 }
 
 /**
  * Helper to get a valid seller access token, refreshing if expired.
+ * Uses a Firestore document lock to prevent concurrent refresh race conditions.
+ * Two requests detecting expiration simultaneously could both try to refresh;
+ * the second would fail because MP already rotated the refresh_token.
  */
 export async function getValidSellerToken(tenantId: string): Promise<string> {
+  const db = admin.firestore();
+  const lockRef = db.doc(`token_refresh_locks/${tenantId}`);
+  const bufferMs = 5 * 60 * 1000; // 5 minutes
+
   const tokens = await getSellerMpTokens(tenantId);
 
   if (!tokens) {
@@ -278,18 +407,50 @@ export async function getValidSellerToken(tenantId: string): Promise<string> {
     );
   }
 
-  // Check if token is expired (with 5 minute buffer)
+  // Token still valid? Return directly
   const now = new Date();
-  const expiresAt = tokens.expiresAt;
-  const bufferMs = 5 * 60 * 1000;
+  if (tokens.expiresAt.getTime() - bufferMs > now.getTime()) {
+    return tokens.accessToken;
+  }
 
-  if (expiresAt.getTime() - bufferMs <= now.getTime()) {
+  // Token expired — try to acquire lock (create fails if already exists)
+  try {
+    await lockRef.create({ createdAt: admin.firestore.FieldValue.serverTimestamp() });
+  } catch (_e) {
+    // Another process is already refreshing — wait briefly and return the (hopefully fresh) token
+    await new Promise((r) => setTimeout(r, 2000));
+    const freshTokens = await getSellerMpTokens(tenantId);
+    if (!freshTokens) {
+      throw new functions.https.HttpsError(
+        "failed-precondition",
+        "Vendedor não conectado ao Mercado Pago"
+      );
+    }
+    return freshTokens.accessToken;
+  }
+
+  try {
+    // Re-read tokens to check if another process completed the refresh before we acquired the lock
+    const freshTokens = await getSellerMpTokens(tenantId);
+    if (!freshTokens) {
+      throw new functions.https.HttpsError(
+        "failed-precondition",
+        "Vendedor não conectado ao Mercado Pago"
+      );
+    }
+
+    if (freshTokens.expiresAt.getTime() - bufferMs > now.getTime()) {
+      // Another process already refreshed — return the updated token
+      return freshTokens.accessToken;
+    }
+
+    // Perform the actual refresh
     functions.logger.info("Refreshing seller MP token", { tenantId });
 
     const refreshed = await refreshOAuthToken(
       config.mercadoPago.clientId,
       config.mercadoPago.clientSecret,
-      tokens.refreshToken
+      freshTokens.refreshToken
     );
 
     await storeSellerMpTokens(tenantId, {
@@ -301,9 +462,10 @@ export async function getValidSellerToken(tenantId: string): Promise<string> {
     });
 
     return refreshed.access_token;
+  } finally {
+    // Always release the lock
+    await lockRef.delete().catch(() => {});
   }
-
-  return tokens.accessToken;
 }
 
 export default router;

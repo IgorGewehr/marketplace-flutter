@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../../../core/theme/app_colors.dart';
 
 /// Glass-styled button with loading state for authentication forms
 class AuthButton extends StatelessWidget {

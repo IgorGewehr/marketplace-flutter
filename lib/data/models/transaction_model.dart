@@ -1,6 +1,8 @@
 /// Transaction model matching SCHEMA.md
 library;
 
+import '../../core/utils/firestore_utils.dart';
+
 class TransactionModel {
   final String id;
   final String tenantId;
@@ -74,15 +76,11 @@ class TransactionModel {
       walletId: json['walletId'] as String?,
       gatewayTransactionId: json['gatewayTransactionId'] as String?,
       gatewayProvider: json['gatewayProvider'] as String?,
-      metadata: json['metadata'] != null
+      metadata: json['metadata'] is Map<String, dynamic>
           ? TransactionMetadata.fromJson(json['metadata'] as Map<String, dynamic>)
           : null,
-      createdAt: json['createdAt'] != null
-          ? DateTime.parse(json['createdAt'] as String)
-          : DateTime.now(),
-      updatedAt: json['updatedAt'] != null
-          ? DateTime.parse(json['updatedAt'] as String)
-          : DateTime.now(),
+      createdAt: parseFirestoreDate(json['createdAt']) ?? DateTime.now(),
+      updatedAt: parseFirestoreDate(json['updatedAt']) ?? DateTime.now(),
     );
   }
 
@@ -169,7 +167,7 @@ class TransactionMetadata {
   factory TransactionMetadata.fromJson(Map<String, dynamic> json) {
     return TransactionMetadata(
       paymentMethod: json['paymentMethod'] as String?,
-      feeBreakdown: json['feeBreakdown'] != null
+      feeBreakdown: json['feeBreakdown'] is Map<String, dynamic>
           ? FeeBreakdown.fromJson(json['feeBreakdown'] as Map<String, dynamic>)
           : null,
     );

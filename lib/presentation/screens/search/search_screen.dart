@@ -1,16 +1,17 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/router/app_router.dart';
+import '../../providers/follows_provider.dart';
 import '../../providers/products_provider.dart';
 import '../../widgets/home/section_header.dart';
 import '../../widgets/products/product_carousel.dart';
 import '../../widgets/search/search_filters_sheet.dart';
 import '../../widgets/search/search_product_list_card.dart';
-import '../../widgets/shared/app_feedback.dart';
 import '../../widgets/shared/empty_state.dart';
 import '../../widgets/shared/shimmer_loading.dart';
 
@@ -25,7 +26,6 @@ class SearchScreen extends ConsumerStatefulWidget {
 class _SearchScreenState extends ConsumerState<SearchScreen> {
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _focusNode = FocusNode();
-  bool _showResults = false;
   Timer? _debounceTimer; // Gap #11: Debounce search
 
   @override
@@ -45,14 +45,18 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   // Gap #11: Debounce search queries to avoid per-keystroke Firestore calls
   void _onSearchChanged() {
-    setState(() {
-      _showResults = _searchController.text.isNotEmpty;
-    });
+    setState(() {});
 
     _debounceTimer?.cancel();
     _debounceTimer = Timer(const Duration(milliseconds: 400), () {
       if (mounted) {
-        ref.read(searchQueryProvider.notifier).state = _searchController.text;
+        final query = _searchController.text;
+        ref.read(searchQueryProvider.notifier).state = query;
+        final filters = ref.read(productFiltersProvider);
+        ref.read(productFiltersProvider.notifier).state = filters.copyWith(
+          query: query,
+          page: 1,
+        );
       }
     });
   }
@@ -68,7 +72,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       page: 1,
     );
 
-    setState(() => _showResults = true);
+    setState(() {});
     _focusNode.unfocus();
   }
 
@@ -137,12 +141,6 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               isSelected: currentSort == 'price_desc',
               onTap: () => _applySort('price_desc'),
             ),
-            _SortOption(
-              label: 'Relevância',
-              value: 'relevance',
-              isSelected: currentSort == 'relevance',
-              onTap: () => _applySort('relevance'),
-            ),
             SizedBox(height: MediaQuery.of(context).padding.bottom + 8),
           ],
         ),
@@ -163,15 +161,18 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final history = ref.watch(searchHistoryProvider);
-    final resultsAsync = ref.watch(filteredProductsProvider);
+    final resultsState = ref.watch(filteredProductsProvider);
     final filters = ref.watch(productFiltersProvider);
     final categoriesAsync = ref.watch(categoriesProvider);
+
+    final followedIds = ref.watch(followsProvider);
 
     // Determine if we should show carousels or vertical list
     final hasActiveFilters = (filters.query != null && filters.query!.isNotEmpty) ||
         (filters.category != null && filters.category != 'Todos') ||
         filters.minPrice != null ||
-        filters.maxPrice != null;
+        filters.maxPrice != null ||
+        filters.followedOnly;
 
     return Scaffold(
       backgroundColor: theme.colorScheme.surface,
@@ -184,7 +185,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               child: Row(
                 children: [
                   IconButton(
-                    onPressed: () => context.pop(),
+                    onPressed: () => context.go('/'),
                     icon: const Icon(Icons.arrow_back),
                   ),
                   Expanded(
@@ -209,7 +210,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                               ? IconButton(
                                   onPressed: () {
                                     _searchController.clear();
-                                    setState(() => _showResults = false);
+                                    setState(() {});
                                     ref.read(productFiltersProvider.notifier).state =
                                         const ProductFilters();
                                   },
@@ -238,17 +239,15 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   children: [
-                    // Save search chip
+                    // History chip — clears search to reveal history panel
                     _ActionChip(
-                      icon: Icons.bookmark_outline,
-                      label: 'Salvar busca',
+                      icon: Icons.history,
+                      label: 'Histórico',
                       onTap: () {
-                        if (_searchController.text.isNotEmpty) {
-                          ref
-                              .read(searchHistoryProvider.notifier)
-                              .addSearch(_searchController.text);
-                          AppFeedback.showSuccess(context, 'Busca salva');
-                        }
+                        _searchController.clear();
+                        ref.read(productFiltersProvider.notifier).state =
+                            const ProductFilters();
+                        setState(() {});
                       },
                     ),
                     const SizedBox(width: 8),
@@ -260,6 +259,22 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                       onTap: _showFilters,
                     ),
                     const SizedBox(width: 8),
+                    // Seguindo chip — only shown when following at least one seller
+                    if (followedIds.isNotEmpty) ...[
+                      _ActionChip(
+                        icon: Icons.people_alt_outlined,
+                        label: 'Seguindo',
+                        isActive: filters.followedOnly,
+                        onTap: () {
+                          ref.read(productFiltersProvider.notifier).state =
+                              ref.read(productFiltersProvider).copyWith(
+                                    followedOnly: !filters.followedOnly,
+                                    page: 1,
+                                  );
+                        },
+                      ),
+                      const SizedBox(width: 8),
+                    ],
                     // Sort chip
                     _ActionChip(
                       icon: Icons.sort,
@@ -284,7 +299,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             // Content — Gap #4: Show search history when no query/filters active
             Expanded(
               child: hasActiveFilters
-                  ? _buildResults(resultsAsync)
+                  ? _buildResults(resultsState, filters.query)
                   : _searchController.text.isEmpty && history.isNotEmpty
                       ? _buildSearchHistory(history)
                       : categoriesAsync.when(
@@ -420,30 +435,114 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     );
   }
 
-  Widget _buildResults(AsyncValue results) {
-    return results.when(
-      loading: () => const ShimmerLoading(itemCount: 6, isGrid: false, height: 120),
-      error: (error, _) => EmptyState.noProducts(
-        onRetry: () => ref.invalidate(filteredProductsProvider),
-      ),
-      data: (products) {
-        if (products.isEmpty) {
-          return EmptyState.searchEmpty();
-        }
+  Widget _buildResults(FilteredProductsState state, String? query) {
+    if (state.isLoading) {
+      return const ShimmerLoading(itemCount: 6, isGrid: false, height: 120);
+    }
 
-        return RefreshIndicator(
-          onRefresh: () async {
-            ref.invalidate(filteredProductsProvider);
-          },
-          child: ListView.builder(
-            padding: const EdgeInsets.only(top: 4, bottom: 24),
-            itemCount: products.length,
-            itemBuilder: (context, index) {
-              return SearchProductListCard(product: products[index]);
-            },
+    if (state.error != null && state.products.isEmpty) {
+      return EmptyState.noProducts(
+        onRetry: () => ref.read(filteredProductsProvider.notifier).refresh(),
+      );
+    }
+
+    if (state.products.isEmpty) {
+      final theme = Theme.of(context);
+      final filters = ref.read(productFiltersProvider);
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                filters.followedOnly
+                    ? Icons.people_outline_rounded
+                    : Icons.search_off_rounded,
+                size: 64,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                filters.followedOnly
+                    ? 'Nenhum produto dos vendedores seguidos'
+                    : 'Nenhum produto encontrado',
+                style: theme.textTheme.titleMedium,
+                textAlign: TextAlign.center,
+              ),
+              if (filters.followedOnly) ...[
+                const SizedBox(height: 8),
+                Text(
+                  'Siga vendedores na tela de perfil deles para ver os produtos aqui.',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ] else if (query != null && query.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text(
+                  'para "$query"',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ],
           ),
-        );
-      },
+        ),
+      );
+    }
+
+    final theme = Theme.of(context);
+
+    return RefreshIndicator(
+      onRefresh: () => ref.read(filteredProductsProvider.notifier).refresh(),
+      child: ListView.builder(
+        padding: const EdgeInsets.only(top: 4, bottom: 24),
+        // +1 for result count header, +1 for load-more / loading footer
+        itemCount: state.products.length + 2,
+        itemBuilder: (context, index) {
+          // Result count header
+          if (index == 0) {
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Text(
+                '${state.products.length} produto(s) encontrado(s)',
+                style: theme.textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
+              ),
+            );
+          }
+
+          final productIndex = index - 1;
+
+          if (productIndex < state.products.length) {
+            return SearchProductListCard(product: state.products[productIndex])
+                .animate(delay: Duration(milliseconds: (productIndex % 6) * 60))
+                .fadeIn(duration: 300.ms, curve: Curves.easeOut)
+                .slideY(begin: 0.08, end: 0, duration: 300.ms, curve: Curves.easeOut);
+          }
+          if (state.isLoadingMore) {
+            return const Padding(
+              padding: EdgeInsets.symmetric(vertical: 16),
+              child: Center(child: CircularProgressIndicator()),
+            );
+          }
+          if (state.hasMore) {
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Center(
+                child: TextButton(
+                  onPressed: () =>
+                      ref.read(filteredProductsProvider.notifier).loadMore(),
+                  child: const Text('Carregar mais'),
+                ),
+              ),
+            );
+          }
+          return const SizedBox.shrink();
+        },
+      ),
     );
   }
 }
@@ -454,6 +553,7 @@ class _ActionChip extends StatelessWidget {
   final VoidCallback onTap;
   final int badgeCount;
   final bool hasChevron;
+  final bool isActive;
 
   const _ActionChip({
     required this.icon,
@@ -461,6 +561,7 @@ class _ActionChip extends StatelessWidget {
     required this.onTap,
     this.badgeCount = 0,
     this.hasChevron = false,
+    this.isActive = false,
   });
 
   @override
@@ -472,10 +573,12 @@ class _ActionChip extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: isActive ? theme.colorScheme.primaryContainer : Colors.white,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: theme.colorScheme.outline.withAlpha(40),
+            color: isActive
+                ? theme.colorScheme.primary.withAlpha(80)
+                : theme.colorScheme.outline.withAlpha(40),
           ),
         ),
         child: Row(

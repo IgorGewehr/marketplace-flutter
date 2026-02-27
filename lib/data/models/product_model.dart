@@ -2,6 +2,7 @@
 library;
 
 import 'address_model.dart';
+import '../../core/utils/firestore_utils.dart';
 
 class ProductModel {
   final String id;
@@ -95,7 +96,8 @@ class ProductModel {
       subcategoryId: json['subcategoryId'] as String?,
       tags: (json['tags'] as List<dynamic>?)?.cast<String>() ?? [],
       images: (json['images'] as List<dynamic>?)
-              ?.map((i) => ProductImage.fromJson(i as Map<String, dynamic>))
+              ?.whereType<Map<String, dynamic>>()
+              .map((i) => ProductImage.fromJson(i))
               .toList() ??
           [],
       price: (json['price'] as num?)?.toDouble() ?? 0.0,
@@ -107,25 +109,22 @@ class ProductModel {
       trackInventory: json['trackInventory'] as bool? ?? true,
       hasVariants: json['hasVariants'] as bool? ?? false,
       variants: (json['variants'] as List<dynamic>?)
-              ?.map((v) => ProductVariant.fromJson(v as Map<String, dynamic>))
+              ?.whereType<Map<String, dynamic>>()
+              .map((v) => ProductVariant.fromJson(v))
               .toList() ??
           [],
       visibility: json['visibility'] as String? ?? 'both',
       status: json['status'] as String? ?? 'active',
       ncm: json['ncm'] as String?,
       cfop: json['cfop'] as String?,
-      location: json['location'] != null
+      location: json['location'] is Map<String, dynamic>
           ? ProductLocation.fromJson(json['location'] as Map<String, dynamic>)
           : null,
-      marketplaceStats: json['marketplaceStats'] != null
+      marketplaceStats: json['marketplaceStats'] is Map<String, dynamic>
           ? ProductMarketplaceStats.fromJson(json['marketplaceStats'] as Map<String, dynamic>)
           : null,
-      createdAt: json['createdAt'] != null
-          ? DateTime.parse(json['createdAt'] as String)
-          : DateTime.now(),
-      updatedAt: json['updatedAt'] != null
-          ? DateTime.parse(json['updatedAt'] as String)
-          : DateTime.now(),
+      createdAt: parseFirestoreDate(json['createdAt']) ?? DateTime.now(),
+      updatedAt: parseFirestoreDate(json['updatedAt']) ?? DateTime.now(),
     );
   }
 

@@ -2,6 +2,7 @@
 library;
 
 import 'address_model.dart';
+import '../../core/utils/firestore_utils.dart';
 
 class OrderModel {
   final String id;
@@ -110,7 +111,8 @@ class OrderModel {
       orderNumber: json['orderNumber'] as String? ?? '',
       source: json['source'] as String? ?? 'marketplace',
       items: (json['items'] as List<dynamic>?)
-              ?.map((i) => OrderItemModel.fromJson(i as Map<String, dynamic>))
+              ?.whereType<Map<String, dynamic>>()
+              .map((i) => OrderItemModel.fromJson(i))
               .toList() ??
           [],
       subtotal: (json['subtotal'] as num?)?.toDouble() ?? 0.0,
@@ -118,18 +120,17 @@ class OrderModel {
       deliveryFee: (json['deliveryFee'] as num?)?.toDouble() ?? 0.0,
       total: (json['total'] as num?)?.toDouble() ?? 0.0,
       deliveryType: json['deliveryType'] as String? ?? 'delivery',
-      deliveryAddress: json['deliveryAddress'] != null
+      deliveryAddress: json['deliveryAddress'] is Map<String, dynamic>
           ? AddressModel.fromJson(json['deliveryAddress'] as Map<String, dynamic>)
           : null,
-      estimatedDelivery: json['estimatedDelivery'] != null
-          ? DateTime.parse(json['estimatedDelivery'] as String)
-          : null,
+      estimatedDelivery: parseFirestoreDate(json['estimatedDelivery']),
       paymentMethod: json['paymentMethod'] as String? ?? '',
       paymentStatus: json['paymentStatus'] as String? ?? 'pending',
       paymentGatewayId: json['paymentGatewayId'] as String?,
       status: json['status'] as String? ?? 'pending',
       statusHistory: (json['statusHistory'] as List<dynamic>?)
-              ?.map((s) => OrderStatusHistory.fromJson(s as Map<String, dynamic>))
+              ?.whereType<Map<String, dynamic>>()
+              .map((s) => OrderStatusHistory.fromJson(s))
               .toList() ??
           [],
       customerNotes: json['customerNotes'] as String?,
@@ -137,12 +138,8 @@ class OrderModel {
       invoiceId: json['invoiceId'] as String?,
       chatId: json['chatId'] as String?,
       qrCodeId: json['qrCodeId'] as String?,
-      deliveryConfirmedAt: json['deliveryConfirmedAt'] != null
-          ? DateTime.parse(json['deliveryConfirmedAt'] as String)
-          : null,
-      paymentReleasedAt: json['paymentReleasedAt'] != null
-          ? DateTime.parse(json['paymentReleasedAt'] as String)
-          : null,
+      deliveryConfirmedAt: parseFirestoreDate(json['deliveryConfirmedAt']),
+      paymentReleasedAt: parseFirestoreDate(json['paymentReleasedAt']),
       paymentSplit: json['paymentSplit'] != null
           ? OrderPaymentSplit.fromJson(json['paymentSplit'] as Map<String, dynamic>)
           : null,
@@ -150,15 +147,9 @@ class OrderModel {
       shippingCompany: json['shippingCompany'] as String?,
       pixCode: json['pixCode'] as String?,
       pixQrCodeUrl: json['pixQrCodeUrl'] as String?,
-      pixExpiration: json['pixExpiration'] != null
-          ? DateTime.parse(json['pixExpiration'] as String)
-          : null,
-      createdAt: json['createdAt'] != null
-          ? DateTime.parse(json['createdAt'] as String)
-          : DateTime.now(),
-      updatedAt: json['updatedAt'] != null
-          ? DateTime.parse(json['updatedAt'] as String)
-          : DateTime.now(),
+      pixExpiration: parseFirestoreDate(json['pixExpiration']),
+      createdAt: parseFirestoreDate(json['createdAt']) ?? DateTime.now(),
+      updatedAt: parseFirestoreDate(json['updatedAt']) ?? DateTime.now(),
     );
   }
 
@@ -349,9 +340,7 @@ class OrderStatusHistory {
   factory OrderStatusHistory.fromJson(Map<String, dynamic> json) {
     return OrderStatusHistory(
       status: json['status'] as String? ?? '',
-      timestamp: json['timestamp'] != null
-          ? DateTime.parse(json['timestamp'] as String)
-          : DateTime.now(),
+      timestamp: parseFirestoreDate(json['timestamp']) ?? DateTime.now(),
       note: json['note'] as String?,
       userId: json['userId'] as String?,
     );
@@ -401,9 +390,7 @@ class OrderPaymentSplit {
       mpPaymentId: json['mpPaymentId'] as String?,
       mpSplitPaymentId: json['mpSplitPaymentId'] as String?,
       status: json['status'] as String? ?? 'pending',
-      heldUntil: json['heldUntil'] != null
-          ? DateTime.parse(json['heldUntil'] as String)
-          : null,
+      heldUntil: parseFirestoreDate(json['heldUntil']),
     );
   }
 

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -6,6 +7,7 @@ import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../data/models/notification_model.dart';
+import '../../providers/auth_providers.dart';
 import '../../providers/notifications_provider.dart';
 import '../../widgets/notifications/notification_tile.dart';
 import '../../widgets/shared/error_state.dart';
@@ -44,8 +46,8 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
       backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('Notificações'),
-        backgroundColor: Theme.of(context).colorScheme.surface,
-        foregroundColor: Theme.of(context).colorScheme.onSurface,
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
         elevation: 0,
         centerTitle: true,
         actions: [
@@ -279,13 +281,16 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                   ref.read(notificationsProvider.notifier).markAsRead(notification.id);
                 },
                 onDelete: () {
-                  ref.read(notificationsProvider.notifier).markAsRead(notification.id);
+                  ref.read(notificationsProvider.notifier).deleteNotification(notification.id);
                 },
               ),
               if (i < entry.value.length - 1)
                 const Divider(height: 1, indent: 72, endIndent: 16),
             ],
-          );
+          )
+              .animate(delay: Duration(milliseconds: (i % 8) * 60))
+              .fadeIn(duration: 300.ms, curve: Curves.easeOut)
+              .slideY(begin: 0.08, end: 0, duration: 300.ms, curve: Curves.easeOut);
         }
         currentIndex++;
       }
@@ -344,15 +349,74 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
       ref.read(notificationsProvider.notifier).markAsRead(notification.id);
     }
 
-    // Navigate based on type
-    if (notification.isOrderRelated && notification.orderId != null) {
-      context.push(
-        AppRouter.orderDetails.replaceFirst(':id', notification.orderId!),
-      );
-    } else if (notification.isMessageRelated && notification.chatId != null) {
-      context.push(
-        AppRouter.chatDetails.replaceFirst(':id', notification.chatId!),
-      );
+    final data = notification.data ?? {};
+    final orderId = data['orderId'] as String?;
+    final isSeller = ref.read(currentUserProvider).valueOrNull?.isSeller ?? false;
+
+    switch (notification.type) {
+      // Seller-specific order notifications
+      case 'new_sale':
+      case 'order_disputed':
+      case 'order_shipped_confirm':
+      case 'chargeback':
+        if (orderId != null) {
+          context.push('/seller/orders/$orderId');
+        }
+        break;
+
+      // Buyer order notifications — but if user is a seller and orderId is
+      // present, prefer the seller order detail route
+      case 'payment_approved':
+      case 'order_created':
+      case 'order_confirmed':
+      case 'order_preparing':
+      case 'order_shipped':
+      case 'order_cancelled':
+      case 'payment_failed':
+      case 'payment_refunded':
+        if (orderId != null) {
+          if (isSeller) {
+            context.push('/seller/orders/$orderId');
+          } else {
+            context.push('/orders/$orderId');
+          }
+        }
+        break;
+
+      // Generic order_* types (covers isOrderRelated for buyer)
+      case 'order_status_changed':
+        if (orderId != null) {
+          context.push(
+            AppRouter.orderDetails.replaceFirst(':id', orderId),
+          );
+        }
+        break;
+
+      // Message notification
+      case 'new_message':
+        if (notification.chatId != null) {
+          context.push(
+            AppRouter.chatDetails.replaceFirst(':id', notification.chatId!),
+          );
+        }
+        break;
+
+      // MP account disconnected — send seller to reconnect screen
+      case 'mp_disconnected':
+        context.push(AppRouter.sellerMpConnect);
+        break;
+
+      // Payment received / withdrawal — no specific detail screen
+      case 'payment_received':
+      case 'withdrawal_completed':
+        if (isSeller) {
+          context.push(AppRouter.sellerWallet);
+        }
+        break;
+
+      default:
+        // No navigation for unknown types
+        break;
     }
   }
 }

@@ -2,6 +2,7 @@
 library;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../core/utils/firestore_utils.dart';
 
 class MessageModel {
   final String id;
@@ -58,11 +59,15 @@ class MessageModel {
 
   /// Create from Firestore document snapshot (handles Timestamp objects)
   factory MessageModel.fromFirestore(Map<String, dynamic> json) {
-    final reactionsJson = json['reactions'] as Map<String, dynamic>?;
+    final reactionsJson = json['reactions'] is Map<String, dynamic>
+        ? json['reactions'] as Map<String, dynamic>
+        : null;
     final reactions = <String, List<String>>{};
     if (reactionsJson != null) {
       for (final entry in reactionsJson.entries) {
-        reactions[entry.key] = (entry.value as List<dynamic>).cast<String>();
+        if (entry.value is List) {
+          reactions[entry.key] = (entry.value as List<dynamic>).cast<String>();
+        }
       }
     }
 
@@ -94,11 +99,15 @@ class MessageModel {
 
   factory MessageModel.fromJson(Map<String, dynamic> json) {
     // Parse reactions map
-    final reactionsJson = json['reactions'] as Map<String, dynamic>?;
+    final reactionsJson = json['reactions'] is Map<String, dynamic>
+        ? json['reactions'] as Map<String, dynamic>
+        : null;
     final reactions = <String, List<String>>{};
     if (reactionsJson != null) {
       for (final entry in reactionsJson.entries) {
-        reactions[entry.key] = (entry.value as List<dynamic>).cast<String>();
+        if (entry.value is List) {
+          reactions[entry.key] = (entry.value as List<dynamic>).cast<String>();
+        }
       }
     }
 
@@ -110,15 +119,9 @@ class MessageModel {
       imageUrl: json['imageUrl'] as String?,
       sentBy: json['sentBy'] as String? ?? '',
       isFromBuyer: json['isFromBuyer'] as bool? ?? false,
-      readAt: json['readAt'] != null
-          ? DateTime.parse(json['readAt'] as String)
-          : null,
-      createdAt: json['createdAt'] != null
-          ? DateTime.parse(json['createdAt'] as String)
-          : DateTime.now(),
-      updatedAt: json['updatedAt'] != null
-          ? DateTime.parse(json['updatedAt'] as String)
-          : DateTime.now(),
+      readAt: parseFirestoreDate(json['readAt']),
+      createdAt: parseFirestoreDate(json['createdAt']) ?? DateTime.now(),
+      updatedAt: parseFirestoreDate(json['updatedAt']) ?? DateTime.now(),
       replyToId: json['replyToId'] as String?,
       replyToText: json['replyToText'] as String?,
       replyToSenderName: json['replyToSenderName'] as String?,

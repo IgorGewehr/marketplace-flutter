@@ -8,6 +8,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../data/models/service_model.dart';
 import '../../../domain/repositories/service_repository.dart';
 import '../../providers/my_services_provider.dart';
+import '../../providers/products_provider.dart';
 import '../../widgets/seller/photo_picker_grid.dart';
 import '../../widgets/shared/app_feedback.dart';
 
@@ -32,6 +33,7 @@ class _ServiceFormScreenState extends ConsumerState<ServiceFormScreen> {
   final _experienceController = TextEditingController();
 
   bool _isLoading = false;
+  bool _hasUnsavedChanges = false;
   bool _isActive = true;
   bool _isAvailable = true;
   bool _isRemote = false;
@@ -100,6 +102,103 @@ class _ServiceFormScreenState extends ConsumerState<ServiceFormScreen> {
     _maxPriceController.dispose();
     _experienceController.dispose();
     super.dispose();
+  }
+
+  Widget _buildCategoryDropdown() {
+    final categoriesAsync = ref.watch(categoryModelsProvider);
+
+    return categoriesAsync.when(
+      loading: () => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const InputDecorator(
+            decoration: InputDecoration(labelText: 'Categoria *'),
+            child: LinearProgressIndicator(),
+          ),
+        ],
+      ),
+      error: (_, __) => _categoryDropdownItems(_fallbackServiceCategories()),
+      data: (categories) {
+        final validIds = categories.map((c) => c.id).toSet();
+        final effectiveValue = _selectedCategory.isNotEmpty && validIds.contains(_selectedCategory)
+            ? _selectedCategory
+            : null;
+        return DropdownButtonFormField<String>(
+          value: effectiveValue,
+          decoration: const InputDecoration(
+            labelText: 'Categoria *',
+          ),
+          items: categories
+              .map((cat) => DropdownMenuItem(
+                    value: cat.id,
+                    child: Text(cat.name),
+                  ))
+              .toList(),
+          validator: (value) {
+            if (value == null || value.isEmpty) {
+              return 'Selecione uma categoria';
+            }
+            return null;
+          },
+          onChanged: (value) {
+            if (value != null) {
+              setState(() {
+                _selectedCategory = value;
+                _hasUnsavedChanges = true;
+              });
+            }
+          },
+        );
+      },
+    );
+  }
+
+  Widget _categoryDropdownItems(List<({String id, String name})> items) {
+    final effectiveValue = _selectedCategory.isNotEmpty &&
+            items.any((c) => c.id == _selectedCategory)
+        ? _selectedCategory
+        : null;
+    return DropdownButtonFormField<String>(
+      value: effectiveValue,
+      decoration: const InputDecoration(
+        labelText: 'Categoria *',
+      ),
+      items: items
+          .map((cat) => DropdownMenuItem(
+                value: cat.id,
+                child: Text(cat.name),
+              ))
+          .toList(),
+      validator: (value) {
+        if (value == null || value.isEmpty) {
+          return 'Selecione uma categoria';
+        }
+        return null;
+      },
+      onChanged: (value) {
+        if (value != null) {
+          setState(() {
+            _selectedCategory = value;
+            _hasUnsavedChanges = true;
+          });
+        }
+      },
+    );
+  }
+
+  List<({String id, String name})> _fallbackServiceCategories() {
+    return const [
+      (id: 'reformas', name: 'Reformas e Reparos'),
+      (id: 'beleza', name: 'Beleza e Estética'),
+      (id: 'saude', name: 'Saúde e Bem-estar'),
+      (id: 'educacao', name: 'Educação e Aulas'),
+      (id: 'tecnologia', name: 'Tecnologia e TI'),
+      (id: 'consultoria', name: 'Consultoria e Negócios'),
+      (id: 'eventos', name: 'Eventos e Festas'),
+      (id: 'limpeza', name: 'Limpeza e Conservação'),
+      (id: 'transporte', name: 'Transporte e Logística'),
+      (id: 'pet', name: 'Pet Services'),
+    ];
   }
 
   Future<void> _saveService() async {
@@ -178,6 +277,8 @@ class _ServiceFormScreenState extends ConsumerState<ServiceFormScreen> {
               instantBooking: _instantBooking,
             );
 
+      String? targetServiceId = widget.serviceId;
+
       if (_isEditing) {
         await ref.read(myServicesProvider.notifier).updateService(
               widget.serviceId!,
@@ -187,19 +288,23 @@ class _ServiceFormScreenState extends ConsumerState<ServiceFormScreen> {
         await ref.read(myServicesProvider.notifier).createService(
               request as CreateServiceRequest,
             );
+        // After creation, retrieve the new service's ID from provider state
+        // (the notifier prepends the newly created service to the list)
+        targetServiceId =
+            ref.read(myServicesProvider).valueOrNull?.firstOrNull?.id;
       }
 
       // Upload new images if any
-      if (_newImageFiles.isNotEmpty && widget.serviceId != null) {
+      if (_newImageFiles.isNotEmpty && targetServiceId != null) {
         final paths = _newImageFiles.map((f) => f.path).toList();
         await ref.read(myServicesProvider.notifier).uploadImages(
-              widget.serviceId!,
+              targetServiceId,
               paths,
             );
       }
 
       if (mounted) {
-        AppFeedback.showSuccess(context, _isEditing ? 'Serviço atualizado!' : 'Serviço criado!');
+        AppFeedback.showSuccess(context, 'Serviço salvo com sucesso!');
         context.pop();
       }
     } catch (e) {
@@ -215,22 +320,46 @@ class _ServiceFormScreenState extends ConsumerState<ServiceFormScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Scaffold(
+    return PopScope(
+      canPop: !_hasUnsavedChanges,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
+        final shouldLeave = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Descartar alterações?'),
+            content: const Text('Você tem alterações não salvas. Deseja sair sem salvar?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Continuar editando'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                style: FilledButton.styleFrom(backgroundColor: AppColors.error),
+                child: const Text('Descartar'),
+              ),
+            ],
+          ),
+        );
+        if (shouldLeave == true && context.mounted) {
+          Navigator.of(context).pop();
+        }
+      },
+      child: Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.background,
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
         elevation: 0,
         title: Text(
           _isEditing ? 'Editar Serviço' : 'Novo Serviço',
           style: const TextStyle(
             fontWeight: FontWeight.bold,
-            color: AppColors.textPrimary,
           ),
         ),
         leading: IconButton(
-          icon: const Icon(Icons.close, color: AppColors.textPrimary),
+          icon: const Icon(Icons.close),
           onPressed: () => context.pop(),
         ),
         actions: [
@@ -252,6 +381,15 @@ class _ServiceFormScreenState extends ConsumerState<ServiceFormScreen> {
           ),
           const SizedBox(width: 8),
         ],
+        bottom: _isLoading
+            ? const PreferredSize(
+                preferredSize: Size.fromHeight(4),
+                child: LinearProgressIndicator(
+                  color: AppColors.sellerAccent,
+                  minHeight: 4,
+                ),
+              )
+            : null,
       ),
       body: Form(
         key: _formKey,
@@ -262,8 +400,14 @@ class _ServiceFormScreenState extends ConsumerState<ServiceFormScreen> {
             PhotoPickerGrid(
               initialUrls: _existingImageUrls,
               newFiles: _newImageFiles,
-              onFilesChanged: (files) => setState(() => _newImageFiles = files),
-              onUrlsChanged: (urls) => setState(() => _existingImageUrls = urls),
+              onFilesChanged: (files) => setState(() {
+                _newImageFiles = files;
+                _hasUnsavedChanges = true;
+              }),
+              onUrlsChanged: (urls) => setState(() {
+                _existingImageUrls = urls;
+                _hasUnsavedChanges = true;
+              }),
             ),
             const SizedBox(height: 24),
 
@@ -278,6 +422,7 @@ class _ServiceFormScreenState extends ConsumerState<ServiceFormScreen> {
                 labelText: 'Nome do serviço *',
                 hintText: 'Ex: Desenvolvimento de Sites',
               ),
+              onChanged: (_) => setState(() => _hasUnsavedChanges = true),
               validator: (value) {
                 if (value == null || value.trim().isEmpty) {
                   return 'Informe o nome do serviço';
@@ -296,6 +441,7 @@ class _ServiceFormScreenState extends ConsumerState<ServiceFormScreen> {
               ),
               maxLines: 2,
               maxLength: 150,
+              onChanged: (_) => setState(() => _hasUnsavedChanges = true),
             ),
             const SizedBox(height: 16),
 
@@ -308,6 +454,7 @@ class _ServiceFormScreenState extends ConsumerState<ServiceFormScreen> {
                 alignLabelWithHint: true,
               ),
               maxLines: 6,
+              onChanged: (_) => setState(() => _hasUnsavedChanges = true),
               validator: (value) {
                 if (value == null || value.trim().isEmpty) {
                   return 'Informe a descrição';
@@ -317,36 +464,8 @@ class _ServiceFormScreenState extends ConsumerState<ServiceFormScreen> {
             ),
             const SizedBox(height: 16),
 
-            // Category
-            DropdownButtonFormField<String>(
-              value: _selectedCategory.isEmpty ? null : _selectedCategory,
-              decoration: const InputDecoration(
-                labelText: 'Categoria *',
-              ),
-              items: const [
-                DropdownMenuItem(value: 'reformas', child: Text('Reformas e Reparos')),
-                DropdownMenuItem(value: 'beleza', child: Text('Beleza e Estética')),
-                DropdownMenuItem(value: 'saude', child: Text('Saúde e Bem-estar')),
-                DropdownMenuItem(value: 'educacao', child: Text('Educação e Aulas')),
-                DropdownMenuItem(value: 'tecnologia', child: Text('Tecnologia e TI')),
-                DropdownMenuItem(value: 'consultoria', child: Text('Consultoria e Negócios')),
-                DropdownMenuItem(value: 'eventos', child: Text('Eventos e Festas')),
-                DropdownMenuItem(value: 'limpeza', child: Text('Limpeza e Conservação')),
-                DropdownMenuItem(value: 'transporte', child: Text('Transporte e Logística')),
-                DropdownMenuItem(value: 'pet', child: Text('Pet Services')),
-              ],
-              validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return 'Selecione uma categoria';
-                }
-                return null;
-              },
-              onChanged: (value) {
-                if (value != null) {
-                  setState(() => _selectedCategory = value);
-                }
-              },
-            ),
+            // Category — dynamic from API with hardcoded fallback
+            _buildCategoryDropdown(),
             const SizedBox(height: 24),
 
             // Pricing Section
@@ -368,7 +487,10 @@ class _ServiceFormScreenState extends ConsumerState<ServiceFormScreen> {
               ],
               onChanged: (value) {
                 if (value != null) {
-                  setState(() => _pricingType = value);
+                  setState(() {
+                    _pricingType = value;
+                    _hasUnsavedChanges = true;
+                  });
                 }
               },
             ),
@@ -383,6 +505,7 @@ class _ServiceFormScreenState extends ConsumerState<ServiceFormScreen> {
                 hintText: _pricingType == 'hourly' ? 'Valor por hora' : 'Valor inicial',
               ),
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              onChanged: (_) => setState(() => _hasUnsavedChanges = true),
               validator: (value) {
                 if (value == null || value.isEmpty) {
                   return 'Informe o preço';
@@ -408,6 +531,7 @@ class _ServiceFormScreenState extends ConsumerState<ServiceFormScreen> {
                         prefixText: 'R\$ ',
                       ),
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      onChanged: (_) => setState(() => _hasUnsavedChanges = true),
                     ),
                   ),
                   const SizedBox(width: 16),
@@ -419,6 +543,7 @@ class _ServiceFormScreenState extends ConsumerState<ServiceFormScreen> {
                         prefixText: 'R\$ ',
                       ),
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      onChanged: (_) => setState(() => _hasUnsavedChanges = true),
                     ),
                   ),
                 ],
@@ -434,14 +559,20 @@ class _ServiceFormScreenState extends ConsumerState<ServiceFormScreen> {
 
             CheckboxListTile(
               value: _isRemote,
-              onChanged: (value) => setState(() => _isRemote = value ?? false),
+              onChanged: (value) => setState(() {
+                _isRemote = value ?? false;
+                _hasUnsavedChanges = true;
+              }),
               title: const Text('Atendimento remoto'),
               subtitle: const Text('Trabalho pode ser feito à distância'),
               controlAffinity: ListTileControlAffinity.leading,
             ),
             CheckboxListTile(
               value: _isOnSite,
-              onChanged: (value) => setState(() => _isOnSite = value ?? false),
+              onChanged: (value) => setState(() {
+                _isOnSite = value ?? false;
+                _hasUnsavedChanges = true;
+              }),
               title: const Text('Atendimento presencial'),
               subtitle: const Text('Atende no local do cliente'),
               controlAffinity: ListTileControlAffinity.leading,
@@ -460,6 +591,7 @@ class _ServiceFormScreenState extends ConsumerState<ServiceFormScreen> {
                 labelText: 'Experiência',
                 hintText: 'Ex: 5 anos de experiência',
               ),
+              onChanged: (_) => setState(() => _hasUnsavedChanges = true),
             ),
             const SizedBox(height: 16),
 
@@ -469,9 +601,15 @@ class _ServiceFormScreenState extends ConsumerState<ServiceFormScreen> {
               items: _requirements,
               onAdd: () => _showAddItemDialog(
                 'Adicionar Requisito',
-                (item) => setState(() => _requirements.add(item)),
+                (item) => setState(() {
+                  _requirements.add(item);
+                  _hasUnsavedChanges = true;
+                }),
               ),
-              onRemove: (index) => setState(() => _requirements.removeAt(index)),
+              onRemove: (index) => setState(() {
+                _requirements.removeAt(index);
+                _hasUnsavedChanges = true;
+              }),
             ),
             const SizedBox(height: 16),
 
@@ -480,9 +618,15 @@ class _ServiceFormScreenState extends ConsumerState<ServiceFormScreen> {
               items: _includes,
               onAdd: () => _showAddItemDialog(
                 'Adicionar Item Incluso',
-                (item) => setState(() => _includes.add(item)),
+                (item) => setState(() {
+                  _includes.add(item);
+                  _hasUnsavedChanges = true;
+                }),
               ),
-              onRemove: (index) => setState(() => _includes.removeAt(index)),
+              onRemove: (index) => setState(() {
+                _includes.removeAt(index);
+                _hasUnsavedChanges = true;
+              }),
             ),
             const SizedBox(height: 16),
 
@@ -491,9 +635,15 @@ class _ServiceFormScreenState extends ConsumerState<ServiceFormScreen> {
               items: _certifications,
               onAdd: () => _showAddItemDialog(
                 'Adicionar Certificação',
-                (item) => setState(() => _certifications.add(item)),
+                (item) => setState(() {
+                  _certifications.add(item);
+                  _hasUnsavedChanges = true;
+                }),
               ),
-              onRemove: (index) => setState(() => _certifications.removeAt(index)),
+              onRemove: (index) => setState(() {
+                _certifications.removeAt(index);
+                _hasUnsavedChanges = true;
+              }),
             ),
 
             const SizedBox(height: 24),
@@ -537,7 +687,10 @@ class _ServiceFormScreenState extends ConsumerState<ServiceFormScreen> {
                       ),
                       Switch(
                         value: _acceptsQuote,
-                        onChanged: (value) => setState(() => _acceptsQuote = value),
+                        onChanged: (value) => setState(() {
+                          _acceptsQuote = value;
+                          _hasUnsavedChanges = true;
+                        }),
                         activeColor: AppColors.sellerAccent,
                       ),
                     ],
@@ -569,7 +722,10 @@ class _ServiceFormScreenState extends ConsumerState<ServiceFormScreen> {
                       ),
                       Switch(
                         value: _instantBooking,
-                        onChanged: (value) => setState(() => _instantBooking = value),
+                        onChanged: (value) => setState(() {
+                          _instantBooking = value;
+                          _hasUnsavedChanges = true;
+                        }),
                         activeColor: AppColors.sellerAccent,
                       ),
                     ],
@@ -613,7 +769,10 @@ class _ServiceFormScreenState extends ConsumerState<ServiceFormScreen> {
                   ),
                   Switch(
                     value: _isActive,
-                    onChanged: (value) => setState(() => _isActive = value),
+                    onChanged: (value) => setState(() {
+                      _isActive = value;
+                      _hasUnsavedChanges = true;
+                    }),
                     activeColor: AppColors.secondary,
                   ),
                 ],
@@ -623,6 +782,7 @@ class _ServiceFormScreenState extends ConsumerState<ServiceFormScreen> {
             const SizedBox(height: 100),
           ],
         ),
+      ),
       ),
     );
   }

@@ -79,6 +79,7 @@ class AuthRepositoryImpl implements AuthRepository {
     required String documentType,
     String? phone,
     String? whatsapp,
+    String? address,
   }) async {
     final response = await _apiClient.post<Map<String, dynamic>>(
       ApiConstants.authBecomeSeller,
@@ -88,6 +89,7 @@ class AuthRepositoryImpl implements AuthRepository {
         'documentType': documentType,
         if (phone != null) 'phone': phone,
         if (whatsapp != null) 'whatsapp': whatsapp,
+        if (address != null && address.isNotEmpty) 'address': address,
       },
     );
 
@@ -99,6 +101,7 @@ class AuthRepositoryImpl implements AuthRepository {
     String? displayName,
     String? phone,
     String? photoURL,
+    String? cpfCnpj,
   }) async {
     final response = await _apiClient.patch<Map<String, dynamic>>(
       ApiConstants.authMe,
@@ -106,6 +109,7 @@ class AuthRepositoryImpl implements AuthRepository {
         if (displayName != null) 'displayName': displayName,
         if (phone != null) 'phone': phone,
         if (photoURL != null) 'photoURL': photoURL,
+        if (cpfCnpj != null) 'cpfCnpj': cpfCnpj,
       },
     );
 
@@ -129,7 +133,22 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   @override
+  Future<void> updateFavorites(List<String> favoriteIds) async {
+    await _apiClient.patch<void>(
+      ApiConstants.authMe,
+      data: {'favoriteProductIds': favoriteIds},
+    );
+  }
+
+  @override
   Future<void> signOut() async {
+    await _firebaseAuth.signOut();
+  }
+
+  @override
+  Future<void> deleteAccount() async {
+    await _apiClient.delete<void>(ApiConstants.authMe);
+    // Firebase Auth token is now invalid — sign out locally
     await _firebaseAuth.signOut();
   }
 }

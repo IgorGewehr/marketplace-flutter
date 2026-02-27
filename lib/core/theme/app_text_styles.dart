@@ -176,6 +176,57 @@ class AppTextStyles {
     height: 1.375,
   );
 
+  // === Stat Styles (Dashboard) ===
+  static const TextStyle statValue = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 22,
+    fontWeight: FontWeight.w700,
+    letterSpacing: 0,
+    height: 1.3,
+  );
+
+  static const TextStyle statLabel = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 12,
+    fontWeight: FontWeight.w500,
+    letterSpacing: 0.4,
+    height: 1.33,
+  );
+
+  static const TextStyle statSubtitle = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 11,
+    fontWeight: FontWeight.w400,
+    letterSpacing: 0.4,
+    height: 1.36,
+  );
+
+  // === Balance Styles (Wallet) ===
+  static const TextStyle balanceLarge = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 36,
+    fontWeight: FontWeight.w700,
+    letterSpacing: 0,
+    height: 1.2,
+  );
+
+  static const TextStyle balanceSmall = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 14,
+    fontWeight: FontWeight.w600,
+    letterSpacing: 0.1,
+    height: 1.43,
+  );
+
+  // === Badge Style ===
+  static const TextStyle badge = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 10,
+    fontWeight: FontWeight.w600,
+    letterSpacing: 0.5,
+    height: 1.4,
+  );
+
   // === TextTheme ===
   static TextTheme get textTheme => const TextTheme(
         displayLarge: displayLarge,

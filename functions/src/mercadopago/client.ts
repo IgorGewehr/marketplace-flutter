@@ -30,6 +30,9 @@ interface MpPaymentRequest {
   application_fee?: number;
   money_release_days?: number;
   metadata?: Record<string, unknown>;
+  date_of_expiration?: string;
+  three_d_secure_mode?: string;
+  binary_mode?: boolean;
 }
 
 interface MpPaymentResponse {
@@ -195,7 +198,7 @@ export function buildOAuthUrl(clientId: string, redirectUri: string, state: stri
     redirect_uri: redirectUri,
     state: state,
   });
-  return `https://auth.mercadopago.com/authorization?${params.toString()}`;
+  return `https://auth.mercadopago.com.br/authorization?${params.toString()}`;
 }
 
 /**
@@ -309,6 +312,10 @@ export async function refreshOAuthToken(
 /**
  * Send money to a bank account via Mercado Pago (for seller withdrawals).
  * Uses the /v1/transaction_orders endpoint for bank transfers.
+ *
+ * NOTE: The correct MP API path for bank transfers is /v1/transaction_orders.
+ * The previously used /v1/disbursements path does not exist in the MP API and
+ * would cause all withdrawal attempts to fail with a 404.
  */
 export async function createBankTransfer(
   accessToken: string,
@@ -325,7 +332,7 @@ export async function createBankTransfer(
 ): Promise<Record<string, unknown>> {
   return mpRequest<Record<string, unknown>>({
     method: "POST",
-    path: "/v1/disbursements",
+    path: "/v1/transaction_orders",
     body: {
       amount,
       external_reference: externalReference,
@@ -399,7 +406,9 @@ export function validateWebhookSignature(
   }
 }
 
+export { mpRequest };
 export type {
+  MpRequestOptions,
   MpPaymentRequest,
   MpPaymentResponse,
   MpOAuthTokenResponse,

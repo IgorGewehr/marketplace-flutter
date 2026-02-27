@@ -51,10 +51,11 @@ class ProductCarousel extends StatelessWidget {
         itemCount: products.length,
         itemBuilder: (context, index) {
           final product = products[index];
+          final cardWidth = MediaQuery.of(context).size.width * 0.44;
           return Padding(
             padding: EdgeInsets.only(right: index < products.length - 1 ? 12 : 0),
             child: SizedBox(
-              width: 180,
+              width: cardWidth,
               child: ProductCard(product: product),
             ),
           );

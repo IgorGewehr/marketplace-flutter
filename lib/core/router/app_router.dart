@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../presentation/providers/auth_providers.dart';
+import '../../presentation/providers/seller_mode_provider.dart';
 import '../../presentation/screens/splash/splash_screen.dart';
 import '../../presentation/screens/auth/login_screen.dart';
 import '../../presentation/screens/auth/register_screen.dart';
@@ -22,6 +23,7 @@ import '../../presentation/screens/checkout/pix_payment_screen.dart';
 import '../../presentation/screens/checkout/order_success_screen.dart';
 import '../../presentation/screens/orders/orders_screen.dart';
 import '../../presentation/screens/orders/order_details_screen.dart';
+import '../../data/models/product_model.dart';
 import '../../presentation/screens/seller/seller_dashboard_screen.dart';
 import '../../presentation/screens/seller/my_products_screen.dart';
 import '../../presentation/screens/seller/product_form_screen.dart';
@@ -29,8 +31,8 @@ import '../../presentation/screens/seller/seller_orders_screen.dart';
 import '../../presentation/screens/seller/seller_order_details_screen.dart';
 import '../../presentation/screens/seller/wallet_screen.dart';
 import '../../presentation/screens/seller/mp_connect_screen.dart';
-import '../../presentation/screens/seller/mp_subscription_screen.dart';
 import '../../presentation/screens/seller/seller_profile_screen.dart';
+import '../../presentation/screens/seller/seller_edit_profile_screen.dart';
 import '../../presentation/screens/chat/chats_list_screen.dart';
 import '../../presentation/screens/chat/conversation_screen.dart';
 import '../../presentation/screens/notifications/notifications_screen.dart';
@@ -42,6 +44,35 @@ import '../../presentation/screens/settings/notification_settings_screen.dart';
 import '../../presentation/screens/favorites/favorites_screen.dart';
 import '../../presentation/screens/services/services_screen.dart';
 import '../../presentation/screens/services/service_details_screen.dart';
+
+/// Returns a [CustomTransitionPage] with a smooth slide-from-right + fade transition.
+CustomTransitionPage<T> _slidePage<T>({
+  required BuildContext context,
+  required GoRouterState state,
+  required Widget child,
+}) {
+  return CustomTransitionPage<T>(
+    key: state.pageKey,
+    child: child,
+    transitionDuration: const Duration(milliseconds: 280),
+    reverseTransitionDuration: const Duration(milliseconds: 250),
+    transitionsBuilder: (context, animation, secondaryAnimation, child) {
+      const begin = Offset(1.0, 0.0);
+      const end = Offset.zero;
+      final tween = Tween(begin: begin, end: end)
+          .chain(CurveTween(curve: Curves.easeOutCubic));
+      final fadeTween = Tween<double>(begin: 0.0, end: 1.0)
+          .chain(CurveTween(curve: const Interval(0.0, 0.5)));
+      return SlideTransition(
+        position: animation.drive(tween),
+        child: FadeTransition(
+          opacity: animation.drive(fadeTween),
+          child: child,
+        ),
+      );
+    },
+  );
+}
 
 /// App Router configuration with GoRouter
 class AppRouter {
@@ -73,7 +104,6 @@ class AppRouter {
   static const sellerOrderDetails = '/seller/orders/:id';
   static const sellerWallet = '/seller/wallet';
   static const sellerMpConnect = '/seller/mercadopago/connect';
-  static const sellerSubscription = '/seller/subscription';
   static const chats = '/chats';
   static const chatDetails = '/chats/:id';
   static const notifications = '/notifications';
@@ -85,6 +115,7 @@ class AppRouter {
   static const services = '/services';
   static const serviceDetails = '/service/:id';
   static const sellerProfile = '/seller-profile/:id';
+  static const sellerEditProfile = '/seller/edit-profile';
 }
 
 /// Navigator keys for shell routes
@@ -118,7 +149,20 @@ final routerProvider = Provider<GoRouter>((ref) {
       // After loading, redirect from splash
       if (!isLoading && isOnSplash) {
         if (needsProfile) return AppRouter.completeProfile;
-        return AppRouter.home;
+        // Restore persisted seller mode: if the user was in seller mode and
+        // is still a seller, land directly on the seller dashboard.
+        if (isAuthenticated) {
+          final isSellerMode = ref.read(sellerModeProvider);
+          if (isSellerMode) {
+            final userAsync = ref.read(currentUserProvider);
+            if (userAsync.valueOrNull?.isSeller == true) {
+              return AppRouter.sellerDashboard;
+            }
+          }
+          return AppRouter.home;
+        }
+        // Unauthenticated after loading → go to login
+        return AppRouter.login;
       }
 
       // If needs profile completion, redirect there
@@ -138,9 +182,23 @@ final routerProvider = Provider<GoRouter>((ref) {
         }
       }
 
-      // Seller routes require seller status
+      // Special case: MP connect requires authentication but not seller status (used during onboarding)
+      if (state.matchedLocation == AppRouter.sellerMpConnect) {
+        if (!isAuthenticated && !needsProfile) {
+          return '${AppRouter.login}?redirect=${state.matchedLocation}';
+        }
+        return null; // Allow authenticated users to access MP connect
+      }
+
+      // Seller routes require seller status.
+      // Only redirect when we have a definitive answer (not mid-reload).
       if (_isSellerRoute(state.matchedLocation)) {
-        final user = ref.read(currentUserProvider).valueOrNull;
+        final userAsync = ref.read(currentUserProvider);
+        final user = userAsync.valueOrNull;
+        if (user == null && userAsync.isLoading) {
+          // Still loading — let the router re-run once the load completes.
+          return null;
+        }
         if (user == null || !user.isSeller) {
           return AppRouter.becomeSeller;
         }
@@ -236,76 +294,119 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         parentNavigatorKey: _rootNavigatorKey,
         path: AppRouter.productDetails,
-        builder: (context, state) {
-          final id = state.pathParameters['id']!;
-          return ProductDetailsScreen(productId: id);
-        },
+        pageBuilder: (context, state) => _slidePage(
+          context: context,
+          state: state,
+          child: ProductDetailsScreen(productId: state.pathParameters['id']!),
+        ),
       ),
       GoRoute(
         parentNavigatorKey: _rootNavigatorKey,
         path: AppRouter.categories,
-        builder: (context, state) => const CategoriesScreen(),
+        pageBuilder: (context, state) => _slidePage(
+          context: context,
+          state: state,
+          child: const CategoriesScreen(),
+        ),
       ),
       GoRoute(
         parentNavigatorKey: _rootNavigatorKey,
         path: AppRouter.favorites,
-        builder: (context, state) => const FavoritesScreen(),
+        pageBuilder: (context, state) => _slidePage(
+          context: context,
+          state: state,
+          child: const FavoritesScreen(),
+        ),
       ),
       GoRoute(
         parentNavigatorKey: _rootNavigatorKey,
         path: AppRouter.services,
-        builder: (context, state) => const ServicesScreen(),
+        pageBuilder: (context, state) => _slidePage(
+          context: context,
+          state: state,
+          child: const ServicesScreen(),
+        ),
       ),
       GoRoute(
         parentNavigatorKey: _rootNavigatorKey,
         path: AppRouter.serviceDetails,
-        builder: (context, state) {
-          final id = state.pathParameters['id']!;
-          return ServiceDetailsScreen(serviceId: id);
-        },
+        pageBuilder: (context, state) => _slidePage(
+          context: context,
+          state: state,
+          child: ServiceDetailsScreen(serviceId: state.pathParameters['id']!),
+        ),
       ),
       GoRoute(
         parentNavigatorKey: _rootNavigatorKey,
         path: AppRouter.cart,
-        builder: (context, state) => const CartScreen(),
+        pageBuilder: (context, state) => _slidePage(
+          context: context,
+          state: state,
+          child: const CartScreen(),
+        ),
       ),
       GoRoute(
         parentNavigatorKey: _rootNavigatorKey,
         path: AppRouter.checkout,
-        builder: (context, state) => const CheckoutScreen(),
+        pageBuilder: (context, state) => _slidePage(
+          context: context,
+          state: state,
+          child: const CheckoutScreen(),
+        ),
       ),
       GoRoute(
         parentNavigatorKey: _rootNavigatorKey,
         path: AppRouter.pixPayment,
-        builder: (context, state) => const PixPaymentScreen(),
+        pageBuilder: (context, state) => _slidePage(
+          context: context,
+          state: state,
+          child: const PixPaymentScreen(),
+        ),
       ),
       GoRoute(
         parentNavigatorKey: _rootNavigatorKey,
         path: AppRouter.orderSuccess,
-        builder: (context, state) => const OrderSuccessScreen(),
+        pageBuilder: (context, state) => _slidePage(
+          context: context,
+          state: state,
+          child: const OrderSuccessScreen(),
+        ),
       ),
       GoRoute(
         parentNavigatorKey: _rootNavigatorKey,
         path: AppRouter.orders,
-        builder: (context, state) => const OrdersScreen(),
+        pageBuilder: (context, state) => _slidePage(
+          context: context,
+          state: state,
+          child: const OrdersScreen(),
+        ),
       ),
       GoRoute(
         parentNavigatorKey: _rootNavigatorKey,
         path: AppRouter.orderDetails,
-        builder: (context, state) {
-          final id = state.pathParameters['id']!;
-          return OrderDetailsScreen(orderId: id);
-        },
+        pageBuilder: (context, state) => _slidePage(
+          context: context,
+          state: state,
+          child: OrderDetailsScreen(orderId: state.pathParameters['id']!),
+        ),
       ),
       GoRoute(
         parentNavigatorKey: _rootNavigatorKey,
         path: AppRouter.settings,
-        builder: (context, state) => const SettingsScreen(),
+        pageBuilder: (context, state) => _slidePage(
+          context: context,
+          state: state,
+          child: const SettingsScreen(),
+        ),
       ),
       GoRoute(
         parentNavigatorKey: _rootNavigatorKey,
         path: AppRouter.notificationSettings,
-        builder: (context, state) => const NotificationSettingsScreen(),
+        pageBuilder: (context, state) => _slidePage(
+          context: context,
+          state: state,
+          child: const NotificationSettingsScreen(),
+        ),
       ),
 
       // Seller shell with bottom navigation
@@ -324,7 +425,10 @@ final routerProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 parentNavigatorKey: _rootNavigatorKey,
                 path: 'new',
-                builder: (context, state) => const ProductFormScreen(),
+                builder: (context, state) {
+                  final initialProduct = state.extra as ProductModel?;
+                  return ProductFormScreen(initialProduct: initialProduct);
+                },
               ),
               GoRoute(
                 parentNavigatorKey: _rootNavigatorKey,
@@ -361,21 +465,30 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         parentNavigatorKey: _rootNavigatorKey,
         path: AppRouter.sellerProfile,
-        builder: (context, state) {
-          final id = state.pathParameters['id']!;
-          return SellerProfileScreen(tenantId: id);
-        },
+        pageBuilder: (context, state) => _slidePage(
+          context: context,
+          state: state,
+          child: SellerProfileScreen(tenantId: state.pathParameters['id']!),
+        ),
+      ),
+      GoRoute(
+        parentNavigatorKey: _rootNavigatorKey,
+        path: AppRouter.sellerEditProfile,
+        pageBuilder: (context, state) => _slidePage(
+          context: context,
+          state: state,
+          child: const SellerEditProfileScreen(),
+        ),
       ),
 
       GoRoute(
         parentNavigatorKey: _rootNavigatorKey,
         path: AppRouter.sellerMpConnect,
-        builder: (context, state) => const MpConnectScreen(),
-      ),
-      GoRoute(
-        parentNavigatorKey: _rootNavigatorKey,
-        path: AppRouter.sellerSubscription,
-        builder: (context, state) => const MpSubscriptionScreen(),
+        pageBuilder: (context, state) => _slidePage(
+          context: context,
+          state: state,
+          child: const MpConnectScreen(),
+        ),
       ),
     ],
     errorBuilder: (context, state) => Scaffold(
@@ -431,14 +544,24 @@ bool _isProtectedRoute(String location) {
 bool _isSellerRoute(String location) {
   // MP connect is accessible during onboarding (before seller setup is complete)
   if (location == AppRouter.sellerMpConnect) return false;
+  // Seller profile is a public buyer-facing route
+  if (location.startsWith('/seller-profile')) return false;
   return location.startsWith('/seller');
 }
 
-/// Listenable for router refresh on auth state change
+/// Listenable for router refresh on auth state change.
+/// Also listens to currentUserProvider so the router re-evaluates seller
+/// routes once a mid-reload null resolves to a real user.
 class RouterRefreshStream extends ChangeNotifier {
   RouterRefreshStream(this._ref) {
     _ref.listen(authStatusProvider, (previous, next) {
       notifyListeners();
+    });
+    _ref.listen(currentUserProvider, (previous, next) {
+      // Only re-run when transitioning from loading/null to a concrete value.
+      if (previous?.valueOrNull == null && next.valueOrNull != null) {
+        notifyListeners();
+      }
     });
   }
 

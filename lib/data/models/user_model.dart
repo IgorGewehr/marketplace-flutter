@@ -3,6 +3,7 @@
 library;
 
 import 'address_model.dart';
+import '../../core/utils/firestore_utils.dart';
 
 class UserModel {
   final String id;
@@ -20,6 +21,7 @@ class UserModel {
   final List<AddressModel> addresses;
   final UserPreferences? preferences;
   final String? role; // owner, admin, employee (for seller/full types)
+  final List<String> favoriteProductIds;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -39,6 +41,7 @@ class UserModel {
     this.addresses = const [],
     this.preferences,
     this.role,
+    this.favoriteProductIds = const [],
     required this.createdAt,
     required this.updatedAt,
   });
@@ -82,28 +85,23 @@ class UserModel {
       photoURL: json['photoURL'] as String?,
       phone: json['phone'] as String?,
       cpfCnpj: json['cpfCnpj'] as String?,
-      birthDate: json['birthDate'] != null
-          ? DateTime.parse(json['birthDate'] as String)
-          : null,
+      birthDate: parseFirestoreDate(json['birthDate']),
       fcmTokens: (json['fcmTokens'] as List<dynamic>?)?.cast<String>() ?? [],
       isActive: json['isActive'] as bool? ?? true,
-      lastLoginAt: json['lastLoginAt'] != null
-          ? DateTime.parse(json['lastLoginAt'] as String)
-          : null,
+      lastLoginAt: parseFirestoreDate(json['lastLoginAt']),
       addresses: (json['addresses'] as List<dynamic>?)
-              ?.map((a) => AddressModel.fromJson(a as Map<String, dynamic>))
+              ?.whereType<Map<String, dynamic>>()
+              .map((a) => AddressModel.fromJson(a))
               .toList() ??
           [],
-      preferences: json['preferences'] != null
+      preferences: json['preferences'] is Map<String, dynamic>
           ? UserPreferences.fromJson(json['preferences'] as Map<String, dynamic>)
           : null,
       role: json['role'] as String?,
-      createdAt: json['createdAt'] != null
-          ? DateTime.parse(json['createdAt'] as String)
-          : DateTime.now(),
-      updatedAt: json['updatedAt'] != null
-          ? DateTime.parse(json['updatedAt'] as String)
-          : DateTime.now(),
+      favoriteProductIds:
+          (json['favoriteProductIds'] as List<dynamic>?)?.cast<String>() ?? [],
+      createdAt: parseFirestoreDate(json['createdAt']) ?? DateTime.now(),
+      updatedAt: parseFirestoreDate(json['updatedAt']) ?? DateTime.now(),
     );
   }
 
@@ -124,6 +122,7 @@ class UserModel {
       'addresses': addresses.map((a) => a.toJson()).toList(),
       if (preferences != null) 'preferences': preferences!.toJson(),
       if (role != null) 'role': role,
+      'favoriteProductIds': favoriteProductIds,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
     };
@@ -145,6 +144,7 @@ class UserModel {
     List<AddressModel>? addresses,
     UserPreferences? preferences,
     String? role,
+    List<String>? favoriteProductIds,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -164,6 +164,7 @@ class UserModel {
       addresses: addresses ?? this.addresses,
       preferences: preferences ?? this.preferences,
       role: role ?? this.role,
+      favoriteProductIds: favoriteProductIds ?? this.favoriteProductIds,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );

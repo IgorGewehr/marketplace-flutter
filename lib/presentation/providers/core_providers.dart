@@ -15,11 +15,11 @@ import '../../data/repositories/product_repository_impl.dart';
 import '../../data/repositories/service_repository_impl.dart';
 import '../../data/repositories/tenant_repository_impl.dart';
 import '../../data/repositories/wallet_repository_impl.dart';
-import '../../data/repositories/fiscal_repository_impl.dart';
 import '../../data/repositories/mercadopago_repository_impl.dart';
+import '../../data/repositories/review_repository_impl.dart';
 import '../../domain/repositories/address_repository.dart';
+import '../../domain/repositories/review_repository.dart';
 import '../../domain/repositories/auth_repository.dart';
-import '../../domain/repositories/fiscal_repository.dart';
 import '../../domain/repositories/cart_repository.dart';
 import '../../domain/repositories/chat_repository.dart';
 import '../../domain/repositories/mercadopago_repository.dart';
@@ -121,13 +121,6 @@ final notificationRepositoryProvider = Provider<NotificationRepository>((ref) {
   );
 });
 
-/// Fiscal Repository Provider
-final fiscalRepositoryProvider = Provider<FiscalRepository>((ref) {
-  return FiscalRepositoryImpl(
-    apiClient: ref.watch(apiClientProvider),
-  );
-});
-
 /// Tenant Repository Provider
 final tenantRepositoryProvider = Provider<TenantRepository>((ref) {
   return TenantRepositoryImpl(
@@ -138,6 +131,13 @@ final tenantRepositoryProvider = Provider<TenantRepository>((ref) {
 /// Mercado Pago Repository Provider
 final mercadoPagoRepositoryProvider = Provider<MercadoPagoRepository>((ref) {
   return MercadoPagoRepositoryImpl(
+    apiClient: ref.watch(apiClientProvider),
+  );
+});
+
+/// Review Repository Provider
+final reviewRepositoryProvider = Provider<ReviewRepository>((ref) {
+  return ReviewRepositoryImpl(
     apiClient: ref.watch(apiClientProvider),
   );
 });

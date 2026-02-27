@@ -26,6 +26,7 @@ abstract class AuthRepository {
     required String documentType, // cpf or cnpj
     String? phone,
     String? whatsapp,
+    String? address,
   });
 
   /// Update user profile
@@ -33,6 +34,7 @@ abstract class AuthRepository {
     String? displayName,
     String? phone,
     String? photoURL,
+    String? cpfCnpj,
   });
 
   /// Update FCM token for push notifications
@@ -41,6 +43,12 @@ abstract class AuthRepository {
   /// Remove FCM token
   Future<void> removeFcmToken(String token);
 
+  /// Update favoriteProductIds list on the server
+  Future<void> updateFavorites(List<String> favoriteIds);
+
   /// Sign out
   Future<void> signOut();
+
+  /// Permanently delete the current user's account
+  Future<void> deleteAccount();
 }

@@ -21,7 +21,7 @@ service cloud.firestore {
 
     function isSeller() {
       return isAuthenticated() &&
-             getUserData().userType in ['seller', 'erp_only', 'full'];
+             getUserData().type in ['seller', 'erp_only', 'full'];
     }
 
     function isTenantMember(tenantId) {
@@ -39,7 +39,11 @@ service cloud.firestore {
     // ===========================================================================
 
     match /users/{userId} {
-      // Users can read their own data
+      // Only the owner can read their own full profile document.
+      // Public fields needed by the marketplace (displayName, photoURL, type,
+      // tenantId, role) are resolved via Cloud Functions (Admin SDK) or filtered
+      // client-side. Sensitive fields (cpfCnpj, birthDate, fcmTokens, email)
+      // are never exposed to other authenticated users this way.
       allow read: if isOwner(userId);
 
       // Users can create their own document on signup
@@ -48,9 +52,9 @@ service cloud.firestore {
       // Users can update their own data (except critical fields)
       allow update: if isOwner(userId) &&
                        !request.resource.data.diff(resource.data).affectedKeys()
-                         .hasAny(['userType', 'tenantId', 'role']);
+                         .hasAny(['type', 'tenantId', 'role']);
 
-      // Addresses subcollection
+      // Addresses subcollection — owner only
       match /addresses/{addressId} {
         allow read, write: if isOwner(userId);
       }
@@ -128,11 +132,9 @@ service cloud.firestore {
       allow read: if isTenantMember(resource.data.tenantId) ||
                      isTenantMember(resource.data.sellerId);
 
-      // Orders are created via Cloud Functions (Admin SDK) - no direct client creation
-      // Fallback: authenticated users can create orders with their own buyerUserId
-      allow create: if isAuthenticated() &&
-                       (request.resource.data.buyerUserId == request.auth.uid ||
-                        request.resource.data.buyerId == request.auth.uid);
+      // Orders are created exclusively via Cloud Functions (Admin SDK).
+      // No client-side creation allowed — server validates prices, stock, and payment.
+      allow create: if false;
 
       // Sellers can update order status, buyers can confirm delivery
       allow update: if (isTenantMember(resource.data.tenantId) &&
@@ -300,11 +302,18 @@ service cloud.firestore {
       // Tenant members can read their wallet
       allow read: if isTenantMember(resource.data.tenantId);
 
-      // System creates wallets
-      allow create: if isSeller();
+      // Sellers can only create wallets for their own tenant
+      allow create: if isSeller() &&
+                       request.resource.data.tenantId == getUserData().tenantId;
 
       // No direct updates (use functions)
       allow update, delete: if false;
+
+      // Private subcollection (bank account data)
+      // Access denied to all clients - only Admin SDK (Cloud Functions) can access
+      match /private/{document=**} {
+        allow read, write: if false; // Admin SDK only — bank account data
+      }
     }
 
     // ===========================================================================
@@ -387,6 +396,35 @@ service cloud.firestore {
 
       // No updates needed (add/remove pattern)
       allow update: if false;
+    }
+
+    // ===========================================================================
+    // Disputes Collection (created by Cloud Functions only)
+    // ===========================================================================
+
+    match /disputes/{disputeId} {
+      // Buyer can read disputes they opened
+      allow read: if isAuthenticated() &&
+                     resource.data.buyerUserId == request.auth.uid;
+
+      // Seller can read disputes on their orders
+      allow read: if isAuthenticated() &&
+                     isTenantMember(resource.data.sellerTenantId);
+
+      // Only Cloud Functions can create/update disputes
+      allow create, update, delete: if false;
+    }
+
+    // ===========================================================================
+    // System Collections (Cloud Functions only - no client access)
+    // ===========================================================================
+
+    match /idempotency_keys/{keyId} {
+      allow read, write: if false;
+    }
+
+    match /mp_oauth_states/{stateId} {
+      allow read, write: if false;
     }
 
     // ===========================================================================

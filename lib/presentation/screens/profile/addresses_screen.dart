@@ -8,6 +8,7 @@ import '../../../data/models/address_model.dart';
 import '../../providers/address_provider.dart';
 import '../../widgets/shared/app_feedback.dart';
 import '../../widgets/shared/illustrated_empty_state.dart';
+import '../../widgets/shared/shimmer_loading.dart';
 
 /// Addresses screen backed by API
 class AddressesScreen extends ConsumerWidget {
@@ -21,13 +22,13 @@ class AddressesScreen extends ConsumerWidget {
       backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('Meus Endereços'),
-        backgroundColor: Theme.of(context).colorScheme.surface,
-        foregroundColor: Theme.of(context).colorScheme.onSurface,
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
         elevation: 0,
         centerTitle: true,
       ),
       body: addressesAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => const ShimmerLoading(itemCount: 3, isGrid: false, height: 100),
         error: (_, __) => Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -77,11 +78,14 @@ class AddressesScreen extends ConsumerWidget {
   }
 
   void _showAddressForm(BuildContext context, WidgetRef ref, {AddressModel? address}) {
+    // Capture the parent scaffold context before opening the sheet so that
+    // snackbars are shown on the parent scaffold, not the ephemeral sheet context.
+    final parentContext = context;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => _AddressFormSheet(
+      builder: (_) => _AddressFormSheet(
         address: address,
         onSave: (newAddress) async {
           try {
@@ -90,12 +94,12 @@ class AddressesScreen extends ConsumerWidget {
             } else {
               await ref.read(addressProvider.notifier).createAddress(newAddress);
             }
-            if (context.mounted) {
-              AppFeedback.showSuccess(context, 'Endereço salvo!');
+            if (parentContext.mounted) {
+              AppFeedback.showSuccess(parentContext, 'Endereço salvo!');
             }
           } catch (e) {
-            if (context.mounted) {
-              AppFeedback.showError(context, 'Erro ao salvar endereço. Tente novamente.');
+            if (parentContext.mounted) {
+              AppFeedback.showError(parentContext, 'Erro ao salvar endereço. Tente novamente.');
             }
           }
         },

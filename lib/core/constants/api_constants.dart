@@ -50,6 +50,8 @@ class ApiConstants {
 
   // === Seller Endpoints ===
   static const String sellerOrders = '/api/seller/orders';
+  static const String sellerProfile = '/api/seller/profile';
+  static const String sellerSummary = '/api/seller/summary';
   static const String products = '/api/products';
   static String productById(String id) => '/api/products/$id';
 
@@ -76,6 +78,7 @@ class ApiConstants {
   static const String chats = '/api/chats';
   static String chatById(String id) => '/api/chats/$id';
   static String chatMessages(String id) => '/api/chats/$id/messages';
+  static String chatReport(String id) => '/api/chats/$id/report';
 
   // === Notifications Endpoints ===
   static const String notifications = '/api/notifications';
@@ -83,9 +86,12 @@ class ApiConstants {
   static const String notificationsMarkAllRead = '/api/notifications/mark-all-read';
   static const String notificationPreferences = '/api/notifications/preferences';
 
+  // === User Public Profile ===
+  static String userPublic(String id) => '/api/users/$id/public';
+
   // === Tenant Endpoints ===
-  static const String tenants = '/api/tenants';
-  static String tenantById(String id) => '/api/tenants/$id';
+  static const String tenants = '/api/marketplace/tenants';
+  static String tenantById(String id) => '/api/marketplace/tenants/$id';
 
   // === Delivery Endpoints ===
   static const String deliveryConfirm = '/api/delivery/confirm';
@@ -94,12 +100,16 @@ class ApiConstants {
   // === Payment Link ===
   static const String paymentLink = '/api/payments/link';
 
+  // === Reviews Endpoints ===
+  static const String reviews = '/api/reviews';
+  static const String reviewsCheck = '/api/reviews/check';
+  static const String marketplaceReviews = '/api/marketplace/reviews';
+
   // === Mercado Pago Endpoints ===
   static const String mpOAuthUrl = '/api/mercadopago/oauth';
   static const String mpOAuthCallback = '/api/mercadopago/oauth';
   static const String mpOAuthStatus = '/api/mercadopago/oauth';
   static const String mpOAuthDisconnect = '/api/mercadopago/oauth';
-  static const String mpSubscriptions = '/api/mercadopago/subscriptions';
   static const String mpPublicKey = '/api/mercadopago/public-key';
 
   // === Timeouts ===

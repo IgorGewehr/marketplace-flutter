@@ -10,6 +10,7 @@ class ImageCarousel extends StatefulWidget {
   final BorderRadius? borderRadius;
   final bool showIndicators;
   final BoxFit fit;
+  final String? heroTag;
 
   const ImageCarousel({
     super.key,
@@ -18,6 +19,7 @@ class ImageCarousel extends StatefulWidget {
     this.borderRadius,
     this.showIndicators = true,
     this.fit = BoxFit.cover,
+    this.heroTag,
   });
 
   @override
@@ -27,6 +29,7 @@ class ImageCarousel extends StatefulWidget {
 class _ImageCarouselState extends State<ImageCarousel> {
   final PageController _pageController = PageController();
   int _currentPage = 0;
+  final Map<int, int> _retryKeys = {};
 
   @override
   void dispose() {
@@ -61,20 +64,34 @@ class _ImageCarouselState extends State<ImageCarousel> {
             onPageChanged: (page) => setState(() => _currentPage = page),
             itemCount: widget.images.length,
             itemBuilder: (context, index) {
-              return GestureDetector(
-                onTap: _openFullscreen,
-                child: ClipRRect(
-                  borderRadius: widget.borderRadius ?? BorderRadius.zero,
-                  child: CachedNetworkImage(
-                    imageUrl: widget.images[index],
-                    fit: widget.fit,
-                    width: double.infinity,
-                    height: widget.height,
-                    memCacheWidth: 800,
-                    placeholder: (_, __) => _buildPlaceholder(),
-                    errorWidget: (_, __, ___) => _buildPlaceholder(),
+              final imageUrl = widget.images[index];
+              final imageWidget = ClipRRect(
+                borderRadius: widget.borderRadius ?? BorderRadius.zero,
+                child: CachedNetworkImage(
+                  key: ValueKey('${imageUrl}_${_retryKeys[index] ?? 0}'),
+                  imageUrl: imageUrl,
+                  fit: widget.fit,
+                  width: double.infinity,
+                  height: widget.height,
+                  memCacheWidth: 800,
+                  memCacheHeight: 600,
+                  placeholder: (_, __) => _buildPlaceholder(),
+                  errorWidget: (context, url, error) => GestureDetector(
+                    onTap: () {
+                      CachedNetworkImage.evictFromCache(imageUrl);
+                      setState(() {
+                        _retryKeys[index] = (_retryKeys[index] ?? 0) + 1;
+                      });
+                    },
+                    child: _buildErrorPlaceholder(),
                   ),
                 ),
+              );
+              return GestureDetector(
+                onTap: _openFullscreen,
+                child: index == 0 && widget.heroTag != null
+                    ? Hero(tag: widget.heroTag!, child: imageWidget)
+                    : imageWidget,
               );
             },
           ),
@@ -135,6 +152,34 @@ class _ImageCarouselState extends State<ImageCarousel> {
           Icons.image_outlined,
           size: 60,
           color: theme.colorScheme.onSurfaceVariant.withAlpha(100),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildErrorPlaceholder() {
+    final theme = Theme.of(context);
+    return Container(
+      height: widget.height,
+      color: theme.colorScheme.surfaceContainerHighest,
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.image_not_supported_outlined,
+              size: 48,
+              color: theme.colorScheme.onSurfaceVariant.withAlpha(120),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Toque para tentar novamente',
+              style: TextStyle(
+                fontSize: 12,
+                color: theme.colorScheme.onSurfaceVariant.withAlpha(160),
+              ),
+            ),
+          ],
         ),
       ),
     );

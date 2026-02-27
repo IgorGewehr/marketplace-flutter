@@ -259,8 +259,6 @@ class _VariantDialogState extends State<_VariantDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return AlertDialog(
       title: Text(_isEditing ? 'Editar Variante' : 'Nova Variante'),
       content: Form(

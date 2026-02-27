@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../shared/app_feedback.dart';
 
 /// Photo picker grid with camera/gallery upload and drag reorder
 class PhotoPickerGrid extends StatefulWidget {
@@ -109,14 +110,9 @@ class _PhotoPickerGridState extends State<PhotoPickerGrid> {
 
   bool _validateFormat(String path) {
     final ext = path.split('.').last.toLowerCase();
-    if (!['jpg', 'jpeg', 'png'].contains(ext)) {
+    if (!['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif'].contains(ext)) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Formato não suportado. Use JPG ou PNG.'),
-            backgroundColor: AppColors.error,
-          ),
-        );
+        AppFeedback.showWarning(context, 'Formato não suportado. Use JPG, PNG ou WebP.');
       }
       return false;
     }

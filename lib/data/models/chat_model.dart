@@ -1,6 +1,8 @@
 /// Chat and Message models matching SCHEMA.md
 library;
 
+import '../../core/utils/firestore_utils.dart';
+
 class ChatModel {
   final String id;
   final String tenantId;
@@ -15,6 +17,8 @@ class ChatModel {
   final List<String> participants;
   final DateTime createdAt;
   final DateTime updatedAt;
+  // typingUsers: map of userId -> last-typed ISO timestamp string
+  final Map<String, String> typingUsers;
 
   const ChatModel({
     required this.id,
@@ -30,6 +34,7 @@ class ChatModel {
     this.participants = const [],
     required this.createdAt,
     required this.updatedAt,
+    this.typingUsers = const {},
   });
 
   /// Check if chat is active
@@ -42,6 +47,13 @@ class ChatModel {
   bool get hasUnreadByTenant => unreadByTenant > 0;
 
   factory ChatModel.fromJson(Map<String, dynamic> json) {
+    final typingRaw = json['typingUsers'] as Map<String, dynamic>?;
+    final typingUsers = typingRaw != null
+        ? Map<String, String>.fromEntries(
+            typingRaw.entries.map((e) => MapEntry(e.key, e.value.toString())),
+          )
+        : const <String, String>{};
+
     return ChatModel(
       id: json['id'] as String? ?? '',
       tenantId: json['tenantId'] as String? ?? '',
@@ -50,18 +62,18 @@ class ChatModel {
       tenantName: json['tenantName'] as String?,
       buyerName: json['buyerName'] as String?,
       status: json['status'] as String? ?? 'active',
-      lastMessage: json['lastMessage'] != null
+      lastMessage: json['lastMessage'] is Map<String, dynamic>
           ? LastMessage.fromJson(json['lastMessage'] as Map<String, dynamic>)
           : null,
       unreadByBuyer: json['unreadByBuyer'] as int? ?? 0,
       unreadByTenant: json['unreadByTenant'] as int? ?? 0,
-      participants: (json['participants'] as List<dynamic>?)?.cast<String>() ?? [],
-      createdAt: json['createdAt'] != null
-          ? DateTime.parse(json['createdAt'] as String)
-          : DateTime.now(),
-      updatedAt: json['updatedAt'] != null
-          ? DateTime.parse(json['updatedAt'] as String)
-          : DateTime.now(),
+      participants: () {
+        final raw = json['participantIds'] ?? json['participants'];
+        return raw is List<dynamic> ? raw.cast<String>() : <String>[];
+      }(),
+      createdAt: parseFirestoreDate(json['createdAt']) ?? DateTime.now(),
+      updatedAt: parseFirestoreDate(json['updatedAt']) ?? DateTime.now(),
+      typingUsers: typingUsers,
     );
   }
 
@@ -77,9 +89,10 @@ class ChatModel {
       if (lastMessage != null) 'lastMessage': lastMessage!.toJson(),
       'unreadByBuyer': unreadByBuyer,
       'unreadByTenant': unreadByTenant,
-      'participants': participants,
+      'participantIds': participants,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
+      if (typingUsers.isNotEmpty) 'typingUsers': typingUsers,
     };
   }
 
@@ -97,6 +110,7 @@ class ChatModel {
     List<String>? participants,
     DateTime? createdAt,
     DateTime? updatedAt,
+    Map<String, String>? typingUsers,
   }) {
     return ChatModel(
       id: id ?? this.id,
@@ -112,6 +126,7 @@ class ChatModel {
       participants: participants ?? this.participants,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      typingUsers: typingUsers ?? this.typingUsers,
     );
   }
 
@@ -140,9 +155,7 @@ class LastMessage {
   factory LastMessage.fromJson(Map<String, dynamic> json) {
     return LastMessage(
       text: json['text'] as String? ?? '',
-      sentAt: json['sentAt'] != null
-          ? DateTime.parse(json['sentAt'] as String)
-          : DateTime.now(),
+      sentAt: parseFirestoreDate(json['sentAt']) ?? DateTime.now(),
       sentBy: json['sentBy'] as String? ?? '',
       isFromBuyer: json['isFromBuyer'] as bool? ?? false,
     );

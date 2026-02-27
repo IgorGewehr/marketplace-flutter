@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -21,8 +22,8 @@ class SettingsScreen extends ConsumerWidget {
       backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('Configurações'),
-        backgroundColor: Theme.of(context).colorScheme.surface,
-        foregroundColor: Theme.of(context).colorScheme.onSurface,
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
         elevation: 0,
         centerTitle: true,
       ),
@@ -41,7 +42,10 @@ class SettingsScreen extends ConsumerWidget {
                   onTap: () => context.push(AppRouter.notificationSettings),
                 ),
               ],
-            ),
+            )
+                .animate()
+                .fadeIn(duration: 350.ms)
+                .slideY(begin: 0.1, curve: Curves.easeOut),
 
             // Privacy & Security
             ProfileMenuSection(
@@ -92,7 +96,10 @@ class SettingsScreen extends ConsumerWidget {
                   showChevron: false,
                 ),
               ],
-            ),
+            )
+                .animate()
+                .fadeIn(delay: 100.ms, duration: 350.ms)
+                .slideY(begin: 0.1, curve: Curves.easeOut),
 
             // Support
             ProfileMenuSection(
@@ -114,7 +121,10 @@ class SettingsScreen extends ConsumerWidget {
                   onTap: () => _openUrl(context, 'mailto:${AppConstants.supportEmail}?subject=Bug Report'),
                 ),
               ],
-            ),
+            )
+                .animate()
+                .fadeIn(delay: 200.ms, duration: 350.ms)
+                .slideY(begin: 0.1, curve: Curves.easeOut),
 
             // Legal
             ProfileMenuSection(
@@ -136,7 +146,10 @@ class SettingsScreen extends ConsumerWidget {
                   onTap: () => _openUrl(context, AppConstants.cookiesUrl),
                 ),
               ],
-            ),
+            )
+                .animate()
+                .fadeIn(delay: 300.ms, duration: 350.ms)
+                .slideY(begin: 0.1, curve: Curves.easeOut),
 
             // Danger zone
             ProfileMenuSection(
@@ -151,7 +164,10 @@ class SettingsScreen extends ConsumerWidget {
                   onTap: () => _showDeleteAccountDialog(context, ref),
                 ),
               ],
-            ),
+            )
+                .animate()
+                .fadeIn(delay: 400.ms, duration: 350.ms)
+                .slideY(begin: 0.1, curve: Curves.easeOut),
 
             // Version info
             const SizedBox(height: 16),
@@ -268,10 +284,22 @@ class SettingsScreen extends ConsumerWidget {
                 onPressed: isConfirmed
                     ? () async {
                         Navigator.pop(dialogContext);
-                        await ref.read(authNotifierProvider.notifier).signOut();
+                        final success = await ref
+                            .read(authNotifierProvider.notifier)
+                            .deleteAccount();
                         if (context.mounted) {
-                          context.go(AppRouter.login);
-                          AppFeedback.showInfo(context, 'Solicitação de exclusão enviada. Você será notificado por email.');
+                          if (success) {
+                            context.go(AppRouter.login);
+                            AppFeedback.showSuccess(
+                              context,
+                              'Conta excluída com sucesso.',
+                            );
+                          } else {
+                            AppFeedback.showError(
+                              context,
+                              'Não foi possível excluir a conta. Tente novamente.',
+                            );
+                          }
                         }
                       }
                     : null,

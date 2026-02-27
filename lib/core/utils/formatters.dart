@@ -39,7 +39,6 @@ class Formatters {
   static final DateFormat _shortDateFormat = DateFormat('dd/MM', 'pt_BR');
   static final DateFormat _monthYearFormat = DateFormat('MMMM yyyy', 'pt_BR');
   static final DateFormat _dayMonthFormat = DateFormat('dd MMM', 'pt_BR');
-  static final DateFormat _isoFormat = DateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
 
   /// Format date as dd/MM/yyyy
   static String date(DateTime date) {

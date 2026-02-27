@@ -2,6 +2,7 @@
 library;
 
 import 'product_model.dart';
+import '../../core/utils/firestore_utils.dart';
 
 class CartModel {
   final String id;
@@ -41,12 +42,8 @@ class CartModel {
               ?.map((i) => CartItemModel.fromJson(i as Map<String, dynamic>))
               .toList() ??
           [],
-      createdAt: json['createdAt'] != null
-          ? DateTime.parse(json['createdAt'] as String)
-          : DateTime.now(),
-      updatedAt: json['updatedAt'] != null
-          ? DateTime.parse(json['updatedAt'] as String)
-          : DateTime.now(),
+      createdAt: parseFirestoreDate(json['createdAt']) ?? DateTime.now(),
+      updatedAt: parseFirestoreDate(json['updatedAt']) ?? DateTime.now(),
     );
   }
 
@@ -146,9 +143,7 @@ class CartItemModel {
           : null,
       quantity: json['quantity'] as int? ?? 1,
       tenantId: json['tenantId'] as String? ?? '',
-      addedAt: json['addedAt'] != null
-          ? DateTime.parse(json['addedAt'] as String)
-          : DateTime.now(),
+      addedAt: parseFirestoreDate(json['addedAt']) ?? DateTime.now(),
     );
   }
 

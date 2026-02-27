@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/theme/app_colors.dart';
 import '../../providers/services_provider.dart';
 import '../../widgets/home/section_header.dart';
 import '../../widgets/services/service_card.dart';
@@ -53,8 +55,8 @@ class _ServicesScreenState extends ConsumerState<ServicesScreen> {
       backgroundColor: theme.colorScheme.surface,
       appBar: AppBar(
         title: const Text('Serviços'),
-        backgroundColor: theme.colorScheme.surface,
-        surfaceTintColor: Colors.transparent,
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
         elevation: 0,
         actions: [
           IconButton(
@@ -218,7 +220,10 @@ class _ServicesScreenState extends ConsumerState<ServicesScreen> {
           delegate: SliverChildBuilderDelegate(
             (context, index) {
               if (index >= paginatedState.services.length) return null;
-              return ServiceCard(service: paginatedState.services[index]);
+              return ServiceCard(service: paginatedState.services[index])
+                  .animate(delay: Duration(milliseconds: (index % 6) * 60))
+                  .fadeIn(duration: 300.ms, curve: Curves.easeOut)
+                  .slideY(begin: 0.08, end: 0, duration: 300.ms, curve: Curves.easeOut);
             },
             childCount: paginatedState.services.length,
           ),

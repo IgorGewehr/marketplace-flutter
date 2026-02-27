@@ -21,8 +21,11 @@ import '../../widgets/shared/app_feedback.dart';
 /// Product form screen for creating/editing products - Simplified for marketplace
 class ProductFormScreen extends ConsumerStatefulWidget {
   final String? productId;
+  /// When provided, pre-fills all fields from this product (used for duplication).
+  /// The form will treat this as a new product (no productId), with status set to draft.
+  final ProductModel? initialProduct;
 
-  const ProductFormScreen({super.key, this.productId});
+  const ProductFormScreen({super.key, this.productId, this.initialProduct});
 
   @override
   ConsumerState<ProductFormScreen> createState() => _ProductFormScreenState();
@@ -41,9 +44,12 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
   String? _selectedCategory;
   List<String> _tags = [];
   List<String> _existingImageUrls = [];
+  List<String> _originalImageUrls = [];
   List<File> _newImageFiles = [];
   List<ProductVariant> _variants = [];
   bool _hasVariants = false;
+  bool _hasUnsavedChanges = false;
+  bool _isPopulating = false;
 
   // Upload progress
   bool _isUploadingImages = false;
@@ -71,13 +77,23 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     _nameController.addListener(_onFieldChanged);
     _descriptionController.addListener(_onFieldChanged);
     _priceController.addListener(_onFieldChanged);
+    _quantityController.addListener(_onFieldChanged);
     if (_isEditing) {
       _loadProduct();
+    } else if (widget.initialProduct != null) {
+      // Pre-fill from initialProduct (duplication) — set status to draft
+      final source = widget.initialProduct!;
+      _populateFields(source.copyWith(status: 'draft'));
+      // Duplicate starts as draft (not published)
+      _isActive = false;
     }
   }
 
   void _onFieldChanged() {
-    setState(() {});
+    if (_isPopulating) return;
+    setState(() {
+      _hasUnsavedChanges = true;
+    });
   }
 
   void _loadProduct() {
@@ -95,16 +111,19 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
   }
 
   void _populateFields(ProductModel product) {
+    _isPopulating = true;
     _nameController.text = product.name;
     _descriptionController.text = product.description;
-    _priceController.text = product.price.toStringAsFixed(2);
+    _priceController.text = _BrlCurrencyFormatter.format(product.price);
     _quantityController.text = product.quantity?.toString() ?? '';
     _isActive = product.status == 'active';
     _selectedCategory = product.categoryId;
     _tags = List.from(product.tags);
     _existingImageUrls = product.images.map((i) => i.url).toList();
+    _originalImageUrls = List.from(_existingImageUrls);
     _variants = List.from(product.variants);
     _hasVariants = product.hasVariants;
+    _isPopulating = false;
 
     // Validate category after frame so categoriesProvider is loaded
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -125,6 +144,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     _nameController.removeListener(_onFieldChanged);
     _descriptionController.removeListener(_onFieldChanged);
     _priceController.removeListener(_onFieldChanged);
+    _quantityController.removeListener(_onFieldChanged);
     _nameController.dispose();
     _descriptionController.dispose();
     _priceController.dispose();
@@ -154,12 +174,12 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     try {
       final allImageUrls = [..._existingImageUrls];
 
+      // Determine the product id once — reuse for both upload path and model
+      final productId = widget.productId ?? const Uuid().v4();
+
       // Upload new images to Firebase Storage
       if (_newImageFiles.isNotEmpty) {
-        final productId = widget.productId ?? const Uuid().v4();
-        final uploadService = imageUploadServiceProvider;
-
-        final uploadedUrls = await uploadService.uploadProductImages(
+        final uploadedUrls = await imageUploadServiceProvider.uploadProductImages(
           _newImageFiles,
           productId,
           onProgress: (current, total) {
@@ -175,6 +195,15 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
 
       setState(() => _isUploadingImages = false);
 
+      // Validate that we have at least one image after upload
+      if (allImageUrls.isEmpty) {
+        if (mounted) {
+          AppFeedback.showError(context, 'Não foi possível enviar as fotos. Tente novamente.');
+        }
+        setState(() => _isLoading = false);
+        return;
+      }
+
       final images = allImageUrls.asMap().entries.map((entry) {
         return ProductImage(
           id: 'img_${entry.key}',
@@ -184,14 +213,14 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
       }).toList();
 
       final product = ProductModel(
-        id: widget.productId ?? const Uuid().v4(),
+        id: productId,
         tenantId: ref.read(currentUserProvider).valueOrNull?.tenantId ?? '',
         name: _nameController.text.trim(),
         description: _descriptionController.text.trim(),
         sku: null,
         barcode: null,
         categoryId: _selectedCategory!,
-        price: double.parse(_priceController.text.replaceAll(',', '.')),
+        price: double.parse(_priceController.text.replaceAll('.', '').replaceAll(',', '.')),
         costPrice: null,
         compareAtPrice: null,
         quantity: _quantityController.text.isNotEmpty
@@ -214,14 +243,41 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
         await ref.read(myProductsProvider.notifier).createProduct(product);
       }
 
+      // Fire-and-forget cleanup of removed images from Storage
+      if (_isEditing) {
+        final removedUrls = _originalImageUrls
+            .where((url) => !_existingImageUrls.contains(url))
+            .toList();
+        for (final url in removedUrls) {
+          imageUploadServiceProvider.deleteProductImage(url);
+        }
+      }
+
       if (mounted) {
+        _hasUnsavedChanges = false;
         AppFeedback.showSuccess(context, _isEditing ? 'Produto atualizado!' : 'Produto criado!');
         context.pop();
       }
     } catch (e) {
       if (mounted) {
-        // Gap #21: Show friendly error message instead of raw exception
-        AppFeedback.showError(context, 'Ocorreu um erro ao salvar o produto. Tente novamente.');
+        final errorMsg = e.toString().replaceAll('Exception: ', '');
+        final isPermission = errorMsg.toLowerCase().contains('permission') ||
+            errorMsg.toLowerCase().contains('unauthorized');
+        final isNetwork = errorMsg.toLowerCase().contains('network') ||
+            errorMsg.toLowerCase().contains('socket') ||
+            errorMsg.toLowerCase().contains('timeout');
+
+        String userMessage;
+        if (isPermission) {
+          userMessage = 'Sem permissão para salvar. Verifique se você está logado como vendedor.';
+        } else if (isNetwork) {
+          userMessage = 'Erro de conexão. Verifique sua internet e tente novamente.';
+        } else if (errorMsg.contains('foto') || errorMsg.contains('imagem') || errorMsg.contains('upload')) {
+          userMessage = errorMsg;
+        } else {
+          userMessage = 'Erro ao salvar o produto. Tente novamente.';
+        }
+        AppFeedback.showError(context, userMessage);
       }
     } finally {
       if (mounted) {
@@ -236,12 +292,16 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
       setState(() {
         _tags.add(tag);
         _tagController.clear();
+        _hasUnsavedChanges = true;
       });
     }
   }
 
   void _removeTag(String tag) {
-    setState(() => _tags.remove(tag));
+    setState(() {
+      _tags.remove(tag);
+      _hasUnsavedChanges = true;
+    });
   }
 
   @override
@@ -255,7 +315,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
       return Scaffold(
         backgroundColor: AppColors.background,
         appBar: AppBar(
-          backgroundColor: AppColors.sellerAccent,
+          backgroundColor: AppColors.primary,
           foregroundColor: Colors.white,
           title: const Text('Novo Produto'),
         ),
@@ -312,15 +372,43 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
       );
     }
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: AppColors.sellerAccent,
-        foregroundColor: Colors.white,
-        leading: IconButton(
-          icon: const Icon(Icons.close),
-          onPressed: () => context.pop(),
-        ),
+    return PopScope(
+      canPop: !_hasUnsavedChanges,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
+        final shouldLeave = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Descartar alterações?'),
+            content: const Text(
+                'Você tem alterações não salvas. Deseja sair sem salvar?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Continuar editando'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.error),
+                child: const Text('Descartar'),
+              ),
+            ],
+          ),
+        );
+        if (shouldLeave == true && context.mounted) {
+          Navigator.of(context).pop();
+        }
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.background,
+        appBar: AppBar(
+          backgroundColor: AppColors.primary,
+          foregroundColor: Colors.white,
+          leading: IconButton(
+            icon: const Icon(Icons.close),
+            onPressed: () => context.pop(),
+          ),
         title: Row(
           children: [
             Icon(
@@ -342,33 +430,60 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
             Padding(
               padding: const EdgeInsets.only(right: 16),
               child: Center(
-                child: SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: Colors.white,
-                    value: _totalImagesToUpload > 0
-                        ? _uploadedImages / _totalImagesToUpload
-                        : null,
-                  ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      _totalImagesToUpload > 0
+                          ? 'Enviando foto ${_uploadedImages + 1} de $_totalImagesToUpload'
+                          : 'Enviando fotos...',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
         ],
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(6),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: LinearProgressIndicator(
-                value: progress,
-                backgroundColor: Colors.white.withAlpha(50),
-                color: Colors.white,
-                minHeight: 4,
+          preferredSize: Size.fromHeight(_isUploadingImages && _totalImagesToUpload > 0 ? 24 : 6),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    value: _isUploadingImages && _totalImagesToUpload > 0
+                        ? _uploadedImages / _totalImagesToUpload
+                        : progress,
+                    backgroundColor: Colors.white.withAlpha(50),
+                    color: Colors.white,
+                    minHeight: 4,
+                  ),
+                ),
               ),
-            ),
+              if (_isUploadingImages && _totalImagesToUpload > 0)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+                  child: Text(
+                    'Enviando foto ${_uploadedImages + 1} de $_totalImagesToUpload...',
+                    style: const TextStyle(fontSize: 11, color: Colors.white70),
+                  ),
+                ),
+            ],
           ),
         ),
       ),
@@ -386,9 +501,15 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                 initialUrls: _existingImageUrls,
                 newFiles: _newImageFiles,
                 onFilesChanged: (files) =>
-                    setState(() => _newImageFiles = files),
+                    setState(() {
+                      _newImageFiles = files;
+                      _hasUnsavedChanges = true;
+                    }),
                 onUrlsChanged: (urls) =>
-                    setState(() => _existingImageUrls = urls),
+                    setState(() {
+                      _existingImageUrls = urls;
+                      _hasUnsavedChanges = true;
+                    }),
               ),
             ),
             const SizedBox(height: 16),
@@ -459,18 +580,17 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                       prefixText: 'R\$ ',
                       prefixIcon: Icon(Icons.attach_money),
                     ),
-                    keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true),
-                    // Gap #3: Prevent invalid decimal input
+                    keyboardType: TextInputType.number,
                     inputFormatters: [
-                      FilteringTextInputFormatter.allow(RegExp(r'^\d*[,.]?\d{0,2}')),
+                      FilteringTextInputFormatter.digitsOnly,
+                      _BrlCurrencyFormatter(),
                     ],
                     validator: (value) {
                       if (value == null || value.isEmpty) {
                         return 'Informe o preço';
                       }
                       final price =
-                          double.tryParse(value.replaceAll(',', '.'));
+                          double.tryParse(value.replaceAll('.', '').replaceAll(',', '.'));
                       if (price == null || price <= 0) {
                         return 'Preço inválido';
                       }
@@ -522,7 +642,10 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                             ))
                         .toList(),
                     onChanged: (value) {
-                      setState(() => _selectedCategory = value);
+                      setState(() {
+                        _selectedCategory = value;
+                        _hasUnsavedChanges = true;
+                      });
                     },
                     validator: (value) {
                       if (value == null || value.isEmpty) {
@@ -574,16 +697,15 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                         children: _tags
                             .map(
                               (tag) => Chip(
-                                label: Text(tag),
-                                deleteIcon:
-                                    const Icon(Icons.close, size: 18),
-                                onDeleted: () => _removeTag(tag),
-                                backgroundColor: AppColors.sellerAccent
-                                    .withAlpha((255 * 0.1).round()),
-                                side: BorderSide(
-                                  color: AppColors.sellerAccent
-                                      .withAlpha((255 * 0.3).round()),
+                                label: Text(
+                                  tag,
+                                  style: const TextStyle(color: Colors.white),
                                 ),
+                                deleteIcon:
+                                    const Icon(Icons.close, size: 18, color: Colors.white),
+                                onDeleted: () => _removeTag(tag),
+                                backgroundColor: AppColors.primaryLight,
+                                side: BorderSide.none,
                               ),
                             )
                             .toList(),
@@ -606,6 +728,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                   setState(() {
                     _variants = variants;
                     _hasVariants = variants.isNotEmpty;
+                    _hasUnsavedChanges = true;
                   });
                 },
               ),
@@ -669,7 +792,10 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                   Switch(
                     value: _isActive,
                     onChanged: (value) =>
-                        setState(() => _isActive = value),
+                        setState(() {
+                          _isActive = value;
+                          _hasUnsavedChanges = true;
+                        }),
                     activeColor: AppColors.secondary,
                   ),
                 ],
@@ -715,6 +841,49 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
           ],
         ),
       ),
+    ),
+    );
+  }
+}
+
+/// Formats digits-only input as Brazilian currency (e.g., 2990 → "29,90")
+class _BrlCurrencyFormatter extends TextInputFormatter {
+  /// Formats a double value as a BRL string for pre-filling the field.
+  static String format(double value) {
+    final cents = (value * 100).round();
+    return _centsToString(cents);
+  }
+
+  static String _centsToString(int cents) {
+    if (cents == 0) return '';
+    final str = cents.toString().padLeft(3, '0');
+    final intPart = str.substring(0, str.length - 2);
+    final decPart = str.substring(str.length - 2);
+    final withThousands = StringBuffer();
+    int count = 0;
+    for (int i = intPart.length - 1; i >= 0; i--) {
+      if (count > 0 && count % 3 == 0) withThousands.write('.');
+      withThousands.write(intPart[i]);
+      count++;
+    }
+    final intFormatted = withThousands.toString().split('').reversed.join();
+    return '$intFormatted,$decPart';
+  }
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final digits = newValue.text.replaceAll(RegExp(r'\D'), '');
+    if (digits.isEmpty) {
+      return newValue.copyWith(text: '');
+    }
+    final cents = int.parse(digits);
+    final formatted = _centsToString(cents);
+    return newValue.copyWith(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
     );
   }
 }

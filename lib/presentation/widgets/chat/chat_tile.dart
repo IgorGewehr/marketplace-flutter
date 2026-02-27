@@ -35,7 +35,7 @@ class ChatTile extends StatelessWidget {
     if (name.isEmpty) return AppColors.textHint;
     final hash = name.codeUnits.fold<int>(0, (prev, c) => prev + c);
     const colors = [
-      Color(0xFF2196F3), // Blue
+      Color(0xFF43A047), // Green
       Color(0xFF00BCD4), // Cyan
       Color(0xFF009688), // Teal
       Color(0xFF4CAF50), // Green

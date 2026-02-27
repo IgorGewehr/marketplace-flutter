@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_text_styles.dart';
 
 /// Reusable stat card with glass effect for seller dashboard
 class StatCard extends StatelessWidget {
@@ -85,18 +86,14 @@ class StatCard extends StatelessWidget {
                       const SizedBox(height: 12),
                       Text(
                         label,
-                        style: TextStyle(
-                          fontSize: 12,
+                        style: AppTextStyles.statLabel.copyWith(
                           color: theme.colorScheme.onSurfaceVariant,
-                          fontWeight: FontWeight.w500,
                         ),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         value,
-                        style: TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
+                        style: AppTextStyles.statValue.copyWith(
                           color: theme.colorScheme.onSurface,
                         ),
                       ),
@@ -104,8 +101,7 @@ class StatCard extends StatelessWidget {
                         const SizedBox(height: 2),
                         Text(
                           subtitle!,
-                          style: TextStyle(
-                            fontSize: 11,
+                          style: AppTextStyles.statSubtitle.copyWith(
                             color: AppColors.textHint,
                           ),
                         ),
@@ -242,18 +238,15 @@ class BalanceStatCard extends StatelessWidget {
                     const SizedBox(height: 16),
                     Text(
                       label,
-                      style: TextStyle(
-                        fontSize: 14,
+                      style: AppTextStyles.balanceSmall.copyWith(
                         color: theme.colorScheme.onSurfaceVariant,
-                        fontWeight: FontWeight.w500,
                       ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       value,
-                      style: TextStyle(
+                      style: AppTextStyles.balanceLarge.copyWith(
                         fontSize: 32,
-                        fontWeight: FontWeight.bold,
                         color: theme.colorScheme.onSurface,
                       ),
                     ),

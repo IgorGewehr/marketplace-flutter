@@ -4,6 +4,8 @@ library;
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
+import '../../../core/theme/app_colors.dart';
+
 /// Modern empty state widget
 class ModernEmptyState extends StatelessWidget {
   final IconData icon;
@@ -58,7 +60,7 @@ class ModernEmptyState extends StatelessWidget {
               message,
               style: TextStyle(
                 fontSize: 14,
-                color: Colors.grey[600],
+                color: AppColors.textSecondary,
               ),
               textAlign: TextAlign.center,
             ),
@@ -120,7 +122,7 @@ class EmptyOrdersState extends StatelessWidget {
       message: 'Você ainda não fez nenhum pedido.\nComece a explorar nossos produtos!',
       actionLabel: onShop != null ? 'Começar a comprar' : null,
       onAction: onShop,
-      iconColor: const Color(0xFF3B82F6),
+      iconColor: AppColors.primary,
     );
   }
 }
@@ -142,7 +144,7 @@ class EmptyCartState extends StatelessWidget {
       message: 'Seu carrinho está vazio.\nAdicione produtos para começar!',
       actionLabel: onShop != null ? 'Explorar produtos' : null,
       onAction: onShop,
-      iconColor: const Color(0xFF8B5CF6),
+      iconColor: AppColors.sellerAccent,
     );
   }
 }
@@ -164,7 +166,7 @@ class EmptyWishlistState extends StatelessWidget {
       message: 'Você ainda não favoritou nenhum produto.\nSalve seus produtos favoritos aqui!',
       actionLabel: onBrowse != null ? 'Explorar produtos' : null,
       onAction: onBrowse,
-      iconColor: const Color(0xFFEF4444),
+      iconColor: AppColors.error,
     );
   }
 }
@@ -179,7 +181,7 @@ class EmptyChatsState extends StatelessWidget {
       icon: LucideIcons.messageCircle,
       title: 'Nenhuma conversa',
       message: 'Você ainda não iniciou nenhuma conversa.\nEntre em contato com vendedores para tirar dúvidas!',
-      iconColor: Color(0xFF10B981),
+      iconColor: AppColors.success,
     );
   }
 }
@@ -194,7 +196,7 @@ class EmptyNotificationsState extends StatelessWidget {
       icon: LucideIcons.bell,
       title: 'Nenhuma notificação',
       message: 'Você está em dia!\nQuando houver novidades, avisaremos aqui.',
-      iconColor: Color(0xFF6366F1),
+      iconColor: AppColors.sellerAccent,
     );
   }
 }
@@ -218,7 +220,7 @@ class EmptySearchState extends StatelessWidget {
       message: 'Não encontramos nada para "$searchTerm".\nTente buscar por outro termo.',
       actionLabel: onClearSearch != null ? 'Limpar busca' : null,
       onAction: onClearSearch,
-      iconColor: const Color(0xFF64748B),
+      iconColor: AppColors.textSecondary,
     );
   }
 }
@@ -240,7 +242,7 @@ class EmptyReviewsState extends StatelessWidget {
       message: 'Este produto ainda não foi avaliado.\nSeja o primeiro a avaliar!',
       actionLabel: onWriteReview != null ? 'Escrever avaliação' : null,
       onAction: onWriteReview,
-      iconColor: const Color(0xFFFBBF24),
+      iconColor: AppColors.rating,
     );
   }
 }
@@ -262,7 +264,7 @@ class EmptySellerProductsState extends StatelessWidget {
       message: 'Você ainda não cadastrou produtos.\nComece adicionando seu primeiro produto!',
       actionLabel: onAddProduct != null ? 'Adicionar produto' : null,
       onAction: onAddProduct,
-      iconColor: const Color(0xFF10B981),
+      iconColor: AppColors.success,
     );
   }
 }
@@ -284,7 +286,7 @@ class NoInternetState extends StatelessWidget {
       message: 'Não foi possível conectar à internet.\nVerifique sua conexão e tente novamente.',
       actionLabel: onRetry != null ? 'Tentar novamente' : null,
       onAction: onRetry,
-      iconColor: const Color(0xFFEF4444),
+      iconColor: AppColors.error,
     );
   }
 }
@@ -310,7 +312,7 @@ class ErrorState extends StatelessWidget {
       message: message ?? 'Ocorreu um erro inesperado.\nTente novamente mais tarde.',
       actionLabel: onRetry != null ? 'Tentar novamente' : null,
       onAction: onRetry,
-      iconColor: const Color(0xFFEF4444),
+      iconColor: AppColors.error,
     );
   }
 }
@@ -330,7 +332,7 @@ class ComingSoonState extends StatelessWidget {
       icon: LucideIcons.rocket,
       title: 'Em breve!',
       message: '$feature está em desenvolvimento.\nEm breve estará disponível!',
-      iconColor: const Color(0xFF8B5CF6),
+      iconColor: AppColors.sellerAccent,
     );
   }
 }

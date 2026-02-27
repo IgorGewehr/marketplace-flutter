@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/theme/app_colors.dart';
 import '../../providers/products_provider.dart';
+import '../../widgets/shared/shimmer_loading.dart';
 
 /// Category selection screen
 class CategoriesScreen extends ConsumerWidget {
@@ -21,14 +24,13 @@ class CategoriesScreen extends ConsumerWidget {
           onPressed: () => context.pop(),
           icon: const Icon(Icons.arrow_back),
         ),
-        title: Text(
-          'Categorias',
-          style: TextStyle(color: theme.colorScheme.onSurface),
-        ),
+        title: const Text('Categorias'),
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
         centerTitle: false,
       ),
       body: categoriesAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => const ShimmerLoading(itemCount: 8, isGrid: false, height: 56),
         error: (error, stack) => Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -107,7 +109,10 @@ class CategoriesScreen extends ConsumerWidget {
                         );
                 context.pop();
               },
-            );
+            )
+                .animate(delay: Duration(milliseconds: (index % 8) * 60))
+                .fadeIn(duration: 300.ms, curve: Curves.easeOut)
+                .slideY(begin: 0.08, end: 0, duration: 300.ms, curve: Curves.easeOut);
           },
         ),
       ),

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
@@ -10,6 +11,7 @@ import '../../data/models/message_model.dart';
 import '../../data/services/image_upload_service.dart';
 import 'auth_providers.dart';
 import 'core_providers.dart';
+import 'tenant_provider.dart';
 
 /// Chat provider for managing conversations
 class ChatsNotifier extends AsyncNotifier<List<ChatModel>> {
@@ -17,8 +19,11 @@ class ChatsNotifier extends AsyncNotifier<List<ChatModel>> {
 
   @override
   Future<List<ChatModel>> build() async {
-    final user = ref.read(currentUserProvider).valueOrNull;
-    if (user == null) return _fetchChats();
+    // ref.watch ensures this rebuilds (and disposes the old listener) on auth change.
+    // This is critical: without it, a stale Firestore listener from a previous user
+    // session would continue streaming that user's chats to the newly signed-in user.
+    final user = ref.watch(currentUserProvider).valueOrNull;
+    if (user == null) return [];
 
     // Set up real-time listener for chat list
     _setupRealtimeListener(user.id);
@@ -222,9 +227,16 @@ class ChatMessagesNotifier extends FamilyAsyncNotifier<List<MessageModel>, Strin
     // Send via REST API (handles notifications, unread counts, push)
     try {
       final repo = ref.read(chatRepositoryProvider);
-      await repo.sendMessage(chatId: arg, text: text, replyToId: replyToId);
+      await repo.sendMessage(chatId: arg, text: text, replyToId: replyToId)
+          .timeout(const Duration(seconds: 30));
+
+      // Remove optimistic message - Firestore listener will add the real one
+      final msgs = state.valueOrNull ?? [];
+      state = AsyncValue.data(
+        msgs.where((m) => m.id != message.id).toList(),
+      );
     } catch (_) {
-      // Gap #15: Remove failed optimistic message so it doesn't ghost
+      // Remove failed optimistic message so it doesn't ghost
       final msgs = state.valueOrNull ?? [];
       state = AsyncValue.data(
         msgs.where((m) => m.id != message.id).toList(),
@@ -336,11 +348,45 @@ class ChatMessagesNotifier extends FamilyAsyncNotifier<List<MessageModel>, Strin
     // Update chat unread count locally + backend
     ref.read(chatsProvider.notifier).markChatAsRead(arg);
   }
+
+  Future<void> updateTypingStatus(bool isTyping) async {
+    final user = ref.read(currentUserProvider).valueOrNull;
+    if (user == null) return;
+    try {
+      final repo = ref.read(chatRepositoryProvider);
+      await repo.updateTypingStatus(arg, user.id, isTyping);
+    } catch (e) {
+      debugPrint('Typing status update failed: $e');
+    }
+  }
 }
 
 final chatMessagesProvider = AsyncNotifierProvider.family<ChatMessagesNotifier, List<MessageModel>, String>(
   () => ChatMessagesNotifier(),
 );
+
+/// Returns true if the other participant is currently typing (last-typed < 10s ago)
+final isOtherUserTypingProvider = Provider.family<bool, String>((ref, chatId) {
+  final chats = ref.watch(chatsProvider).valueOrNull ?? [];
+  final chat = chats.where((c) => c.id == chatId).firstOrNull;
+  if (chat == null) return false;
+
+  final user = ref.watch(currentUserProvider).valueOrNull;
+  if (user == null) return false;
+
+  final typingUsers = chat.typingUsers;
+  if (typingUsers.isEmpty) return false;
+
+  final now = DateTime.now();
+  for (final entry in typingUsers.entries) {
+    if (entry.key == user.id) continue;
+    final lastTyped = DateTime.tryParse(entry.value);
+    if (lastTyped != null && now.difference(lastTyped).inSeconds < 10) {
+      return true;
+    }
+  }
+  return false;
+});
 
 /// Chat participant info for display
 class ChatParticipant {
@@ -357,7 +403,9 @@ class ChatParticipant {
   });
 }
 
-/// Get other participant info for a chat
+/// Get other participant info for a chat.
+/// For buyers: resolves tenant → ownerUserId → user to show the seller's
+/// real name (displayName) and photo (photoURL) in header and chat list.
 final chatParticipantProvider = Provider.family<ChatParticipant?, String>((ref, chatId) {
   final chats = ref.watch(chatsProvider).valueOrNull ?? [];
   final chat = chats.where((c) => c.id == chatId).firstOrNull;
@@ -369,14 +417,36 @@ final chatParticipantProvider = Provider.family<ChatParticipant?, String>((ref, 
   final isBuyer = user.id == chat.buyerUserId;
 
   if (isBuyer) {
+    // Step 1: fetch tenant to get ownerUserId
+    final tenantAsync = ref.watch(tenantByIdProvider(chat.tenantId));
+    final tenant = tenantAsync.valueOrNull;
+
+    // Step 2: fetch owner user for real displayName + photoURL
+    final ownerUserId = tenant?.ownerUserId ?? '';
+    final ownerUserAsync = ownerUserId.isNotEmpty
+        ? ref.watch(userByIdProvider(ownerUserId))
+        : null;
+    final ownerUser = ownerUserAsync?.valueOrNull;
+
+    // Name priority: owner user > tenant display name > stored chat name > fallback
+    final name = ownerUser?.displayName.isNotEmpty == true
+        ? ownerUser!.displayName
+        : tenant?.displayName.isNotEmpty == true
+            ? tenant!.displayName
+            : chat.tenantName?.trim().isNotEmpty == true
+                ? chat.tenantName!
+                : 'Vendedor';
+
     return ChatParticipant(
       id: chat.tenantId,
-      name: chat.tenantName ?? 'Loja',
+      name: name,
+      avatarUrl: ownerUser?.photoURL ?? tenant?.logoURL,
     );
   } else {
+    final name = (chat.buyerName?.trim().isNotEmpty == true) ? chat.buyerName! : 'Comprador';
     return ChatParticipant(
       id: chat.buyerUserId,
-      name: chat.buyerName ?? 'Cliente',
+      name: name,
     );
   }
 });

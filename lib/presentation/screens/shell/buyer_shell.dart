@@ -23,15 +23,19 @@ class BuyerShell extends ConsumerStatefulWidget {
 
 class _BuyerShellState extends ConsumerState<BuyerShell> {
   DateTime? _lastBackPress;
+  int _selectedIndex = 0;
 
   int _getCurrentIndex(BuildContext context) {
     final location = GoRouterState.of(context).matchedLocation;
     if (location.startsWith('/search')) return 1;
-    if (location.startsWith('/chat')) return 2;
-    return 0;
+    if (location.startsWith('/cart')) return 2;
+    if (location.startsWith('/chat')) return 3;
+    if (location == AppRouter.home || location == '/') return 0;
+    return _selectedIndex;
   }
 
   void _onTabTap(int index) {
+    setState(() => _selectedIndex = index);
     switch (index) {
       case 0:
         context.go(AppRouter.home);
@@ -40,6 +44,9 @@ class _BuyerShellState extends ConsumerState<BuyerShell> {
         context.go(AppRouter.search);
         break;
       case 2:
+        context.push(AppRouter.cart);
+        break;
+      case 3:
         // Chat list - requires auth
         final isAuth = ref.read(isAuthenticatedProvider);
         if (isAuth) {
@@ -48,43 +55,16 @@ class _BuyerShellState extends ConsumerState<BuyerShell> {
           context.push('${AppRouter.login}?redirect=/chats');
         }
         break;
-      case 3:
+      case 4:
         // Menu - open bottom sheet
         _showMenuSheet();
         break;
     }
   }
 
-  void _onFabPressed() {
-    // 1. Check if logged in
-    final isAuth = ref.read(isAuthenticatedProvider);
-    if (!isAuth) {
-      context.push('${AppRouter.login}?redirect=/seller/products/new');
-      return;
-    }
-
-    // 2. Check if user is a seller
-    final user = ref.read(currentUserProvider).valueOrNull;
-    if (user == null || !user.isSeller) {
-      context.push(AppRouter.becomeSeller);
-      return;
-    }
-
-    // 3. Check Mercado Pago connection (skip if still loading)
-    final mpConnection = ref.read(mpConnectionProvider);
-    if (!mpConnection.isLoading &&
-        !(mpConnection.valueOrNull?.isConnected ?? false)) {
-      _showMpConnectDialog();
-      return;
-    }
-
-    // 4. All checks passed — go directly to create product
-    context.push('/seller/products/new');
-  }
-
   void _showMpConnectDialog() {
     final theme = Theme.of(context);
-    showDialog(
+    showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -111,14 +91,11 @@ class _BuyerShellState extends ConsumerState<BuyerShell> {
         actionsAlignment: MainAxisAlignment.center,
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(ctx),
+            onPressed: () => Navigator.pop(ctx, false),
             child: const Text('Cancelar'),
           ),
           FilledButton.icon(
-            onPressed: () {
-              Navigator.pop(ctx);
-              context.push(AppRouter.sellerMpConnect);
-            },
+            onPressed: () => Navigator.pop(ctx, true),
             icon: const Icon(Icons.link, size: 18),
             label: const Text('Conectar Mercado Pago'),
             style: FilledButton.styleFrom(
@@ -127,7 +104,32 @@ class _BuyerShellState extends ConsumerState<BuyerShell> {
           ),
         ],
       ),
-    );
+    ).then((confirmed) async {
+      if (confirmed == true && mounted) {
+        final connected = await context.push<bool>(AppRouter.sellerMpConnect);
+        if (connected == true && mounted) {
+          ref.read(sellerModeProvider.notifier).setMode(true);
+          context.go('/seller');
+        }
+      }
+    });
+  }
+
+  Future<void> _enterSellerMode(BuildContext ctx) async {
+    // Wait for the initial MP status fetch if it hasn't finished yet.
+    final mpConnection = ref.read(mpConnectionProvider);
+    if (mpConnection.isLoading && !mpConnection.hasValue) {
+      await ref.read(mpConnectionProvider.future);
+      if (!ctx.mounted) return;
+    }
+    // Check connection status (valueOrNull is preserved during reload).
+    if (!(ref.read(mpConnectionProvider).valueOrNull?.isConnected ?? false)) {
+      _showMpConnectDialog();
+      return;
+    }
+    ref.read(sellerModeProvider.notifier).setMode(true);
+    if (!ctx.mounted) return;
+    ctx.go('/seller');
   }
 
   void _showMenuSheet() {
@@ -225,16 +227,7 @@ class _BuyerShellState extends ConsumerState<BuyerShell> {
 
       switch (action) {
         case 'seller_mode':
-          // Check MP connection before entering seller mode
-          // Skip check if still loading to avoid false negatives
-          final mpConnection = ref.read(mpConnectionProvider);
-          if (!mpConnection.isLoading &&
-              !(mpConnection.valueOrNull?.isConnected ?? false)) {
-            _showMpConnectDialog();
-            return;
-          }
-          ref.read(sellerModeProvider.notifier).setMode(true);
-          outerContext.go('/seller');
+          _enterSellerMode(outerContext);
         case 'become_seller':
           outerContext.push(AppRouter.becomeSeller);
         case 'profile':
@@ -289,7 +282,6 @@ class _BuyerShellState extends ConsumerState<BuyerShell> {
         bottomNavigationBar: CustomBottomNav(
           currentIndex: currentIndex,
           onTap: _onTabTap,
-          onFabPressed: _onFabPressed,
         ),
       ),
     );

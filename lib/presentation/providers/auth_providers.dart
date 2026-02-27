@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
+import '../../core/constants/api_constants.dart';
 import '../../core/services/push_notification_service.dart';
 import '../../data/models/user_model.dart';
 import 'core_providers.dart';
@@ -58,25 +59,22 @@ final authStatusProvider = Provider<AuthStatus>((ref) {
 
   return authState.when(
     loading: () => AuthStatus.loading,
-    error: (_, __) => AuthStatus.unauthenticated,
+    error: (_, _) => AuthStatus.unauthenticated,
     data: (firebaseUser) {
       if (firebaseUser == null) {
         return AuthStatus.unauthenticated;
       }
 
-      return userAsync.when(
-        loading: () => AuthStatus.loading,
-        error: (_, __) => AuthStatus.needsProfile,
-        data: (user) {
-          if (user == null) {
-            return AuthStatus.needsProfile;
-          }
-          if (!user.hasCompletedProfile) {
-            return AuthStatus.needsProfile;
-          }
-          return AuthStatus.authenticated;
-        },
-      );
+      // Use valueOrNull so that reloads (e.g. after becomeSeller) don't flash
+      // the loading state and trigger an unnecessary router redirect to /splash.
+      // Only return loading when there is genuinely no value yet (initial fetch).
+      final user = userAsync.valueOrNull;
+      if (user == null) {
+        if (userAsync.isLoading) return AuthStatus.loading;
+        return AuthStatus.needsProfile;
+      }
+      if (!user.hasCompletedProfile) return AuthStatus.needsProfile;
+      return AuthStatus.authenticated;
     },
   );
 });
@@ -97,6 +95,8 @@ final isBuyerProvider = Provider<bool>((ref) {
 final googleSignInProvider = Provider<GoogleSignIn>((ref) {
   return GoogleSignIn(
     scopes: ['email', 'profile'],
+    serverClientId:
+        '474436537260-pgo7o50mn8c288l24vilvm8eg0njlefo.apps.googleusercontent.com',
   );
 });
 
@@ -229,6 +229,7 @@ class AuthNotifier extends Notifier<AsyncValue<void>> {
     required String documentType,
     String? phone,
     String? whatsapp,
+    String? address,
   }) async {
     state = const AsyncValue.loading();
     state = await AsyncValue.guard(() async {
@@ -238,9 +239,27 @@ class AuthNotifier extends Notifier<AsyncValue<void>> {
             documentType: documentType,
             phone: phone,
             whatsapp: whatsapp,
+            address: address,
           );
       // Refresh user data
       ref.invalidate(currentUserProvider);
+    });
+    return !state.hasError;
+  }
+
+  /// Delete the current user's account permanently
+  Future<bool> deleteAccount() async {
+    state = const AsyncValue.loading();
+    state = await AsyncValue.guard(() async {
+      try {
+        await ref.read(pushNotificationServiceProvider).removeToken();
+      } catch (_) {}
+
+      try {
+        await _googleSignIn.signOut();
+      } catch (_) {}
+
+      await ref.read(authRepositoryProvider).deleteAccount();
     });
     return !state.hasError;
   }
@@ -253,6 +272,22 @@ class AuthNotifier extends Notifier<AsyncValue<void>> {
 
 final authNotifierProvider =
     NotifierProvider<AuthNotifier, AsyncValue<void>>(AuthNotifier.new);
+
+/// Fetches a public user profile (displayName + photoURL) by ID.
+/// Uses the public API endpoint instead of direct Firestore read, because
+/// Firestore rules restrict users/{id} to isOwner(userId) only.
+final userByIdProvider = FutureProvider.family<UserModel?, String>((ref, userId) async {
+  if (userId.isEmpty) return null;
+  try {
+    final apiClient = ref.read(apiClientProvider);
+    final response = await apiClient.get<Map<String, dynamic>>(
+      ApiConstants.userPublic(userId),
+    );
+    return UserModel.fromJson(response);
+  } catch (_) {
+    return null;
+  }
+});
 
 /// Helper to get user-friendly error message
 String getAuthErrorMessage(Object error) {

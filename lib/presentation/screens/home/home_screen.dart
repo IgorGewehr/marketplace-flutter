@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/router/app_router.dart';
+import '../../../core/theme/app_colors.dart';
+import '../../providers/follows_provider.dart';
 import '../../providers/products_provider.dart';
 import '../../widgets/home/category_chips.dart';
 import '../../widgets/home/home_header.dart';
@@ -11,6 +14,7 @@ import '../../widgets/home/quick_access_buttons.dart';
 import '../../widgets/home/section_header.dart';
 import '../../widgets/products/product_card.dart';
 import '../../widgets/products/product_carousel.dart';
+import '../../widgets/shared/shimmer_loading.dart';
 
 /// Home screen (Início) - main marketplace view
 class HomeScreen extends ConsumerStatefulWidget {
@@ -44,7 +48,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   Future<void> _onRefresh() async {
     ref.invalidate(featuredProductsProvider);
-    ref.invalidate(recentProductsProvider);
+    ref.invalidate(followedSellersProductsProvider);
     ref.read(paginatedRecentProductsProvider.notifier).refresh();
   }
 
@@ -52,7 +56,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final featuredAsync = ref.watch(featuredProductsProvider);
-    final recentAsync = ref.watch(recentProductsProvider);
 
     return Scaffold(
       backgroundColor: theme.colorScheme.surface,
@@ -60,6 +63,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         bottom: false,
         child: RefreshIndicator(
           onRefresh: _onRefresh,
+          color: AppColors.primary,
           edgeOffset: 80,
           child: CustomScrollView(
             controller: _scrollController,
@@ -144,44 +148,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
               const SliverToBoxAdapter(child: SizedBox(height: 32)),
 
-              // "Recentes na sua área" section
+              // "Vendedores que Sigo" section — only when following at least one seller
               SliverToBoxAdapter(
-                child: recentAsync.when(
-                  loading: () => Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      SectionHeader(
-                        title: 'Recentes na sua área',
-                        actionLabel: 'Ver todos',
-                        onActionPressed: () => context.push(AppRouter.search),
-                      ),
-                      const SizedBox(height: 16),
-                      const ProductCarousel(isLoading: true),
-                    ],
-                  ),
-                  error: (_, __) => _ErrorRetrySection(
-                    title: 'Recentes na sua área',
-                    onRetry: () => ref.invalidate(recentProductsProvider),
-                  ),
-                  data: (products) {
-                    if (products.isEmpty) return const SizedBox.shrink();
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        SectionHeader(
-                          title: 'Recentes na sua área',
-                          actionLabel: 'Ver todos',
-                          onActionPressed: () => context.push(AppRouter.search),
-                        ),
-                        const SizedBox(height: 16),
-                        ProductCarousel(products: products),
-                      ],
-                    );
-                  },
-                ),
+                child: _buildFollowedSellersSection(),
               ),
-
-              const SliverToBoxAdapter(child: SizedBox(height: 32)),
 
               // Paginated "Mais produtos" section (infinite scroll)
               ..._buildPaginatedProducts(),
@@ -195,8 +165,93 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
+  Widget _buildFollowedSellersSection() {
+    final followedIds = ref.watch(followsProvider);
+    if (followedIds.isEmpty) return const SizedBox.shrink();
+
+    final productsAsync = ref.watch(followedSellersProductsProvider);
+
+    void goToFollowedInSearch() {
+      ref.read(productFiltersProvider.notifier).state =
+          const ProductFilters(followedOnly: true);
+      context.push(AppRouter.search);
+    }
+
+    return productsAsync.when(
+      loading: () => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SectionHeader(
+            title: 'Vendedores que Sigo',
+            actionLabel: 'Ver todos',
+            onActionPressed: goToFollowedInSearch,
+          ),
+          const SizedBox(height: 16),
+          const ProductCarousel(isLoading: true),
+          const SizedBox(height: 32),
+        ],
+      ),
+      error: (_, __) => const SizedBox.shrink(),
+      data: (products) {
+        if (products.isEmpty) return const SizedBox.shrink();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SectionHeader(
+              title: 'Vendedores que Sigo',
+              actionLabel: 'Ver todos',
+              onActionPressed: goToFollowedInSearch,
+            ),
+            const SizedBox(height: 16),
+            ProductCarousel(products: products),
+            const SizedBox(height: 32),
+          ],
+        );
+      },
+    );
+  }
+
   List<Widget> _buildPaginatedProducts() {
     final paginatedState = ref.watch(paginatedRecentProductsProvider);
+    final isInitialLoad = paginatedState.products.isEmpty && paginatedState.isLoading;
+
+    // Error state with retry
+    if (paginatedState.error != null && paginatedState.products.isEmpty) {
+      return [
+        SliverToBoxAdapter(
+          child: SectionHeader(
+            title: 'Mais produtos',
+            actionLabel: 'Ver todos',
+            onActionPressed: () => context.push(AppRouter.search),
+          ),
+        ),
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            child: Center(
+              child: Column(
+                children: [
+                  Icon(
+                    Icons.cloud_off_outlined,
+                    size: 36,
+                    color: Theme.of(context).colorScheme.error,
+                  ),
+                  const SizedBox(height: 8),
+                  const Text('Erro ao carregar produtos'),
+                  const SizedBox(height: 8),
+                  TextButton.icon(
+                    onPressed: () => ref.read(paginatedRecentProductsProvider.notifier).refresh(),
+                    icon: const Icon(Icons.refresh, size: 18),
+                    label: const Text('Tentar novamente'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ];
+    }
+
     if (paginatedState.products.isEmpty && !paginatedState.isLoading) {
       return [];
     }
@@ -210,29 +265,70 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ),
       ),
       const SliverToBoxAdapter(child: SizedBox(height: 12)),
-      SliverPadding(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        sliver: SliverGrid(
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2,
-            childAspectRatio: 0.7,
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-          ),
-          delegate: SliverChildBuilderDelegate(
-            (context, index) {
-              if (index >= paginatedState.products.length) return null;
-              return ProductCard(product: paginatedState.products[index]);
-            },
-            childCount: paginatedState.products.length,
+      if (isInitialLoad)
+        const SliverToBoxAdapter(
+          child: ShimmerLoading(itemCount: 6, isGrid: true),
+        )
+      else
+        SliverPadding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          sliver: SliverGrid(
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              childAspectRatio: 0.7,
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
+            ),
+            delegate: SliverChildBuilderDelegate(
+              (context, index) {
+                if (index >= paginatedState.products.length) return null;
+                return ProductCard(product: paginatedState.products[index])
+                    .animate(delay: Duration(milliseconds: (index % 6) * 60))
+                    .fadeIn(duration: 300.ms, curve: Curves.easeOut)
+                    .slideY(begin: 0.08, end: 0, duration: 300.ms, curve: Curves.easeOut);
+              },
+              childCount: paginatedState.products.length,
+            ),
           ),
         ),
-      ),
-      if (paginatedState.isLoading)
+      if (!isInitialLoad && paginatedState.isLoading)
         const SliverToBoxAdapter(
           child: Padding(
             padding: EdgeInsets.all(16),
-            child: Center(child: CircularProgressIndicator()),
+            child: Center(
+              child: SizedBox(
+                height: 48,
+                child: Center(
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            ),
+          ),
+        )
+      else if (paginatedState.hasMore)
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: TextButton(
+              onPressed: () =>
+                  ref.read(paginatedRecentProductsProvider.notifier).loadMore(),
+              child: const Text('Ver mais'),
+            ),
+          ),
+        )
+      else if (paginatedState.products.isNotEmpty)
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Center(
+              child: Text(
+                'Sem mais produtos',
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  fontSize: 13,
+                ),
+              ),
+            ),
           ),
         ),
     ];

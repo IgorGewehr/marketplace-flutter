@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../core/utils/formatters.dart';
 import '../../providers/cart_provider.dart';
@@ -89,6 +90,8 @@ class CartItemTile extends StatelessWidget {
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant,
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                   const SizedBox(height: 8),
@@ -116,12 +119,15 @@ class CartItemTile extends StatelessWidget {
                       Tooltip(
                         message: 'Aumentar quantidade',
                         child: InkWell(
-                          onTap: () => onQuantityChanged(item.quantity + 1),
+                          onTap: () {
+                            HapticFeedback.selectionClick();
+                            onQuantityChanged(item.quantity + 1);
+                          },
                           borderRadius: const BorderRadius.vertical(
                             top: Radius.circular(8),
                           ),
                           child: const Padding(
-                            padding: EdgeInsets.all(13),
+                            padding: EdgeInsets.all(15),
                             child: Icon(
                               Icons.add,
                               size: 18,
@@ -142,22 +148,31 @@ class CartItemTile extends StatelessWidget {
                         ),
                       ),
                       Tooltip(
-                        message: 'Diminuir quantidade',
+                        message: item.quantity > 1
+                            ? 'Diminuir quantidade'
+                            : 'Remover item',
                         child: InkWell(
-                          onTap: item.quantity > 1
-                              ? () => onQuantityChanged(item.quantity - 1)
-                              : null,
+                          onTap: () {
+                            HapticFeedback.selectionClick();
+                            if (item.quantity > 1) {
+                              onQuantityChanged(item.quantity - 1);
+                            } else {
+                              onRemove();
+                            }
+                          },
                           borderRadius: const BorderRadius.vertical(
                             bottom: Radius.circular(8),
                           ),
                           child: Padding(
-                            padding: const EdgeInsets.all(13),
+                            padding: const EdgeInsets.all(15),
                             child: Icon(
-                              Icons.remove,
+                              item.quantity > 1
+                                  ? Icons.remove
+                                  : Icons.delete_outline,
                               size: 18,
                               color: item.quantity > 1
                                   ? theme.colorScheme.primary
-                                  : theme.colorScheme.outline,
+                                  : theme.colorScheme.error,
                             ),
                           ),
                         ),

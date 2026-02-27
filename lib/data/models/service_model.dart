@@ -1,6 +1,8 @@
 /// Service model matching backend Service interface
 library;
 
+import '../../core/utils/firestore_utils.dart';
+
 class ServiceModel {
   final String id;
   final String tenantId;
@@ -117,11 +119,11 @@ class ServiceModel {
       subcategoryId: json['subcategoryId'] as String?,
       tags: (json['tags'] as List<dynamic>?)?.cast<String>() ?? [],
       images: (json['images'] as List<dynamic>?)
-              ?.map((i) => ServiceImage.fromJson(i as Map<String, dynamic>))
+              ?.whereType<Map<String, dynamic>>().map((i) => ServiceImage.fromJson(i))
               .toList() ??
           [],
       portfolioImages: (json['portfolioImages'] as List<dynamic>?)
-              ?.map((i) => ServiceImage.fromJson(i as Map<String, dynamic>))
+              ?.whereType<Map<String, dynamic>>().map((i) => ServiceImage.fromJson(i))
               .toList() ??
           [],
       pricingType: json['pricingType'] as String? ?? 'fixed',
@@ -134,7 +136,7 @@ class ServiceModel {
           ? ServiceHours.fromJson(json['serviceHours'] as Map<String, dynamic>)
           : null,
       serviceAreas: (json['serviceAreas'] as List<dynamic>?)
-              ?.map((a) => ServiceArea.fromJson(a as Map<String, dynamic>))
+              ?.whereType<Map<String, dynamic>>().map((a) => ServiceArea.fromJson(a))
               .toList() ??
           [],
       isRemote: json['isRemote'] as bool? ?? false,
@@ -153,12 +155,8 @@ class ServiceModel {
       marketplaceStats: json['marketplaceStats'] != null
           ? ServiceMarketplaceStats.fromJson(json['marketplaceStats'] as Map<String, dynamic>)
           : null,
-      createdAt: json['createdAt'] != null
-          ? DateTime.parse(json['createdAt'] as String)
-          : DateTime.now(),
-      updatedAt: json['updatedAt'] != null
-          ? DateTime.parse(json['updatedAt'] as String)
-          : DateTime.now(),
+      createdAt: parseFirestoreDate(json['createdAt']) ?? DateTime.now(),
+      updatedAt: parseFirestoreDate(json['updatedAt']) ?? DateTime.now(),
     );
   }
 
@@ -541,12 +539,14 @@ class MarketplaceServiceModel {
       minPrice: (json['minPrice'] as num?)?.toDouble(),
       maxPrice: (json['maxPrice'] as num?)?.toDouble(),
       images: (json['images'] as List<dynamic>?)
-              ?.map((i) => ServiceImage.fromJson(i as Map<String, dynamic>))
+              ?.whereType<Map<String, dynamic>>().map((i) => ServiceImage.fromJson(i))
               .toList() ??
           [],
-      provider: ServiceProvider.fromJson(json['provider'] as Map<String, dynamic>? ?? {}),
+      provider: json['provider'] is Map<String, dynamic>
+          ? ServiceProvider.fromJson(json['provider'] as Map<String, dynamic>)
+          : ServiceProvider.fromJson({}),
       serviceAreas: (json['serviceAreas'] as List<dynamic>?)
-              ?.map((a) => ServiceArea.fromJson(a as Map<String, dynamic>))
+              ?.whereType<Map<String, dynamic>>().map((a) => ServiceArea.fromJson(a))
               .toList() ??
           [],
       isRemote: json['isRemote'] as bool? ?? false,

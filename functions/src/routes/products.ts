@@ -245,6 +245,14 @@ router.delete("/:id", async (req: Request, res: Response): Promise<void> => {
       updatedAt: now,
     });
 
+    // Clean up product images from Storage (fire-and-forget)
+    try {
+      const bucket = admin.storage().bucket();
+      await bucket.deleteFiles({ prefix: `products/${productId}/` });
+    } catch (storageErr) {
+      functions.logger.warn("Failed to clean up product images", { productId, storageErr });
+    }
+
     // Decrement tenant product count
     await db.collection("tenants").doc(tenantId).update({
       "marketplaceStats.totalProducts": admin.firestore.FieldValue.increment(-1),

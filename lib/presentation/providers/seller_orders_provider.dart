@@ -54,7 +54,7 @@ class SellerOrdersNotifier extends AsyncNotifier<List<OrderModel>> {
 
   @override
   Future<List<OrderModel>> build() async {
-    final user = ref.read(currentUserProvider).valueOrNull;
+    final user = ref.watch(currentUserProvider).valueOrNull;
     if (user == null || !user.isSeller) return [];
 
     final repository = ref.read(orderRepositoryProvider);

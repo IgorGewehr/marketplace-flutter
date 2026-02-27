@@ -4,6 +4,7 @@ import { Request, Response } from "express";
 import { config } from "../config";
 import { getPayment, validateWebhookSignature } from "./client";
 import { getValidSellerToken } from "./oauth";
+import { restoreOrderStock } from "./payments";
 import { v4 as uuidv4 } from "uuid";
 
 /**
@@ -24,7 +25,18 @@ import { v4 as uuidv4 } from "uuid";
 export async function handleWebhook(req: Request, res: Response): Promise<void> {
   // Only accept POST
   if (req.method !== "POST") {
-    res.status(405).send("Method Not Allowed");
+    res.status(405).json({ error: "Method Not Allowed" });
+    return;
+  }
+
+  // Enforce webhook secret before processing any payload.
+  // Never allow payment events through without a configured secret.
+  const webhookSecret = config.mercadoPago.webhookSecret;
+  if (!webhookSecret) {
+    functions.logger.error(
+      "CRITICAL: MP_WEBHOOK_SECRET not configured. Rejecting webhook."
+    );
+    res.status(500).json({ error: "Webhook secret not configured" });
     return;
   }
 
@@ -33,35 +45,31 @@ export async function handleWebhook(req: Request, res: Response): Promise<void> 
 
   functions.logger.info("Webhook received", { type, action, dataId });
 
-  // Validate webhook signature
-  // In production, webhook secret MUST be configured
-  const isEmulator = process.env.FUNCTIONS_EMULATOR === "true";
+  // Validate HMAC-SHA256 signature against the configured secret
+  const xSignature = req.headers["x-signature"] as string || "";
+  const xRequestId = req.headers["x-request-id"] as string || "";
 
-  if (!config.mercadoPago.webhookSecret && !isEmulator) {
-    functions.logger.error(
-      "CRITICAL: MP_WEBHOOK_SECRET is not configured. " +
-      "Webhook validation is disabled, which is a security risk. " +
-      "Set MP_WEBHOOK_SECRET via Firebase Secret Manager."
-    );
-    // In production, reject if no secret is configured
-    res.status(500).send("Webhook secret not configured");
+  const isValid = validateWebhookSignature(
+    xSignature,
+    xRequestId,
+    dataId,
+    webhookSecret
+  );
+
+  if (!isValid) {
+    functions.logger.error("Invalid webhook signature", { xSignature, xRequestId, dataId });
+    res.status(400).json({ error: "Invalid signature" });
     return;
   }
 
-  if (config.mercadoPago.webhookSecret) {
-    const xSignature = req.headers["x-signature"] as string || "";
-    const xRequestId = req.headers["x-request-id"] as string || "";
-
-    const isValid = validateWebhookSignature(
-      xSignature,
-      xRequestId,
-      dataId,
-      config.mercadoPago.webhookSecret
-    );
-
-    if (!isValid) {
-      functions.logger.error("Invalid webhook signature", { xSignature, xRequestId, dataId });
-      res.status(401).send("Invalid signature");
+  // Deduplication: skip webhooks we have already processed
+  const db = admin.firestore();
+  const dedupRef = xRequestId ? db.collection("webhook_processed").doc(xRequestId) : null;
+  if (dedupRef) {
+    const dedupDoc = await dedupRef.get();
+    if (dedupDoc.exists) {
+      functions.logger.info("Webhook already processed, skipping", { xRequestId });
+      res.status(200).json({ received: true });
       return;
     }
   }
@@ -80,6 +88,15 @@ export async function handleWebhook(req: Request, res: Response): Promise<void> 
     } else {
       functions.logger.info(`Unhandled webhook type: ${type}`, { dataId, action });
     }
+
+    // Mark as processed AFTER successful processing to allow retries on failure
+    if (dedupRef) {
+      await dedupRef.set({
+        processedAt: admin.firestore.FieldValue.serverTimestamp(),
+        type: req.body?.type || "unknown",
+      });
+    }
+
     res.status(200).send("OK");
   } catch (error) {
     functions.logger.error("Error processing webhook", error);
@@ -116,7 +133,7 @@ async function processPaymentNotification(paymentId: string): Promise<void> {
       const sellerToken = await getValidSellerToken(tenantId);
       payment = await getPayment(paymentId, sellerToken);
     } catch {
-      // Fallback to platform token
+      // Seller token failed but order is ours - use platform token as emergency fallback
       functions.logger.info("Seller token failed, trying platform token", { paymentId, tenantId });
       try {
         payment = await getPayment(paymentId, config.mercadoPago.accessToken);
@@ -126,13 +143,11 @@ async function processPaymentNotification(paymentId: string): Promise<void> {
       }
     }
   } else {
-    // No order found yet - try platform token as fallback
-    try {
-      payment = await getPayment(paymentId, config.mercadoPago.accessToken);
-    } catch {
-      functions.logger.error("Cannot fetch payment - no matching order and platform token failed", { paymentId });
-      return;
-    }
+    // No order found for this payment ID.
+    // This can happen if the webhook arrives before order creation completes (race condition),
+    // or if the payment belongs to a different platform. Do not use platform token as fallback.
+    functions.logger.warn("No order found for paymentId - skipping. Possible race condition or unrelated payment.", { paymentId });
+    return;
   }
 
   functions.logger.info("Payment details fetched", {
@@ -280,11 +295,11 @@ async function processPaymentNotification(paymentId: string): Promise<void> {
 
       // If refunded
       if (newPaymentStatus === "refunded") {
-        updateData.status = "cancelled";
+        updateData.status = "refunded";
         updateData["paymentSplit.status"] = "refunded";
 
         updateData.statusHistory = admin.firestore.FieldValue.arrayUnion({
-          status: "cancelled",
+          status: "refunded",
           timestamp: now,
           note: "Pagamento estornado",
         });
@@ -336,6 +351,17 @@ async function processPaymentNotification(paymentId: string): Promise<void> {
       return; // Already logged inside the transaction
     }
     throw error;
+  }
+
+  // Restore stock for refunded orders (root + variant quantities)
+  if (notificationEvent === "refunded" && orderData && Array.isArray(orderData.items) && orderData.items.length > 0) {
+    try {
+      await restoreOrderStock(db, orderData.items as Record<string, unknown>[]);
+      functions.logger.info("Stock restored for refunded order (webhook)", { orderId });
+    } catch (stockErr) {
+      functions.logger.error("Failed to restore stock for refunded order (webhook)", { orderId, error: stockErr });
+      // Non-blocking — log for manual review
+    }
   }
 
   // Post-transaction side effects (QR code, transaction record, notifications)
@@ -449,7 +475,7 @@ async function processSellerConnectionChange(userId: string, action: string): Pr
 
     // Notify seller
     const tenantData = tenantDoc.data();
-    const ownerId = tenantData?.ownerId;
+    const ownerId = tenantData?.ownerId || tenantData?.ownerUserId;
     if (ownerId) {
       const notifId = uuidv4();
       await db.collection("notifications").doc(notifId).set({
@@ -494,27 +520,28 @@ async function processChargebackNotification(paymentId: string): Promise<void> {
   const orderId = orderDoc.id;
   const now = admin.firestore.Timestamp.now();
 
-  // Mark order as disputed
-  await orderDoc.ref.update({
-    paymentStatus: "refunded",
-    status: "cancelled",
-    "paymentSplit.status": "chargedback",
-    statusHistory: admin.firestore.FieldValue.arrayUnion({
-      status: "cancelled",
-      timestamp: now,
-      note: "Chargeback recebido - pagamento contestado pelo comprador",
-    }),
-    updatedAt: now,
-  });
-
-  // Reverse wallet balance
+  // Atomically update order AND reverse wallet balance in a single transaction
   const tenantId = orderData.tenantId;
-  if (tenantId && orderData.paymentSplit?.sellerAmount) {
-    const reverseAmount = orderData.paymentSplit.sellerAmount;
-    const walletRef = db.collection("wallets").doc(tenantId);
+  await db.runTransaction(async (transaction) => {
+    // Mark order as refunded due to chargeback
+    transaction.update(orderDoc.ref, {
+      paymentStatus: "refunded",
+      status: "refunded",
+      "paymentSplit.status": "chargedback",
+      statusHistory: admin.firestore.FieldValue.arrayUnion({
+        status: "refunded",
+        timestamp: now,
+        note: "Chargeback recebido - pagamento contestado pelo comprador",
+      }),
+      updatedAt: now,
+    });
 
-    await db.runTransaction(async (transaction) => {
+    // Reverse wallet balance within the same transaction
+    if (tenantId && orderData.paymentSplit?.sellerAmount) {
+      const reverseAmount = orderData.paymentSplit.sellerAmount;
+      const walletRef = db.collection("wallets").doc(tenantId);
       const walletSnap = await transaction.get(walletRef);
+
       if (walletSnap.exists) {
         const walletData = walletSnap.data()!;
         const balance = walletData.balance || {};
@@ -534,7 +561,18 @@ async function processChargebackNotification(paymentId: string): Promise<void> {
           });
         }
       }
-    });
+    }
+  });
+
+  // Restore stock for chargebacked orders (root + variant quantities)
+  if (Array.isArray(orderData.items) && orderData.items.length > 0) {
+    try {
+      await restoreOrderStock(db, orderData.items as Record<string, unknown>[]);
+      functions.logger.info("Stock restored for chargebacked order", { orderId });
+    } catch (stockErr) {
+      functions.logger.error("Failed to restore stock for chargebacked order", { orderId, error: stockErr });
+      // Non-blocking — log for manual review
+    }
   }
 
   functions.logger.warn("Chargeback processed", { orderId, paymentId, tenantId });
@@ -558,7 +596,7 @@ async function processChargebackNotification(paymentId: string): Promise<void> {
 
   if (tenantId) {
     const tenantDocSnap = await db.collection("tenants").doc(tenantId).get();
-    const ownerId = tenantDocSnap.data()?.ownerId;
+    const ownerId = tenantDocSnap.data()?.ownerId || tenantDocSnap.data()?.ownerUserId;
     if (ownerId) {
       const notifId = uuidv4();
       await db.collection("notifications").doc(notifId).set({
@@ -593,7 +631,7 @@ async function sendPaymentNotifications(
   if (tenantId) {
     try {
       const tenantDoc = await db.collection("tenants").doc(tenantId).get();
-      sellerUserId = tenantDoc.data()?.ownerId || null;
+      sellerUserId = tenantDoc.data()?.ownerId || tenantDoc.data()?.ownerUserId || null;
     } catch {
       functions.logger.warn("Failed to resolve seller UID from tenant", { tenantId });
     }

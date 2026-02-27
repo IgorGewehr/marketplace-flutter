@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 
 import '../../../data/models/service_model.dart';
 import '../shared/shimmer_loading.dart';
@@ -45,7 +46,10 @@ class ServiceGrid extends StatelessWidget {
       ),
       itemCount: services!.length,
       itemBuilder: (context, index) {
-        return ServiceCard(service: services![index]);
+        return ServiceCard(service: services![index])
+            .animate(delay: Duration(milliseconds: (index % 6) * 60))
+            .fadeIn(duration: 300.ms, curve: Curves.easeOut)
+            .slideY(begin: 0.08, end: 0, duration: 300.ms, curve: Curves.easeOut);
       },
     );
   }
@@ -86,7 +90,10 @@ class SliverServiceGrid extends StatelessWidget {
           childAspectRatio: 0.60, // Slightly taller for service cards
         ),
         delegate: SliverChildBuilderDelegate(
-          (context, index) => ServiceCard(service: services![index]),
+          (context, index) => ServiceCard(service: services![index])
+              .animate(delay: Duration(milliseconds: (index % 6) * 60))
+              .fadeIn(duration: 300.ms, curve: Curves.easeOut)
+              .slideY(begin: 0.08, end: 0, duration: 300.ms, curve: Curves.easeOut),
           childCount: services!.length,
         ),
       ),

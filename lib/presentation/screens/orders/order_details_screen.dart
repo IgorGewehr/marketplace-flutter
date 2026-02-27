@@ -1,13 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../core/theme/app_colors.dart';
+import '../../../data/models/order_model.dart';
 import '../../providers/orders_provider.dart';
+import '../../providers/review_provider.dart';
 import '../../widgets/orders/order_timeline.dart';
+import '../../widgets/reviews/reviews_bottom_sheet.dart';
 import '../../widgets/shared/app_feedback.dart';
 import '../../widgets/shared/loading_overlay.dart';
 
@@ -23,6 +27,7 @@ class OrderDetailsScreen extends ConsumerStatefulWidget {
 
 class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
   bool _isConfirming = false;
+  bool _isCancelling = false;
 
   @override
   Widget build(BuildContext context) {
@@ -33,7 +38,8 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
       backgroundColor: theme.colorScheme.surface,
       appBar: AppBar(
         title: const Text('Detalhes do Pedido'),
-        backgroundColor: theme.colorScheme.surface,
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
       ),
       body: orderAsync.when(
         loading: () => const Center(child: LoadingIndicator()),
@@ -122,23 +128,9 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
                           ],
                         ),
                       ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: statusInfo.backgroundColor,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          statusInfo.label,
-                          style: TextStyle(
-                            color: statusInfo.textColor,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 12,
-                          ),
-                        ),
+                      OrderStatusChip(
+                        statusInfo: statusInfo,
+                        status: order.status,
                       ),
                     ],
                   ),
@@ -243,41 +235,41 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
 
                 const SizedBox(height: 16),
 
-                // Delivery address
-                Text(
-                  'Endereço de entrega',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
+                // Delivery address — only show when address is present
+                if (order.deliveryAddress != null) ...[
+                  Text(
+                    'Endereço informado',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.surface,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: theme.colorScheme.primaryContainer,
-                          borderRadius: BorderRadius.circular(10),
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.surface,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.primaryContainer,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Icon(
+                            Icons.location_on_outlined,
+                            color: theme.colorScheme.primary,
+                            size: 20,
+                          ),
                         ),
-                        child: Icon(
-                          Icons.location_on_outlined,
-                          color: theme.colorScheme.primary,
-                          size: 20,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            if (order.deliveryAddress != null) ...[
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
                               Text(
                                 '${order.deliveryAddress!.street}, ${order.deliveryAddress!.number}',
                                 style: theme.textTheme.bodyMedium?.copyWith(
@@ -296,20 +288,19 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
                                   color: theme.colorScheme.onSurfaceVariant,
                                 ),
                               ),
-                            ] else
-                              const Text('Endereço não disponível'),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
+                ],
 
                 // Tracking info
                 if (order.trackingCode != null && order.trackingCode!.isNotEmpty) ...[
                   const SizedBox(height: 16),
                   Text(
-                    'Rastreamento',
+                    'Referência do pedido',
                     style: theme.textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.bold,
                     ),
@@ -334,7 +325,7 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
                                 borderRadius: BorderRadius.circular(10),
                               ),
                               child: Icon(
-                                Icons.local_shipping_outlined,
+                                Icons.inventory_2_outlined,
                                 color: theme.colorScheme.primary,
                                 size: 20,
                               ),
@@ -402,14 +393,6 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
                         label: 'Subtotal',
                         value: Formatters.currency(order.subtotal),
                       ),
-                      if (order.discount > 0) ...[
-                        const SizedBox(height: 8),
-                        _SummaryRow(
-                          label: 'Desconto',
-                          value: '-${Formatters.currency(order.discount)}',
-                          valueColor: theme.colorScheme.secondary,
-                        ),
-                      ],
                       const SizedBox(height: 12),
                       const Divider(),
                       const SizedBox(height: 12),
@@ -442,29 +425,119 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
                             ),
                           ),
                           Text(
-                            order.paymentMethod ?? 'N/A',
+                            order.paymentMethod,
                             style: theme.textTheme.bodySmall?.copyWith(
                               fontWeight: FontWeight.w500,
                             ),
                           ),
                         ],
                       ),
+                      if (order.paymentStatus == 'paid' &&
+                          order.paymentSplit != null &&
+                          (order.paymentSplit!.status == 'held' ||
+                              order.paymentSplit!.status == 'released')) ...[
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            order.paymentSplit!.status == 'released'
+                                ? const Icon(
+                                    Icons.check_circle_outline,
+                                    size: 16,
+                                    color: Colors.green,
+                                  )
+                                : Icon(
+                                    Icons.lock_clock_outlined,
+                                    size: 16,
+                                    color: Colors.amber[700],
+                                  ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                order.paymentSplit!.status == 'released'
+                                    ? 'Pagamento liberado ao vendedor'
+                                    : 'Aguardando confirmação de entrega',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: order.paymentSplit!.status == 'released'
+                                      ? Colors.green
+                                      : Colors.amber[700],
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ],
                   ),
                 ),
 
                 // Buyer actions: Confirm delivery or Report problem
-                if ((order.status == 'shipped' || order.status == 'delivered' || order.status == 'out_for_delivery') &&
+                if ((order.status == 'shipped' || order.status == 'out_for_delivery') &&
                     !order.isDeliveryConfirmed &&
                     order.paymentStatus == 'paid')
                   Padding(
                     padding: const EdgeInsets.only(top: 16),
                     child: Column(
                       children: [
+                        // A4: Auto-confirmation deadline banner
+                        Builder(builder: (context) {
+                          final shippedHistory = order.statusHistory
+                              .where((h) => h.status == 'shipped')
+                              .toList();
+                          final shippedAt = shippedHistory.isNotEmpty
+                              ? shippedHistory.last.timestamp
+                              : null;
+                          final int remainingDays;
+                          if (shippedAt != null) {
+                            final deadline = shippedAt.add(const Duration(days: 7));
+                            remainingDays = deadline.difference(DateTime.now()).inDays.clamp(0, 7);
+                          } else {
+                            remainingDays = 7;
+                          }
+                          return Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(12),
+                            margin: const EdgeInsets.only(bottom: 12),
+                            decoration: BoxDecoration(
+                              color: Colors.amber[50],
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: Colors.amber.shade300),
+                            ),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Icon(Icons.schedule_outlined, size: 18, color: Colors.amber[800]),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Confirmação automática em $remainingDays ${remainingDays == 1 ? 'dia' : 'dias'}',
+                                        style: theme.textTheme.bodySmall?.copyWith(
+                                          fontWeight: FontWeight.w600,
+                                          color: Colors.amber[900],
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        'Se você não confirmar o recebimento, o pagamento será liberado automaticamente.',
+                                        style: theme.textTheme.bodySmall?.copyWith(
+                                          color: Colors.amber[800],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }),
                         SizedBox(
                           width: double.infinity,
                           child: FilledButton.icon(
                             onPressed: _isConfirming ? null : () async {
+                              HapticFeedback.mediumImpact();
                               final confirmed = await AppFeedback.showConfirmation(
                                 context,
                                 title: 'Confirmar recebimento',
@@ -478,7 +551,11 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
                                 final success = await ref.read(ordersProvider.notifier).confirmDelivery(order.id);
                                 if (context.mounted) {
                                   if (success) {
-                                    AppFeedback.showSuccess(context, 'Recebimento confirmado!');
+                                    // A5: Inform buyer about payment release timeline
+                                    AppFeedback.showSuccess(
+                                      context,
+                                      'Recebimento confirmado! O pagamento será liberado ao vendedor em até 24 horas.',
+                                    );
                                     ref.invalidate(orderDetailProvider(widget.orderId));
                                   } else {
                                     AppFeedback.showError(context, 'Erro ao confirmar recebimento');
@@ -510,14 +587,45 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
                           ),
                         ),
                         const SizedBox(height: 8),
+                        // M3: Dispute button with deadline subtitle
                         SizedBox(
                           width: double.infinity,
                           child: OutlinedButton.icon(
                             onPressed: () => _showDisputeDialog(context, ref, order.id),
                             icon: const Icon(Icons.report_problem_outlined),
-                            label: const Text('Reportar problema'),
+                            label: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Text('Reportar problema'),
+                                Builder(builder: (context) {
+                                  final shippedHistory = order.statusHistory
+                                      .where((h) => h.status == 'shipped')
+                                      .toList();
+                                  final shippedAt = shippedHistory.isNotEmpty
+                                      ? shippedHistory.last.timestamp
+                                      : null;
+                                  if (shippedAt != null) {
+                                    final deadline = shippedAt.add(const Duration(days: 7));
+                                    final remaining = deadline.difference(DateTime.now()).inDays.clamp(0, 7);
+                                    return Text(
+                                      'Você tem $remaining ${remaining == 1 ? 'dia' : 'dias'} para reportar um problema',
+                                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                        color: remaining <= 1 ? Colors.red : Colors.orange,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    );
+                                  }
+                                  return Text(
+                                    'Disponível por 7 dias após o envio',
+                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                    ),
+                                  );
+                                }),
+                              ],
+                            ),
                             style: OutlinedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              padding: const EdgeInsets.symmetric(vertical: 10),
                               foregroundColor: theme.colorScheme.error,
                               side: BorderSide(color: theme.colorScheme.error.withAlpha(128)),
                             ),
@@ -567,6 +675,46 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
                     ),
                   ),
 
+                // Review prompt — shown for delivered, paid orders
+                if (order.isDeliveryConfirmed && order.paymentStatus == 'paid' && order.items.isNotEmpty)
+                  _OrderReviewSection(order: order),
+
+                // Cancel order button — only show for pending/pending_payment orders
+                if ((order.status == 'pending' || order.status == 'pending_payment') &&
+                    order.paymentStatus != 'paid')
+                  Padding(
+                    padding: const EdgeInsets.only(top: 16),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: _isCancelling
+                            ? null
+                            : () => _showCancelOrderDialog(
+                                  context,
+                                  ref,
+                                  order.id,
+                                  () => setState(() => _isCancelling = true),
+                                  () {
+                                    if (mounted) setState(() => _isCancelling = false);
+                                  },
+                                ),
+                        icon: _isCancelling
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.cancel_outlined),
+                        label: Text(_isCancelling ? 'Cancelando...' : 'Cancelar pedido'),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          foregroundColor: theme.colorScheme.error,
+                          side: BorderSide(color: theme.colorScheme.error.withAlpha(128)),
+                        ),
+                      ),
+                    ),
+                  ),
+
                 // Help button
                 const SizedBox(height: 12),
                 SizedBox(
@@ -593,6 +741,235 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
       ),
     );
   }
+}
+
+// ============================================================================
+// Order Review Section
+// ============================================================================
+
+class _OrderReviewSection extends ConsumerWidget {
+  final OrderModel order;
+
+  const _OrderReviewSection({required this.order});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final reviewedAsync = ref.watch(reviewedProductIdsProvider(order.id));
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.rate_review_outlined, size: 18, color: AppColors.primary),
+              const SizedBox(width: 6),
+              Text(
+                'Avaliar compra',
+                style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Container(
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainerLowest,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: theme.colorScheme.outlineVariant.withAlpha(80)),
+            ),
+            child: Column(
+              children: List.generate(order.items.length, (i) {
+                final item = order.items[i];
+                final reviewedIds = reviewedAsync.valueOrNull ?? {};
+                final alreadyReviewed = reviewedIds.contains(item.productId);
+
+                return Column(
+                  children: [
+                    if (i > 0) const Divider(height: 1, indent: 16, endIndent: 16),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      child: Row(
+                        children: [
+                          // Product image
+                          if (item.imageUrl != null)
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Image.network(
+                                item.imageUrl!,
+                                width: 44,
+                                height: 44,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => Container(
+                                  width: 44,
+                                  height: 44,
+                                  decoration: BoxDecoration(
+                                    color: theme.colorScheme.surfaceContainerHighest,
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: const Icon(Icons.image_outlined, size: 20),
+                                ),
+                              ),
+                            )
+                          else
+                            Container(
+                              width: 44,
+                              height: 44,
+                              decoration: BoxDecoration(
+                                color: theme.colorScheme.surfaceContainerHighest,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Icon(Icons.image_outlined, size: 20),
+                            ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              item.name,
+                              style: theme.textTheme.bodyMedium,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          // Review button or checkmark
+                          if (alreadyReviewed)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: Colors.green.withAlpha(20),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(color: Colors.green.withAlpha(60)),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.check_circle_outline, size: 14, color: Colors.green),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    'Avaliado',
+                                    style: theme.textTheme.labelSmall?.copyWith(
+                                      color: Colors.green.shade700,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )
+                          else
+                            TextButton(
+                              onPressed: () {
+                                ref.read(reviewSubmitProvider.notifier).reset();
+                                showSubmitReviewSheet(
+                                  context,
+                                  productId: item.productId,
+                                  tenantId: order.tenantId,
+                                  orderId: order.id,
+                                  productName: item.name,
+                                  productImageUrl: item.imageUrl,
+                                  onSuccess: () {
+                                    AppFeedback.showSuccess(
+                                      context,
+                                      'Avaliação enviada! Obrigado pelo feedback.',
+                                    );
+                                    ref.invalidate(reviewedProductIdsProvider(order.id));
+                                  },
+                                );
+                              },
+                              style: TextButton.styleFrom(
+                                foregroundColor: AppColors.primary,
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.star_outline_rounded, size: 16),
+                                  SizedBox(width: 4),
+                                  Text('Avaliar', style: TextStyle(fontWeight: FontWeight.w600)),
+                                ],
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                );
+              }),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+void _showCancelOrderDialog(
+  BuildContext context,
+  WidgetRef ref,
+  String orderId,
+  VoidCallback onCancelling,
+  VoidCallback onDone,
+) {
+  final controller = TextEditingController();
+
+  showDialog(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('Cancelar pedido'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Tem certeza que deseja cancelar este pedido? O pedido ainda não foi processado pelo vendedor.',
+            style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
+              color: Theme.of(ctx).colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: controller,
+            maxLines: 2,
+            maxLength: 200,
+            decoration: const InputDecoration(
+              hintText: 'Motivo do cancelamento (opcional)',
+              border: OutlineInputBorder(),
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(),
+          child: const Text('Voltar'),
+        ),
+        FilledButton(
+          onPressed: () async {
+            HapticFeedback.heavyImpact();
+            Navigator.of(ctx).pop();
+            onCancelling();
+            final success = await ref.read(ordersProvider.notifier).cancelOrder(
+              orderId,
+              reason: controller.text.trim().isEmpty ? null : controller.text.trim(),
+            );
+            onDone();
+            if (context.mounted) {
+              if (success) {
+                AppFeedback.showSuccess(context, 'Pedido cancelado com sucesso');
+                ref.invalidate(orderDetailProvider(orderId));
+              } else {
+                AppFeedback.showError(context, 'Erro ao cancelar pedido. Tente novamente.');
+              }
+            }
+          },
+          style: FilledButton.styleFrom(
+            backgroundColor: Theme.of(ctx).colorScheme.error,
+          ),
+          child: const Text('Confirmar cancelamento'),
+        ),
+      ],
+    ),
+  ).whenComplete(() => controller.dispose());
 }
 
 void _showDisputeDialog(BuildContext context, WidgetRef ref, String orderId) {
@@ -656,7 +1033,7 @@ void _showDisputeDialog(BuildContext context, WidgetRef ref, String orderId) {
         ),
       ],
     ),
-  );
+  ).whenComplete(() => controller.dispose());
 }
 
 class _SummaryRow extends StatelessWidget {
@@ -692,5 +1069,82 @@ class _SummaryRow extends StatelessWidget {
         ),
       ],
     );
+  }
+}
+
+/// Animated status chip for orders.
+///
+/// Active statuses (pending, confirmed, preparing, processing, shipped,
+/// out_for_delivery) pulse gently to draw attention.
+/// Terminal statuses (delivered, cancelled, refunded) are rendered statically.
+class OrderStatusChip extends StatelessWidget {
+  final OrderStatusInfo statusInfo;
+  final String status;
+
+  const OrderStatusChip({
+    super.key,
+    required this.statusInfo,
+    required this.status,
+  });
+
+  static const _activeStatuses = {
+    'pending',
+    'pending_payment',
+    'confirmed',
+    'preparing',
+    'processing',
+    'ready',
+    'shipped',
+    'out_for_delivery',
+  };
+
+  bool get _isActive => _activeStatuses.contains(status);
+
+  @override
+  Widget build(BuildContext context) {
+    final chip = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: statusInfo.backgroundColor,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: statusInfo.textColor.withAlpha(60),
+          width: 1,
+        ),
+      ),
+      child: Text(
+        statusInfo.label,
+        style: TextStyle(
+          color: statusInfo.textColor,
+          fontWeight: FontWeight.w600,
+          fontSize: 12,
+        ),
+      ),
+    );
+
+    if (!_isActive) return chip;
+
+    // Pulse the border/shadow by animating a wrapping container's box shadow opacity
+    return chip
+        .animate(onPlay: (c) => c.repeat(reverse: true))
+        .custom(
+          duration: 900.ms,
+          curve: Curves.easeInOut,
+          builder: (_, value, child) => Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(8),
+              boxShadow: [
+                BoxShadow(
+                  color: statusInfo.textColor.withAlpha(
+                    (40 * value).round(),
+                  ),
+                  blurRadius: 8 * value,
+                  spreadRadius: 1 * value,
+                ),
+              ],
+            ),
+            child: child,
+          ),
+        );
   }
 }

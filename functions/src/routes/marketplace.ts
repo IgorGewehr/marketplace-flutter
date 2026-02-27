@@ -543,6 +543,166 @@ router.get("/service-categories", async (req: Request, res: Response): Promise<v
 });
 
 // ============================================================================
+// Tenant / Seller Profile (Public)
+// ============================================================================
+
+/**
+ * GET /api/marketplace/tenants/:id
+ * Public endpoint to fetch a seller's profile by tenantId.
+ * Maps Firestore field names to what the Flutter TenantModel expects.
+ */
+router.get("/tenants/:id", async (req: Request, res: Response): Promise<void> => {
+  const tenantId = String(req.params.id);
+  if (!tenantId) {
+    res.status(400).json({ error: "ID do vendedor obrigatório" });
+    return;
+  }
+
+  try {
+    const db = admin.firestore();
+    const tenantDoc = await db.collection("tenants").doc(tenantId).get();
+
+    if (!tenantDoc.exists) {
+      res.status(404).json({ error: "Vendedor não encontrado" });
+      return;
+    }
+
+    const data = tenantDoc.data()!;
+
+    // Fetch owner user data to enrich fields missing from the tenant document
+    const ownerUserId = (data.ownerUserId || data.ownerId || "") as string;
+    let ownerData: admin.firestore.DocumentData | null = null;
+    if (ownerUserId) {
+      try {
+        const ownerDoc = await db.collection("users").doc(ownerUserId).get();
+        if (ownerDoc.exists) ownerData = ownerDoc.data()!;
+      } catch {
+        // Non-fatal — proceed without owner enrichment
+      }
+    }
+
+    // Name: prefer tenant tradeName/name, fall back to owner's displayName
+    const displayName =
+      (data.tradeName || data.name || "").trim() ||
+      (ownerData?.displayName as string | undefined || "").trim() ||
+      "Vendedor";
+
+    // Logo: prefer tenant logoURL, fall back to owner's photoURL
+    const logoURL =
+      data.logoURL || data.logoUrl || ownerData?.photoURL || null;
+
+    // Normalize marketplace stats — stored as marketplaceStats by become-seller
+    const stats = data.marketplaceStats || {};
+    const marketplace = {
+      isActive: true,
+      rating: stats.averageRating || data.marketplace?.rating || 0,
+      totalReviews: stats.totalReviews || data.marketplace?.totalReviews || 0,
+      totalSales: stats.totalOrders || data.marketplace?.totalSales || 0,
+      categories: data.categories || data.marketplace?.categories || [],
+      deliveryOptions: data.deliveryOptions || data.marketplace?.deliveryOptions || [],
+      paymentMethods: data.paymentMethods || data.marketplace?.paymentMethods || [],
+    };
+
+    // Normalize whatsapp — stored as either whatsapp or whatsappNumber
+    const whatsappEnabled = data.whatsappEnabled || false;
+    const whatsapp = whatsappEnabled
+      ? (data.whatsapp || data.whatsappNumber || null)
+      : null;
+
+    res.json(serializeTimestamps({
+      id: tenantDoc.id,
+      type: data.type || "seller",
+      name: displayName,
+      tradeName: data.tradeName || null,
+      logoURL,
+      coverURL: data.coverURL || data.coverUrl || null,
+      description: data.description || null,
+      // Do not expose sensitive fields (email, phone, documentNumber)
+      whatsapp,
+      address: data.address || null,
+      memberIds: data.memberIds || [],
+      ownerUserId,
+      isActive: data.isActive !== false,
+      isVerified: data.isVerified || false,
+      marketplace,
+      createdAt: data.createdAt,
+      updatedAt: data.updatedAt,
+    }));
+  } catch (error) {
+    functions.logger.error("Error fetching tenant by ID", { tenantId, error });
+    res.status(500).json({ error: "Erro ao buscar perfil do vendedor" });
+  }
+});
+
+// ============================================================================
+// Reviews (Public Read)
+// ============================================================================
+
+/**
+ * GET /api/marketplace/reviews
+ * Fetch reviews for a product or seller.
+ * Query params:
+ *   productId — reviews for a specific product
+ *   tenantId  — reviews for all products of a seller
+ *   page, limit
+ */
+router.get("/reviews", async (req: Request, res: Response): Promise<void> => {
+  const productId = req.query.productId ? String(req.query.productId) : undefined;
+  const tenantId = req.query.tenantId ? String(req.query.tenantId) : undefined;
+  const page = parseInt(String(req.query.page || "1"));
+  const limit = Math.min(parseInt(String(req.query.limit || "10")), 50);
+
+  if (!productId && !tenantId) {
+    res.status(400).json({ error: "productId ou tenantId são obrigatórios" });
+    return;
+  }
+
+  try {
+    const db = admin.firestore();
+    const offset = (page - 1) * limit;
+
+    let query: admin.firestore.Query = db.collection("reviews");
+
+    if (productId) {
+      query = query.where("productId", "==", productId);
+    } else {
+      query = query.where("tenantId", "==", tenantId!);
+    }
+
+    query = query.orderBy("createdAt", "desc");
+
+    // Fetch limit+1 to detect hasMore, over-fetch to account for hidden reviews
+    const snap = await query.offset(offset).limit(limit + 1).get();
+
+    const allReviews = snap.docs.map((doc) => ({
+      id: doc.id,
+      ...serializeTimestamps(doc.data()),
+    })) as Array<Record<string, unknown>>;
+
+    // Filter hidden reviews in code (avoids complex composite index)
+    const visibleReviews = allReviews.filter((r) => !r.isHidden);
+    const hasMore = visibleReviews.length > limit;
+    const reviews = visibleReviews.slice(0, limit);
+
+    // Compute rating summary
+    const ratingTotal = reviews.reduce((sum, r) => sum + Number(r.rating || 0), 0);
+    const averageRating = reviews.length > 0 ? Math.round((ratingTotal / reviews.length) * 10) / 10 : 0;
+
+    res.json({
+      reviews,
+      page,
+      limit,
+      hasMore,
+      averageRating,
+      totalReviews: reviews.length,
+    });
+  } catch (error) {
+    functions.logger.error("Error fetching reviews", error);
+    res.status(500).json({ error: "Erro ao buscar avaliações" });
+  }
+});
+
+// ============================================================================
 // Helpers
 // ============================================================================
 

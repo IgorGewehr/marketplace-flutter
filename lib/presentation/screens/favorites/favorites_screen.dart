@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/router/app_router.dart';
+import '../../../core/theme/app_colors.dart';
 import '../../providers/products_provider.dart';
 import '../../widgets/products/product_card.dart';
 import '../../widgets/shared/app_feedback.dart';
@@ -20,10 +22,9 @@ class FavoritesScreen extends ConsumerWidget {
     return Scaffold(
       backgroundColor: theme.colorScheme.surface,
       appBar: AppBar(
-        title: Text(
-          'Favoritos',
-          style: TextStyle(color: theme.colorScheme.onSurface),
-        ),
+        title: const Text('Favoritos'),
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
         centerTitle: false,
         actions: [
           // Clear all button
@@ -116,7 +117,10 @@ class FavoritesScreen extends ConsumerWidget {
               ),
               itemCount: products.length,
               itemBuilder: (context, index) {
-                return ProductCard(product: products[index]);
+                return ProductCard(product: products[index])
+                    .animate(delay: Duration(milliseconds: (index % 6) * 60))
+                    .fadeIn(duration: 300.ms, curve: Curves.easeOut)
+                    .slideY(begin: 0.08, end: 0, duration: 300.ms, curve: Curves.easeOut);
               },
             ),
           );

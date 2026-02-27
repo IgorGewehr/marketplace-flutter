@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../data/models/order_model.dart';
 import '../../providers/orders_provider.dart';
+import '../../screens/orders/order_details_screen.dart' show OrderStatusChip;
 
 /// Order tile widget for list display
 class OrderTile extends StatelessWidget {
@@ -70,20 +72,9 @@ class OrderTile extends StatelessWidget {
                     ],
                   ),
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: statusInfo.backgroundColor,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    statusInfo.label,
-                    style: TextStyle(
-                      color: statusInfo.textColor,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
+                OrderStatusChip(
+                  statusInfo: statusInfo,
+                  status: order.status,
                 ),
                 // F1: Delivery confirmation pending indicator
                 if (order.status == 'delivered' && !order.isDeliveryConfirmed) ...[
@@ -91,13 +82,13 @@ class OrderTile extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
-                      color: Colors.orange.withAlpha(25),
+                      color: AppColors.warning.withAlpha(25),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: const Text(
                       'Confirmar recebimento',
                       style: TextStyle(
-                        color: Colors.orange,
+                        color: AppColors.warning,
                         fontSize: 10,
                         fontWeight: FontWeight.w600,
                       ),

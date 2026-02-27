@@ -8,7 +8,7 @@ import '../../data/datasources/mp_card_tokenizer.dart';
 ///
 /// Usado tanto no checkout do buyer quanto na assinatura do seller.
 class CardPaymentForm extends StatefulWidget {
-  final void Function(String cardTokenId) onTokenized;
+  final void Function(String cardTokenId, {String? bin}) onTokenized;
   final bool isLoading;
 
   const CardPaymentForm({
@@ -77,18 +77,18 @@ class _CardPaymentFormState extends State<CardPaymentForm> {
       _documentController.clear();
 
       if (mounted) {
-        widget.onTokenized(result.tokenId);
+        widget.onTokenized(result.tokenId, bin: result.firstSixDigits);
       }
     } on PlatformException catch (e) {
-      // Clear sensitive data on failure too
-      _cardNumberController.clear();
+      // Only clear CVV on failure for security; keep card number so user can retry
       _cvvController.clear();
+      _holderNameController.clear();
       setState(() {
         _error = e.message ?? 'Erro ao processar cartão';
       });
     } catch (e) {
-      _cardNumberController.clear();
       _cvvController.clear();
+      _holderNameController.clear();
       setState(() {
         _error = 'Erro ao processar cartão. Verifique os dados e tente novamente.';
       });
@@ -135,6 +135,30 @@ class _CardPaymentFormState extends State<CardPaymentForm> {
           ),
           const SizedBox(height: 16),
 
+          // Error banner (above form fields so they remain visible)
+          if (_error != null) ...[
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.errorContainer,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.error_outline, color: theme.colorScheme.error),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _error!,
+                      style: TextStyle(color: theme.colorScheme.error),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
+
           // Card number
           TextFormField(
             controller: _cardNumberController,
@@ -149,6 +173,11 @@ class _CardPaymentFormState extends State<CardPaymentForm> {
               LengthLimitingTextInputFormatter(19),
               _CardNumberFormatter(),
             ],
+            onChanged: (_) {
+              if (_error != null) {
+                setState(() => _error = null);
+              }
+            },
             validator: (value) {
               final digits = value?.replaceAll(RegExp(r'\D'), '') ?? '';
               if (digits.length < 13 || digits.length > 19) {
@@ -261,29 +290,6 @@ class _CardPaymentFormState extends State<CardPaymentForm> {
               return null;
             },
           ),
-
-          if (_error != null) ...[
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.errorContainer,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.error_outline, color: theme.colorScheme.error),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      _error!,
-                      style: TextStyle(color: theme.colorScheme.error),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
 
           const SizedBox(height: 20),
 

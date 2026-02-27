@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/router/app_router.dart';
+import '../../../core/theme/app_colors.dart';
 
 /// Grid of quick access buttons (Favoritos, Promoções, Serviços, Categorias)
 class QuickAccessButtons extends StatelessWidget {
@@ -16,25 +17,25 @@ class QuickAccessButtons extends StatelessWidget {
         children: [
           _QuickButton(
             icon: Icons.favorite_rounded,
-            color: Colors.red.shade400,
+            color: AppColors.quickFavorites,
             label: 'Favoritos',
             onTap: () => context.push(AppRouter.favorites),
           ),
           _QuickButton(
             icon: Icons.percent_rounded,
-            color: Colors.orange.shade600,
+            color: AppColors.quickPromo,
             label: 'Promoções',
             onTap: () => context.push(AppRouter.search),
           ),
           _QuickButton(
             icon: Icons.build_rounded,
-            color: Colors.blue.shade600,
+            color: AppColors.quickServices,
             label: 'Serviços',
             onTap: () => context.push(AppRouter.services),
           ),
           _QuickButton(
             icon: Icons.grid_view_rounded,
-            color: Colors.purple.shade500,
+            color: AppColors.quickCategories,
             label: 'Categorias',
             onTap: () => context.push(AppRouter.categories),
           ),

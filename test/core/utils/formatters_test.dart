@@ -1,105 +1,110 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:nexmarket/core/utils/formatters.dart';
 
 void main() {
+  setUpAll(() async {
+    await initializeDateFormatting('pt_BR', null);
+  });
+
   group('Formatters', () {
-    group('formatCurrency', () {
+    group('currency', () {
       test('formats currency correctly', () {
-        expect(Formatters.formatCurrency(10.5), 'R\$ 10,50');
-        expect(Formatters.formatCurrency(1000), 'R\$ 1.000,00');
-        expect(Formatters.formatCurrency(1234.56), 'R\$ 1.234,56');
+        expect(Formatters.currency(10.5), 'R\$\u00A010,50');
+        expect(Formatters.currency(1000), 'R\$\u00A01.000,00');
+        expect(Formatters.currency(1234.56), 'R\$\u00A01.234,56');
       });
 
       test('handles zero', () {
-        expect(Formatters.formatCurrency(0), 'R\$ 0,00');
+        expect(Formatters.currency(0), 'R\$\u00A00,00');
       });
 
       test('handles negative numbers', () {
-        expect(Formatters.formatCurrency(-10.5), '-R\$ 10,50');
+        expect(Formatters.currency(-10.5), '-R\$\u00A010,50');
       });
     });
 
-    group('formatCPF', () {
+    group('cpf', () {
       test('formats CPF correctly', () {
-        expect(Formatters.formatCPF('11122233344'), '111.222.333-44');
+        expect(Formatters.cpf('11122233344'), '111.222.333-44');
       });
 
       test('handles already formatted CPF', () {
-        expect(Formatters.formatCPF('111.222.333-44'), '111.222.333-44');
+        expect(Formatters.cpf('111.222.333-44'), '111.222.333-44');
       });
 
       test('handles invalid length', () {
-        expect(Formatters.formatCPF('123'), '123');
+        expect(Formatters.cpf('123'), '123');
       });
     });
 
-    group('formatCNPJ', () {
+    group('cnpj', () {
       test('formats CNPJ correctly', () {
-        expect(Formatters.formatCNPJ('11222333000144'), '11.222.333/0001-44');
+        expect(Formatters.cnpj('11222333000144'), '11.222.333/0001-44');
       });
 
       test('handles already formatted CNPJ', () {
-        expect(Formatters.formatCNPJ('11.222.333/0001-44'), '11.222.333/0001-44');
+        expect(Formatters.cnpj('11.222.333/0001-44'), '11.222.333/0001-44');
       });
     });
 
-    group('formatPhone', () {
+    group('phone', () {
       test('formats phone with 9 digits', () {
-        expect(Formatters.formatPhone('11999999999'), '(11) 99999-9999');
+        expect(Formatters.phone('11999999999'), '(11) 99999-9999');
       });
 
       test('formats phone with 8 digits', () {
-        expect(Formatters.formatPhone('1133334444'), '(11) 3333-4444');
+        expect(Formatters.phone('1133334444'), '(11) 3333-4444');
       });
 
       test('handles already formatted phone', () {
-        expect(Formatters.formatPhone('(11) 99999-9999'), '(11) 99999-9999');
+        expect(Formatters.phone('(11) 99999-9999'), '(11) 99999-9999');
       });
     });
 
-    group('formatCEP', () {
+    group('cep', () {
       test('formats CEP correctly', () {
-        expect(Formatters.formatCEP('12345678'), '12345-678');
+        expect(Formatters.cep('12345678'), '12345-678');
       });
 
       test('handles already formatted CEP', () {
-        expect(Formatters.formatCEP('12345-678'), '12345-678');
+        expect(Formatters.cep('12345-678'), '12345-678');
       });
     });
 
-    group('formatDate', () {
+    group('date', () {
       test('formats date correctly', () {
         final date = DateTime(2024, 1, 15);
-        expect(Formatters.formatDate(date), '15/01/2024');
+        expect(Formatters.date(date), '15/01/2024');
       });
     });
 
-    group('formatDateTime', () {
+    group('dateTime', () {
       test('formats datetime correctly', () {
         final date = DateTime(2024, 1, 15, 14, 30);
-        expect(Formatters.formatDateTime(date), '15/01/2024 14:30');
+        expect(Formatters.dateTime(date), '15/01/2024 14:30');
       });
     });
 
-    group('formatRelativeTime', () {
-      test('returns "Agora" for very recent time', () {
+    group('relativeTime', () {
+      test('returns "agora" for very recent time', () {
         final now = DateTime.now();
-        expect(Formatters.formatRelativeTime(now), 'Agora');
+        expect(Formatters.relativeTime(now), 'agora');
       });
 
       test('returns minutes ago', () {
         final fiveMinutesAgo = DateTime.now().subtract(const Duration(minutes: 5));
-        expect(Formatters.formatRelativeTime(fiveMinutesAgo), '5 min atrás');
+        expect(Formatters.relativeTime(fiveMinutesAgo), 'há 5 minutos');
       });
 
       test('returns hours ago', () {
         final twoHoursAgo = DateTime.now().subtract(const Duration(hours: 2));
-        expect(Formatters.formatRelativeTime(twoHoursAgo), '2h atrás');
+        expect(Formatters.relativeTime(twoHoursAgo), 'há 2 horas');
       });
 
       test('returns days ago', () {
         final threeDaysAgo = DateTime.now().subtract(const Duration(days: 3));
-        expect(Formatters.formatRelativeTime(threeDaysAgo), '3d atrás');
+        expect(Formatters.relativeTime(threeDaysAgo), 'há 3 dias');
       });
     });
   });

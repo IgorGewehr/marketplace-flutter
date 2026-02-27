@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:dio/dio.dart';
 
 import '../../core/constants/api_constants.dart';
@@ -134,5 +135,30 @@ class ChatRepositoryImpl implements ChatRepository {
     );
 
     return ChatModel.fromJson(response);
+  }
+
+  @override
+  Future<void> reportChat(String chatId, String reason, {String? details}) async {
+    await _apiClient.post<void>(
+      ApiConstants.chatReport(chatId),
+      data: {
+        'reason': reason,
+        if (details != null && details.isNotEmpty) 'details': details,
+      },
+    );
+  }
+
+  @override
+  Future<void> updateTypingStatus(String chatId, String userId, bool isTyping) async {
+    final docRef = FirebaseFirestore.instance.collection('chats').doc(chatId);
+    if (isTyping) {
+      await docRef.update({
+        'typingUsers.$userId': DateTime.now().toIso8601String(),
+      });
+    } else {
+      await docRef.update({
+        'typingUsers.$userId': FieldValue.delete(),
+      });
+    }
   }
 }

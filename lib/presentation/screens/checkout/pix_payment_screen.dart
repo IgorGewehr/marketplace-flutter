@@ -4,8 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../../core/router/app_router.dart';
+import '../../../core/theme/app_colors.dart';
+import '../../../core/utils/formatters.dart';
 import '../../providers/checkout_provider.dart';
 import '../../widgets/shared/app_feedback.dart';
 import '../../widgets/shared/glass_container.dart';
@@ -22,6 +25,8 @@ class _PixPaymentScreenState extends ConsumerState<PixPaymentScreen> {
   Timer? _pollTimer;
   Timer? _countdownTimer;
   int _remainingSeconds = 900; // 15 minutes
+  int _totalSeconds = 900; // Used for circular progress denominator
+  bool _isExpired = false;
 
   @override
   void initState() {
@@ -32,6 +37,7 @@ class _PixPaymentScreenState extends ConsumerState<PixPaymentScreen> {
     if (expiration != null) {
       _remainingSeconds = expiration.difference(DateTime.now()).inSeconds.clamp(0, 1800);
     }
+    _totalSeconds = _remainingSeconds;
 
     // Gap #5: Check expiration before starting timers
     if (_remainingSeconds <= 0) {
@@ -43,6 +49,7 @@ class _PixPaymentScreenState extends ConsumerState<PixPaymentScreen> {
 
     // Poll for payment status every 5 seconds (only if not expired)
     _pollTimer = Timer.periodic(const Duration(seconds: 5), (_) async {
+      if (_isExpired) return;
       final paid = await ref.read(checkoutProvider.notifier).checkPixPayment();
       if (paid && mounted) {
         context.pushReplacement(AppRouter.orderSuccess);
@@ -53,6 +60,7 @@ class _PixPaymentScreenState extends ConsumerState<PixPaymentScreen> {
       if (_remainingSeconds > 0) {
         setState(() => _remainingSeconds--);
       } else {
+        _isExpired = true;
         _countdownTimer?.cancel();
         _pollTimer?.cancel();
         if (mounted) {
@@ -88,9 +96,11 @@ class _PixPaymentScreenState extends ConsumerState<PixPaymentScreen> {
               if (success && mounted) {
                 final expiration = ref.read(checkoutProvider).pixExpiration;
                 setState(() {
+                  _isExpired = false;
                   _remainingSeconds = expiration != null
                       ? expiration.difference(DateTime.now()).inSeconds.clamp(0, 1800)
                       : 900;
+                  _totalSeconds = _remainingSeconds;
                 });
 
                 // Restart countdown timer
@@ -136,6 +146,30 @@ class _PixPaymentScreenState extends ConsumerState<PixPaymentScreen> {
     return '${minutes.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
   }
 
+  Future<void> _showCancelDialog() async {
+    final leave = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Cancelar pagamento?'),
+        content: const Text('Se sair agora, o pagamento PIX será perdido.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Sair'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Continuar aqui'),
+          ),
+        ],
+      ),
+    );
+    if (leave == true && mounted) {
+      ref.read(checkoutProvider.notifier).reset();
+      context.go(AppRouter.home);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -146,57 +180,18 @@ class _PixPaymentScreenState extends ConsumerState<PixPaymentScreen> {
       canPop: false,
       onPopInvokedWithResult: (didPop, _) async {
         if (didPop) return;
-        final shouldLeave = await showDialog<bool>(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Cancelar pagamento?'),
-            content: const Text('Se sair agora, o pagamento PIX será perdido.'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Continuar aqui'),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('Sair'),
-              ),
-            ],
-          ),
-        );
-        if (shouldLeave == true && context.mounted) {
-          context.go(AppRouter.home);
-        }
+        await _showCancelDialog();
       },
       child: Scaffold(
       backgroundColor: theme.colorScheme.surface,
       appBar: AppBar(
         title: const Text('Pagamento PIX'),
-        backgroundColor: theme.colorScheme.surface,
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
         automaticallyImplyLeading: false,
         actions: [
           IconButton(
-            onPressed: () async {
-              final shouldLeave = await showDialog<bool>(
-                context: context,
-                builder: (context) => AlertDialog(
-                  title: const Text('Cancelar pagamento?'),
-                  content: const Text('Se sair agora, o pagamento PIX será perdido.'),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context, false),
-                      child: const Text('Continuar aqui'),
-                    ),
-                    FilledButton(
-                      onPressed: () => Navigator.pop(context, true),
-                      child: const Text('Sair'),
-                    ),
-                  ],
-                ),
-              );
-              if (shouldLeave == true && context.mounted) {
-                context.go(AppRouter.home);
-              }
-            },
+            onPressed: _showCancelDialog,
             icon: const Icon(Icons.close),
           ),
         ],
@@ -234,24 +229,60 @@ class _PixPaymentScreenState extends ConsumerState<PixPaymentScreen> {
                 color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
+            const SizedBox(height: 8),
+            if (checkoutState.createdOrder != null)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primaryContainer,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  Formatters.currency(checkoutState.createdOrder!.total),
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: theme.colorScheme.primary,
+                  ),
+                ),
+              ),
             const SizedBox(height: 24),
 
-            // Timer
-            GlassContainer(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-              borderRadius: BorderRadius.circular(30),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.access_time,
-                    size: 18,
-                    color: _remainingSeconds < 60
-                        ? theme.colorScheme.error
-                        : theme.colorScheme.primary,
+            // Timer with circular progress indicator
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(
+                  width: 36,
+                  height: 36,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      CircularProgressIndicator(
+                        value: _totalSeconds > 0
+                            ? _remainingSeconds / _totalSeconds
+                            : 0.0,
+                        strokeWidth: 3,
+                        color: _remainingSeconds < 60
+                            ? theme.colorScheme.error
+                            : AppColors.primary,
+                        backgroundColor: AppColors.primary.withAlpha(30),
+                      ),
+                      Icon(
+                        Icons.access_time,
+                        size: 16,
+                        color: _remainingSeconds < 60
+                            ? theme.colorScheme.error
+                            : AppColors.primary,
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 8),
-                  Text(
+                ),
+                const SizedBox(width: 10),
+                GlassContainer(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  borderRadius: BorderRadius.circular(30),
+                  child: Text(
                     'Expira em ${_formatTime(_remainingSeconds)}',
                     style: TextStyle(
                       fontWeight: FontWeight.w600,
@@ -260,26 +291,26 @@ class _PixPaymentScreenState extends ConsumerState<PixPaymentScreen> {
                           : theme.colorScheme.onSurface,
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
             const SizedBox(height: 32),
 
-            // QR Code placeholder (in real app, show actual QR)
+            // PIX QR Code — generated locally from the copia-e-cola string
             Container(
-              width: 220,
-              height: 220,
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: theme.colorScheme.outline.withAlpha(30)),
               ),
-              child: checkoutState.pixQrCode != null
-                  ? Image.network(
-                      checkoutState.pixQrCode!,
-                      fit: BoxFit.contain,
-                      errorBuilder: (_, __, ___) => _buildQrPlaceholder(theme),
+              child: checkoutState.pixCode != null
+                  ? QrImageView(
+                      data: checkoutState.pixCode!,
+                      version: QrVersions.auto,
+                      size: 220,
+                      backgroundColor: Colors.white,
+                      errorCorrectionLevel: QrErrorCorrectLevel.M,
                     )
                   : _buildQrPlaceholder(theme),
             ),
@@ -362,10 +393,27 @@ class _PixPaymentScreenState extends ConsumerState<PixPaymentScreen> {
 
   Widget _buildQrPlaceholder(ThemeData theme) {
     return Center(
-      child: Icon(
-        Icons.qr_code_2,
-        size: 150,
-        color: theme.colorScheme.primary.withAlpha(50),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.error_outline,
+            size: 48,
+            color: theme.colorScheme.error,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Código PIX indisponível',
+            style: TextStyle(color: theme.colorScheme.error),
+          ),
+          const SizedBox(height: 12),
+          TextButton.icon(
+            onPressed: () =>
+                ref.read(checkoutProvider.notifier).regeneratePix(),
+            icon: const Icon(Icons.refresh),
+            label: const Text('Gerar novo código'),
+          ),
+        ],
       ),
     );
   }

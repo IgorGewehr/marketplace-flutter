@@ -36,8 +36,8 @@ class ImageUploadService {
 
       // Validate file size before compression
       final fileSize = await imageFile.length();
-      if (fileSize > maxFileSizeBytes * 2) {
-        throw Exception('Imagem muito grande. Máximo: 10MB');
+      if (fileSize > maxFileSizeBytes) {
+        throw Exception('Imagem muito grande. Máximo: 5MB');
       }
 
       // Compress image before upload
@@ -72,6 +72,9 @@ class ImageUploadService {
       // Get download URL
       final downloadUrl = await snapshot.ref.getDownloadURL();
 
+      // Clean up temp compressed file
+      await _deleteTempCompressed(imageFile, compressedFile);
+
       return downloadUrl;
     } on FirebaseException catch (e) {
       throw Exception('Erro do Firebase: ${e.message}');
@@ -103,6 +106,7 @@ class ImageUploadService {
     _activeUploads.clear();
     final urls = <String>[];
     int failedCount = 0;
+    String? lastError;
 
     for (int i = 0; i < imageFiles.length; i++) {
       if (_isCancelled) break;
@@ -111,6 +115,7 @@ class ImageUploadService {
         urls.add(url);
         onProgress?.call(i + 1, imageFiles.length);
       } catch (e) {
+        lastError = e.toString().replaceAll('Exception: ', '');
         failedCount++;
         continue;
       }
@@ -118,9 +123,11 @@ class ImageUploadService {
 
     _activeUploads.clear();
 
-    // Gap #23: Warn if some images failed silently
-    if (failedCount > 0 && urls.isNotEmpty) {
-      throw Exception('$failedCount foto(s) não puderam ser enviadas');
+    if (failedCount > 0) {
+      if (urls.isEmpty) {
+        throw Exception(lastError ?? 'Nenhuma foto pôde ser enviada.');
+      }
+      throw Exception('$failedCount foto(s) não puderam ser enviadas. Último erro: $lastError');
     }
 
     return urls;
@@ -155,6 +162,18 @@ class ImageUploadService {
     }
   }
 
+  /// Delete a temporary compressed file if it is different from the original.
+  Future<void> _deleteTempCompressed(File original, File compressed) async {
+    if (original.path == compressed.path) return;
+    try {
+      if (await compressed.exists()) {
+        await compressed.delete();
+      }
+    } catch (_) {
+      // Ignore cleanup errors — not critical
+    }
+  }
+
   /// Upload a chat image with compression
   Future<String> uploadChatImage(File imageFile, String chatId) async {
     try {
@@ -182,7 +201,12 @@ class ImageUploadService {
 
       final uploadTask = ref.putFile(compressedFile, metadata);
       final snapshot = await uploadTask;
-      return await snapshot.ref.getDownloadURL();
+      final downloadUrl = await snapshot.ref.getDownloadURL();
+
+      // Clean up temp compressed file
+      await _deleteTempCompressed(imageFile, compressedFile);
+
+      return downloadUrl;
     } on FirebaseException catch (e) {
       throw Exception('Erro do Firebase: ${e.message}');
     } catch (e) {
@@ -216,7 +240,57 @@ class ImageUploadService {
 
       final uploadTask = ref.putFile(compressedFile, metadata);
       final snapshot = await uploadTask;
-      return await snapshot.ref.getDownloadURL();
+      final downloadUrl = await snapshot.ref.getDownloadURL();
+
+      // Clean up temp compressed file
+      await _deleteTempCompressed(imageFile, compressedFile);
+
+      return downloadUrl;
+    } on FirebaseException catch (e) {
+      throw Exception('Erro do Firebase: ${e.message}');
+    } catch (e) {
+      throw Exception('Erro ao fazer upload da imagem: $e');
+    }
+  }
+
+  /// Upload a tenant logo or cover image with compression.
+  /// [isCover] = true uploads as cover image, false as logo.
+  Future<String> uploadTenantImage(
+    File imageFile,
+    String tenantId, {
+    bool isCover = false,
+  }) async {
+    try {
+      _validateFileExtension(imageFile);
+
+      final fileSize = await imageFile.length();
+      if (fileSize > maxFileSizeBytes * 2) {
+        throw Exception('Imagem muito grande. Máximo: 10MB');
+      }
+
+      final compressedFile = await _compressImage(imageFile);
+
+      final type = isCover ? 'cover' : 'logo';
+      final fileName = '${type}_${_uuid.v4()}.jpg';
+      final filePath = 'tenants/$tenantId/$fileName';
+
+      final ref = _storage.ref().child(filePath);
+      final metadata = SettableMetadata(
+        contentType: 'image/jpeg',
+        customMetadata: {
+          'uploadedAt': DateTime.now().toIso8601String(),
+          'tenantId': tenantId,
+          'type': type,
+        },
+      );
+
+      final uploadTask = ref.putFile(compressedFile, metadata);
+      final snapshot = await uploadTask;
+      final downloadUrl = await snapshot.ref.getDownloadURL();
+
+      await _deleteTempCompressed(imageFile, compressedFile);
+
+      return downloadUrl;
     } on FirebaseException catch (e) {
       throw Exception('Erro do Firebase: ${e.message}');
     } catch (e) {

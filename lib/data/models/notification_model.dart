@@ -1,6 +1,8 @@
 /// Notification model matching SCHEMA.md
 library;
 
+import '../../core/utils/firestore_utils.dart';
+
 class NotificationModel {
   final String id;
   final String userId;
@@ -60,19 +62,11 @@ class NotificationModel {
       actionUrl: json['actionUrl'] as String?,
       data: json['data'] as Map<String, dynamic>?,
       isRead: json['isRead'] as bool? ?? false,
-      readAt: json['readAt'] != null
-          ? DateTime.parse(json['readAt'] as String)
-          : null,
+      readAt: parseFirestoreDate(json['readAt']),
       pushSent: json['pushSent'] as bool? ?? false,
-      pushSentAt: json['pushSentAt'] != null
-          ? DateTime.parse(json['pushSentAt'] as String)
-          : null,
-      createdAt: json['createdAt'] != null
-          ? DateTime.parse(json['createdAt'] as String)
-          : DateTime.now(),
-      updatedAt: json['updatedAt'] != null
-          ? DateTime.parse(json['updatedAt'] as String)
-          : DateTime.now(),
+      pushSentAt: parseFirestoreDate(json['pushSentAt']),
+      createdAt: parseFirestoreDate(json['createdAt']) ?? DateTime.now(),
+      updatedAt: parseFirestoreDate(json['updatedAt']) ?? DateTime.now(),
     );
   }
 

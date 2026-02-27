@@ -1,7 +1,6 @@
 import '../../core/constants/api_constants.dart';
 import '../../domain/repositories/notification_repository.dart';
 import '../datasources/api_client.dart';
-import '../models/notification_model.dart';
 
 /// Notification Repository Implementation
 class NotificationRepositoryImpl implements NotificationRepository {

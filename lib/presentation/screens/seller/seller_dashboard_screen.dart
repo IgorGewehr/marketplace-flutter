@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shimmer/shimmer.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_text_styles.dart';
 import '../../../core/utils/formatters.dart';
 import '../../providers/auth_providers.dart';
 import '../../providers/seller_mode_provider.dart';
 import '../../providers/seller_orders_provider.dart';
+import '../../providers/tenant_provider.dart';
 import '../../providers/wallet_provider.dart';
 import '../../widgets/shared/shimmer_loading.dart';
 import '../../widgets/seller/stat_card.dart';
@@ -36,33 +40,33 @@ class SellerDashboardScreen extends ConsumerWidget {
             // App Bar
             SliverAppBar(
               floating: true,
-              backgroundColor: AppColors.background,
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
               elevation: 0,
               title: Row(
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: AppColors.sellerAccent.withAlpha(20),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(
-                      Icons.storefront_rounded,
-                      color: AppColors.sellerAccent,
-                      size: 22,
-                    ),
+                  const Icon(
+                    Icons.storefront_rounded,
+                    color: Colors.white,
+                    size: 22,
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 10),
                   Builder(
                     builder: (context) {
                       final user = ref.watch(currentUserProvider).valueOrNull;
-                      final storeName = user?.displayName ?? 'Minha Loja';
+                      final tenantId = user?.tenantId;
+                      final tenantAsync = tenantId != null
+                          ? ref.watch(tenantByIdProvider(tenantId))
+                          : null;
+                      final tenant = tenantAsync?.valueOrNull;
+                      final storeName =
+                          tenant?.displayName ?? user?.displayName ?? 'Minha Loja';
                       return Text(
                         storeName,
-                        style: TextStyle(
+                        style: AppTextStyles.titleMedium.copyWith(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
-                          color: Theme.of(context).colorScheme.onSurface,
+                          color: Colors.white,
                         ),
                       );
                     },
@@ -70,6 +74,14 @@ class SellerDashboardScreen extends ConsumerWidget {
                 ],
               ),
               actions: [
+                IconButton(
+                  onPressed: () => context.push('/seller/edit-profile'),
+                  icon: const Icon(
+                    Icons.edit_outlined,
+                    color: Colors.white,
+                  ),
+                  tooltip: 'Editar perfil da loja',
+                ),
                 const SellerModeToggle(),
                 const SizedBox(width: 4),
                 IconButton(
@@ -77,9 +89,9 @@ class SellerDashboardScreen extends ConsumerWidget {
                     ref.read(sellerModeProvider.notifier).setMode(false);
                     context.go('/');
                   },
-                  icon: Icon(
+                  icon: const Icon(
                     Icons.shopping_bag_outlined,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    color: Colors.white,
                   ),
                   tooltip: 'Voltar para compras',
                 ),
@@ -95,48 +107,42 @@ class SellerDashboardScreen extends ConsumerWidget {
                   // Balance Card
                   walletAsync.when(
                     data: (wallet) => BalanceStatCard(
-                      label: 'Saldo disponível',
-                      value: _formatPrice(wallet?.balance.available ?? 0),
+                      label: 'Total ganho',
+                      value: _formatPrice(
+                          (wallet?.balance.available ?? 0) +
+                              (wallet?.balance.pending ?? 0)),
                       icon: Icons.account_balance_wallet_rounded,
                       accentColor: AppColors.secondary,
-                      actionLabel: 'Sacar',
+                      actionLabel: 'Ver carteira',
                       onTap: () => context.push('/seller/wallet'),
-                    ),
-                    loading: () => const BalanceStatCard(
-                      label: 'Saldo disponível',
-                      value: 'R\$ 0,00',
-                      icon: Icons.account_balance_wallet_rounded,
-                      isLoading: true,
-                    ),
-                    error: (_, __) => const BalanceStatCard(
-                      label: 'Saldo disponível',
+                    ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.08, curve: Curves.easeOut),
+                    loading: () => const _DashboardBalanceShimmer(),
+                    error: (_, __) => BalanceStatCard(
+                      label: 'Total ganho',
                       value: 'Erro',
                       icon: Icons.account_balance_wallet_rounded,
+                      onTap: () => ref.invalidate(walletProvider),
+                      actionLabel: 'Tentar novamente',
                     ),
                   ),
                   const SizedBox(height: 16),
-                  
+
                   // Stats Row
                   Row(
                     children: [
                       Expanded(
                         child: walletAsync.when(
                           data: (wallet) => StatCard(
-                            icon: Icons.trending_up_rounded,
-                            label: 'Saldo total',
-                            value: _formatPrice(wallet?.balance.total ?? 0),
-                            accentColor: AppColors.sellerAccent,
+                            icon: Icons.schedule_rounded,
+                            label: 'Aguardando entrega',
+                            value: _formatPrice(wallet?.balance.pending ?? 0),
+                            accentColor: AppColors.warning,
                             onTap: () => context.push('/seller/wallet'),
-                          ),
-                          loading: () => const StatCard(
-                            icon: Icons.trending_up_rounded,
-                            label: 'Saldo total',
-                            value: 'R\$ 0,00',
-                            isLoading: true,
-                          ),
+                          ).animate().fadeIn(delay: 100.ms, duration: 400.ms).slideY(begin: 0.08, curve: Curves.easeOut),
+                          loading: () => const _DashboardStatShimmer(),
                           error: (_, __) => const StatCard(
-                            icon: Icons.trending_up_rounded,
-                            label: 'Saldo total',
+                            icon: Icons.schedule_rounded,
+                            label: 'Aguardando entrega',
                             value: '-',
                           ),
                         ),
@@ -151,7 +157,7 @@ class SellerDashboardScreen extends ConsumerWidget {
                               ? AppColors.warning
                               : AppColors.textHint,
                           onTap: () => context.push('/seller/orders'),
-                        ),
+                        ).animate().fadeIn(delay: 200.ms, duration: 400.ms).slideY(begin: 0.08, curve: Curves.easeOut),
                       ),
                     ],
                   ),
@@ -291,11 +297,24 @@ class SellerDashboardScreen extends ConsumerWidget {
                   ),
                 ),
               ),
-              error: (_, __) => const SliverPadding(
-                padding: EdgeInsets.all(32),
+              error: (error, _) => SliverPadding(
+                padding: const EdgeInsets.all(32),
                 sliver: SliverToBoxAdapter(
                   child: Center(
-                    child: Text('Erro ao carregar pedidos'),
+                    child: Column(
+                      children: [
+                        const Text(
+                          'Erro ao carregar pedidos',
+                          style: TextStyle(color: AppColors.textSecondary),
+                        ),
+                        const SizedBox(height: 12),
+                        TextButton.icon(
+                          onPressed: () => ref.invalidate(sellerOrdersProvider),
+                          icon: const Icon(Icons.refresh),
+                          label: const Text('Tentar novamente'),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -311,5 +330,113 @@ class SellerDashboardScreen extends ConsumerWidget {
 
   String _formatPrice(double price) {
     return Formatters.currency(price);
+  }
+}
+
+/// Shimmer placeholder for the large balance card on the dashboard
+class _DashboardBalanceShimmer extends StatelessWidget {
+  const _DashboardBalanceShimmer();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Shimmer.fromColors(
+      baseColor: theme.colorScheme.surfaceContainerHighest,
+      highlightColor: theme.colorScheme.surface,
+      child: Container(
+        width: double.infinity,
+        height: 120,
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surface,
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              width: 100,
+              height: 12,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surface,
+                borderRadius: BorderRadius.circular(6),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Container(
+              width: 160,
+              height: 24,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surface,
+                borderRadius: BorderRadius.circular(6),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Shimmer placeholder for the small stat cards on the dashboard
+class _DashboardStatShimmer extends StatelessWidget {
+  const _DashboardStatShimmer();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Shimmer.fromColors(
+      baseColor: theme.colorScheme.surfaceContainerHighest,
+      highlightColor: theme.colorScheme.surface,
+      child: Container(
+        width: double.infinity,
+        height: 90,
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 24,
+              height: 24,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surface,
+                borderRadius: BorderRadius.circular(6),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Container(
+              width: 80,
+              height: 10,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surface,
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Container(
+              width: 60,
+              height: 16,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surface,
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

@@ -6,7 +6,7 @@ void main() {
     test('fromJson creates buyer user', () {
       final json = {
         'id': 'user_123',
-        'userType': 'buyer',
+        'type': 'buyer',
         'email': 'buyer@example.com',
         'displayName': 'Test Buyer',
         'photoURL': 'https://example.com/photo.jpg',
@@ -20,7 +20,7 @@ void main() {
       final user = UserModel.fromJson(json);
 
       expect(user.id, 'user_123');
-      expect(user.userType, 'buyer');
+      expect(user.type, 'buyer');
       expect(user.email, 'buyer@example.com');
       expect(user.isBuyer, true);
       expect(user.isSeller, false);
@@ -30,7 +30,7 @@ void main() {
     test('fromJson creates seller user', () {
       final json = {
         'id': 'user_123',
-        'userType': 'seller',
+        'type': 'seller',
         'email': 'seller@example.com',
         'displayName': 'Test Seller',
         'photoURL': null,
@@ -43,7 +43,7 @@ void main() {
 
       final user = UserModel.fromJson(json);
 
-      expect(user.userType, 'seller');
+      expect(user.type, 'seller');
       expect(user.isSeller, true);
       expect(user.isBuyer, false);
       expect(user.tenantId, 'tenant_123');
@@ -53,7 +53,7 @@ void main() {
     test('isBuyer returns true for buyer userType', () {
       final user = UserModel.fromJson({
         'id': 'user_123',
-        'userType': 'buyer',
+        'type': 'buyer',
         'email': 'test@example.com',
         'displayName': 'Test',
         'createdAt': '2024-01-01T00:00:00.000Z',
@@ -66,7 +66,7 @@ void main() {
     test('isSeller returns true for seller types', () {
       final seller = UserModel.fromJson({
         'id': 'user_123',
-        'userType': 'seller',
+        'type': 'seller',
         'email': 'test@example.com',
         'displayName': 'Test',
         'tenantId': 'tenant_123',
@@ -77,7 +77,7 @@ void main() {
 
       final full = UserModel.fromJson({
         'id': 'user_124',
-        'userType': 'full',
+        'type': 'full',
         'email': 'test2@example.com',
         'displayName': 'Test 2',
         'tenantId': 'tenant_124',
@@ -93,7 +93,7 @@ void main() {
     test('copyWith creates new instance with updated values', () {
       final user = UserModel.fromJson({
         'id': 'user_123',
-        'userType': 'buyer',
+        'type': 'buyer',
         'email': 'test@example.com',
         'displayName': 'Test',
         'createdAt': '2024-01-01T00:00:00.000Z',

@@ -1,9 +1,13 @@
+import 'dart:math';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/models/category_model.dart';
 import '../../data/models/product_model.dart';
 import '../../data/models/promo_banner_model.dart';
+import 'auth_providers.dart';
 import 'core_providers.dart';
+import 'follows_provider.dart';
 
 const _defaultCategories = [
   'Veículos',
@@ -17,6 +21,7 @@ const _defaultCategories = [
   'Esportes',
   'Livros',
   'Brinquedos',
+  'Serviços',
   'Outros',
 ];
 
@@ -74,6 +79,7 @@ class ProductFilters {
   final int page;
   final int limit;
   final List<String>? tags;
+  final bool followedOnly;
 
   const ProductFilters({
     this.query,
@@ -84,6 +90,7 @@ class ProductFilters {
     this.page = 1,
     this.limit = 20,
     this.tags,
+    this.followedOnly = false,
   });
 
   ProductFilters copyWith({
@@ -95,6 +102,7 @@ class ProductFilters {
     int? page,
     int? limit,
     List<String>? tags,
+    bool? followedOnly,
   }) {
     return ProductFilters(
       query: query ?? this.query,
@@ -105,6 +113,7 @@ class ProductFilters {
       page: page ?? this.page,
       limit: limit ?? this.limit,
       tags: tags ?? this.tags,
+      followedOnly: followedOnly ?? this.followedOnly,
     );
   }
 
@@ -115,6 +124,7 @@ class ProductFilters {
     if (maxPrice != null) count++;
     if (sortBy != 'recent') count++;
     if (tags != null && tags!.isNotEmpty) count++;
+    if (followedOnly) count++;
     return count;
   }
 
@@ -160,12 +170,14 @@ class PaginatedProductsState {
   final bool isLoading;
   final bool hasMore;
   final int currentPage;
+  final Object? error;
 
   const PaginatedProductsState({
     this.products = const [],
     this.isLoading = false,
     this.hasMore = true,
     this.currentPage = 1,
+    this.error,
   });
 
   PaginatedProductsState copyWith({
@@ -173,12 +185,14 @@ class PaginatedProductsState {
     bool? isLoading,
     bool? hasMore,
     int? currentPage,
+    Object? error,
   }) {
     return PaginatedProductsState(
       products: products ?? this.products,
       isLoading: isLoading ?? this.isLoading,
       hasMore: hasMore ?? this.hasMore,
       currentPage: currentPage ?? this.currentPage,
+      error: error,
     );
   }
 }
@@ -191,7 +205,7 @@ class PaginatedProductsNotifier extends StateNotifier<PaginatedProductsState> {
   }
 
   Future<void> loadInitial() async {
-    state = state.copyWith(isLoading: true, currentPage: 1);
+    state = state.copyWith(isLoading: true, currentPage: 1, error: null);
     try {
       final repo = _ref.read(productRepositoryProvider);
       final response = await repo.getProducts(page: 1, limit: 20, sortBy: 'recent');
@@ -200,8 +214,8 @@ class PaginatedProductsNotifier extends StateNotifier<PaginatedProductsState> {
         hasMore: response.hasMore,
         currentPage: 1,
       );
-    } catch (_) {
-      state = state.copyWith(isLoading: false);
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: e);
     }
   }
 
@@ -229,20 +243,148 @@ class PaginatedProductsNotifier extends StateNotifier<PaginatedProductsState> {
   }
 }
 
-/// Products with filters provider
-final filteredProductsProvider = FutureProvider<List<ProductModel>>((ref) async {
-  final filters = ref.watch(productFiltersProvider);
-  final repository = ref.read(productRepositoryProvider);
-  final response = await repository.getProducts(
-    page: filters.page,
-    limit: filters.limit,
-    search: filters.query,
-    categoryId: filters.category,
-    minPrice: filters.minPrice,
-    maxPrice: filters.maxPrice,
-    sortBy: filters.sortBy,
-  );
-  return response.products;
+/// Paginated search/filter state
+class FilteredProductsState {
+  final List<ProductModel> products;
+  final bool isLoading;
+  final bool isLoadingMore;
+  final bool hasMore;
+  final int currentPage;
+  final Object? error;
+
+  const FilteredProductsState({
+    this.products = const [],
+    this.isLoading = false,
+    this.isLoadingMore = false,
+    this.hasMore = true,
+    this.currentPage = 1,
+    this.error,
+  });
+
+  FilteredProductsState copyWith({
+    List<ProductModel>? products,
+    bool? isLoading,
+    bool? isLoadingMore,
+    bool? hasMore,
+    int? currentPage,
+    Object? error,
+  }) {
+    return FilteredProductsState(
+      products: products ?? this.products,
+      isLoading: isLoading ?? this.isLoading,
+      isLoadingMore: isLoadingMore ?? this.isLoadingMore,
+      hasMore: hasMore ?? this.hasMore,
+      currentPage: currentPage ?? this.currentPage,
+      error: error,
+    );
+  }
+}
+
+class FilteredProductsNotifier extends StateNotifier<FilteredProductsState> {
+  final Ref _ref;
+  static const int _pageSize = 20;
+
+  FilteredProductsNotifier(this._ref) : super(const FilteredProductsState()) {
+    _load();
+  }
+
+  Future<void> _load() async {
+    state = state.copyWith(isLoading: true, error: null);
+    try {
+      final filters = _ref.read(productFiltersProvider);
+      final repository = _ref.read(productRepositoryProvider);
+
+      if (filters.followedOnly) {
+        // Fetch products from every followed seller and combine
+        final followedIds = _ref.read(followsProvider);
+        if (followedIds.isEmpty) {
+          state = const FilteredProductsState(products: [], hasMore: false, currentPage: 1);
+          return;
+        }
+        final results = <ProductModel>[];
+        await Future.wait(
+          followedIds.map((tenantId) async {
+            try {
+              final response = await repository.getProducts(
+                tenantId: tenantId,
+                page: 1,
+                limit: _pageSize,
+                search: filters.query,
+                sortBy: filters.sortBy,
+              );
+              results.addAll(response.products);
+            } catch (_) {}
+          }),
+        );
+        state = FilteredProductsState(
+          products: results,
+          hasMore: false,
+          currentPage: 1,
+        );
+        return;
+      }
+
+      final response = await repository.getProducts(
+        page: 1,
+        limit: _pageSize,
+        search: filters.query,
+        categoryId: filters.category,
+        minPrice: filters.minPrice,
+        maxPrice: filters.maxPrice,
+        sortBy: filters.sortBy,
+      );
+      state = FilteredProductsState(
+        products: response.products,
+        hasMore: response.hasMore,
+        currentPage: 1,
+      );
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: e);
+    }
+  }
+
+  Future<void> loadMore() async {
+    if (state.isLoadingMore || !state.hasMore) return;
+    // followedOnly loads everything in one shot — no pagination
+    if (_ref.read(productFiltersProvider).followedOnly) return;
+    state = state.copyWith(isLoadingMore: true);
+    try {
+      final nextPage = state.currentPage + 1;
+      final filters = _ref.read(productFiltersProvider);
+      final repository = _ref.read(productRepositoryProvider);
+      final response = await repository.getProducts(
+        page: nextPage,
+        limit: _pageSize,
+        search: filters.query,
+        categoryId: filters.category,
+        minPrice: filters.minPrice,
+        maxPrice: filters.maxPrice,
+        sortBy: filters.sortBy,
+      );
+      state = state.copyWith(
+        products: [...state.products, ...response.products],
+        hasMore: response.hasMore,
+        currentPage: nextPage,
+        isLoadingMore: false,
+      );
+    } catch (_) {
+      state = state.copyWith(isLoadingMore: false);
+    }
+  }
+
+  Future<void> refresh() async {
+    await _load();
+  }
+}
+
+/// Products with filters provider (paginated)
+final filteredProductsProvider =
+    StateNotifierProvider<FilteredProductsNotifier, FilteredProductsState>((ref) {
+  final notifier = FilteredProductsNotifier(ref);
+  ref.listen(productFiltersProvider, (_, __) {
+    notifier.refresh();
+  });
+  return notifier;
 });
 
 /// Products by category provider - for carousel display
@@ -265,6 +407,28 @@ final productsByCategoryProvider = FutureProvider.family<List<ProductModel>, Str
     }
   },
 );
+
+/// Products from followed sellers — used in the home screen carousel.
+/// Automatically refreshes when followsProvider changes (follow/unfollow).
+final followedSellersProductsProvider = FutureProvider<List<ProductModel>>((ref) async {
+  final followedIds = ref.watch(followsProvider);
+  if (followedIds.isEmpty) return [];
+
+  final repository = ref.read(productRepositoryProvider);
+  final results = <ProductModel>[];
+
+  // Fetch up to 5 products per seller, capped at the first 6 sellers
+  await Future.wait(
+    followedIds.take(6).map((tenantId) async {
+      try {
+        final response = await repository.getProducts(tenantId: tenantId, limit: 5);
+        results.addAll(response.products);
+      } catch (_) {}
+    }),
+  );
+
+  return results;
+});
 
 /// Seller products provider - fetches products for a specific seller
 final sellerProductsProvider = FutureProvider.family<List<ProductModel>, String>(
@@ -341,19 +505,33 @@ class FavoritesNotifier extends StateNotifier<Set<String>> {
     _loadFavorites();
   }
 
-  void _loadFavorites() {
+  Future<void> _loadFavorites() async {
     try {
       final storage = _ref.read(localStorageProvider);
       final localFavorites = storage.loadFavoriteIds();
-      if (localFavorites.isNotEmpty) {
-        state = localFavorites;
+
+      // Merge with server favorites when user is authenticated
+      final user = _ref.read(currentUserProvider).valueOrNull;
+      final Set<String> loaded;
+      if (user != null && user.favoriteProductIds.isNotEmpty) {
+        loaded = {...localFavorites, ...user.favoriteProductIds};
+        await storage.saveFavoriteIds(loaded);
+      } else if (localFavorites.isNotEmpty) {
+        loaded = localFavorites;
+      } else {
+        loaded = {};
       }
+
+      // A6: Merge with current state to preserve any toggles that happened
+      // while this async load was in flight.
+      state = state.union(loaded);
     } catch (_) {
       // Silent fail, start with empty favorites
     }
   }
 
   Future<void> toggleFavorite(String productId) async {
+    final previousState = {...state};
     final newState = {...state};
 
     if (newState.contains(productId)) {
@@ -362,8 +540,19 @@ class FavoritesNotifier extends StateNotifier<Set<String>> {
       newState.add(productId);
     }
 
+    // Optimistic update: persist locally immediately (offline-first)
     state = newState;
     await _ref.read(localStorageProvider).saveFavoriteIds(newState);
+
+    // Sync to server — revert on failure
+    try {
+      final authRepo = _ref.read(authRepositoryProvider);
+      await authRepo.updateFavorites(newState.toList());
+    } catch (_) {
+      // Server sync failed — revert to previous state
+      state = previousState;
+      await _ref.read(localStorageProvider).saveFavoriteIds(previousState);
+    }
   }
 
   bool isFavorite(String productId) => state.contains(productId);
@@ -375,7 +564,7 @@ class FavoritesNotifier extends StateNotifier<Set<String>> {
 }
 
 /// Provider for favorite products list (actual product data).
-/// Serves from local cache first, then refreshes from API.
+/// Serves from local cache first, then refreshes from API in batches of 5.
 final favoriteProductsProvider = FutureProvider<List<ProductModel>>((ref) async {
   final favoriteIds = ref.watch(favoriteProductIdsProvider);
   if (favoriteIds.isEmpty) return [];
@@ -389,22 +578,27 @@ final favoriteProductsProvider = FutureProvider<List<ProductModel>>((ref) async 
       .map((json) => ProductModel.fromJson(json))
       .toList();
 
-  // 2. Try to refresh from API
+  // 2. M9: Refresh from API in sequential batches of 5 (cap at 20 total)
   try {
-    final results = await Future.wait(
-      favoriteIds.map((id) async {
-        try {
-          final product = await repository.getById(id);
-          // Update cache with fresh data
-          storage.cacheProduct(id, product.toJson());
-          return product;
-        } catch (_) {
-          return null;
-        }
-      }),
-    );
+    final ids = favoriteIds.take(20).toList();
+    final freshProducts = <ProductModel>[];
 
-    final freshProducts = results.whereType<ProductModel>().toList();
+    for (var i = 0; i < ids.length; i += 5) {
+      final chunk = ids.sublist(i, min(i + 5, ids.length));
+      final batchResults = await Future.wait(
+        chunk.map((id) async {
+          try {
+            final product = await repository.getById(id);
+            storage.cacheProduct(id, product.toJson());
+            return product;
+          } catch (_) {
+            return null;
+          }
+        }),
+      );
+      freshProducts.addAll(batchResults.whereType<ProductModel>());
+    }
+
     return freshProducts.isNotEmpty ? freshProducts : cachedProducts;
   } catch (_) {
     // Offline - return cached data
@@ -423,12 +617,9 @@ final promoBannersProvider = FutureProvider<List<PromoBanner>>((ref) async {
   try {
     final apiClient = ref.read(apiClientProvider);
     final response = await apiClient.get<List<dynamic>>('/api/marketplace/banners');
-    if (response is List) {
-      return (response as List<dynamic>)
-          .map((b) => PromoBanner.fromJson(b as Map<String, dynamic>))
-          .toList();
-    }
-    return [];
+    return response
+        .map((b) => PromoBanner.fromJson(b as Map<String, dynamic>))
+        .toList();
   } catch (e) {
     // Fallback: hide carousel if API fails
     return [];

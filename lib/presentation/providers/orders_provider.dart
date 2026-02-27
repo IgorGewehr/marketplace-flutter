@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -41,6 +42,7 @@ class OrdersState {
   final bool hasMore;
   final String? error;
   final OrderFilter filter;
+  final String? lastActionError;
 
   const OrdersState({
     this.orders = const [],
@@ -49,6 +51,7 @@ class OrdersState {
     this.hasMore = true,
     this.error,
     this.filter = OrderFilter.all,
+    this.lastActionError,
   });
 
   OrdersState copyWith({
@@ -58,6 +61,7 @@ class OrdersState {
     bool? hasMore,
     String? error,
     OrderFilter? filter,
+    String? lastActionError,
   }) {
     return OrdersState(
       orders: orders ?? this.orders,
@@ -66,6 +70,7 @@ class OrdersState {
       hasMore: hasMore ?? this.hasMore,
       error: error,
       filter: filter ?? this.filter,
+      lastActionError: lastActionError,
     );
   }
 
@@ -74,7 +79,14 @@ class OrdersState {
     return orders.where((order) {
       switch (filter) {
         case OrderFilter.pending:
-          return order.status == 'pending_payment' || order.status == 'pending';
+          return order.status == 'pending_payment' ||
+              order.status == 'pending' ||
+              order.status == 'confirmed' ||
+              order.status == 'processing' ||
+              order.status == 'preparing' ||
+              order.status == 'ready' ||
+              order.status == 'shipped' ||
+              order.status == 'out_for_delivery';
         case OrderFilter.processing:
           return order.status == 'processing' || order.status == 'preparing';
         case OrderFilter.shipped:
@@ -147,22 +159,64 @@ class OrdersNotifier extends AsyncNotifier<OrdersState> {
 
   Future<bool> confirmDelivery(String orderId) async {
     try {
+      // Clear previous action error
+      final current = state.valueOrNull;
+      if (current != null) {
+        state = AsyncValue.data(current.copyWith(lastActionError: null));
+      }
       final orderRepo = ref.read(orderRepositoryProvider);
       await orderRepo.confirmDelivery(orderId);
       await refresh();
       return true;
-    } catch (_) {
+    } catch (e) {
+      final current = state.valueOrNull;
+      if (current != null) {
+        state = AsyncValue.data(current.copyWith(
+          lastActionError: 'Erro ao confirmar entrega: ${e.toString()}',
+        ));
+      }
       return false;
     }
   }
 
   Future<bool> disputeOrder(String orderId, {required String reason}) async {
     try {
+      final current = state.valueOrNull;
+      if (current != null) {
+        state = AsyncValue.data(current.copyWith(lastActionError: null));
+      }
       final orderRepo = ref.read(orderRepositoryProvider);
       await orderRepo.disputeOrder(orderId, reason: reason);
       await refresh();
       return true;
-    } catch (_) {
+    } catch (e) {
+      final current = state.valueOrNull;
+      if (current != null) {
+        state = AsyncValue.data(current.copyWith(
+          lastActionError: 'Erro ao abrir disputa: ${e.toString()}',
+        ));
+      }
+      return false;
+    }
+  }
+
+  Future<bool> cancelOrder(String orderId, {String? reason}) async {
+    try {
+      final current = state.valueOrNull;
+      if (current != null) {
+        state = AsyncValue.data(current.copyWith(lastActionError: null));
+      }
+      final orderRepo = ref.read(orderRepositoryProvider);
+      await orderRepo.cancel(orderId, reason: reason);
+      await refresh();
+      return true;
+    } catch (e) {
+      final current = state.valueOrNull;
+      if (current != null) {
+        state = AsyncValue.data(current.copyWith(
+          lastActionError: 'Erro ao cancelar pedido: ${e.toString()}',
+        ));
+      }
       return false;
     }
   }
@@ -241,7 +295,10 @@ class OrderStatusInfo {
 OrderStatusInfo getOrderStatusInfo(String statusString) {
   final status = OrderStatus.values.firstWhere(
     (e) => e.name == statusString || e.name == statusString.toLowerCase(),
-    orElse: () => OrderStatus.pending,
+    orElse: () {
+      debugPrint('[OrderStatus] Status desconhecido recebido: "$statusString"');
+      return OrderStatus.pending;
+    },
   );
   
   return switch (status) {

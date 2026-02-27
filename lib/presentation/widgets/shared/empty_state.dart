@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 
 /// Empty state placeholder for lists
 class EmptyState extends StatelessWidget {
@@ -88,7 +89,19 @@ class EmptyState extends StatelessWidget {
                 size: 48,
                 color: theme.colorScheme.primary.withAlpha(180),
               ),
-            ),
+            )
+                .animate(onPlay: (c) => c.repeat(count: 3, reverse: true))
+                .scaleXY(
+                  begin: 1.0,
+                  end: 1.06,
+                  duration: 1800.ms,
+                  curve: Curves.easeInOut,
+                )
+                .then()
+                .shimmer(
+                  duration: 1200.ms,
+                  color: theme.colorScheme.primary.withAlpha(40),
+                ),
             const SizedBox(height: 24),
             Text(
               title,
@@ -96,7 +109,10 @@ class EmptyState extends StatelessWidget {
                 fontWeight: FontWeight.w600,
               ),
               textAlign: TextAlign.center,
-            ),
+            )
+                .animate()
+                .fadeIn(delay: 200.ms, duration: 400.ms)
+                .slideY(begin: 0.1, end: 0, delay: 200.ms, duration: 400.ms),
             if (subtitle != null) ...[
               const SizedBox(height: 8),
               Text(
@@ -105,14 +121,20 @@ class EmptyState extends StatelessWidget {
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
                 textAlign: TextAlign.center,
-              ),
+              )
+                  .animate()
+                  .fadeIn(delay: 350.ms, duration: 400.ms)
+                  .slideY(begin: 0.1, end: 0, delay: 350.ms, duration: 400.ms),
             ],
             if (actionLabel != null && onAction != null) ...[
               const SizedBox(height: 24),
               FilledButton(
                 onPressed: onAction,
                 child: Text(actionLabel!),
-              ),
+              )
+                  .animate()
+                  .fadeIn(delay: 500.ms, duration: 400.ms)
+                  .scaleXY(begin: 0.9, end: 1.0, delay: 500.ms, duration: 400.ms),
             ],
           ],
         ),

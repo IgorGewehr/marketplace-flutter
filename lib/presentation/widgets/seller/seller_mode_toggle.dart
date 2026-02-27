@@ -7,7 +7,6 @@ import '../../../core/theme/app_colors.dart';
 import '../../providers/mercadopago_provider.dart';
 import '../../providers/seller_mode_provider.dart';
 import '../../providers/auth_providers.dart';
-import '../shared/app_feedback.dart';
 
 /// Animated toggle switch for buyer ↔ seller mode
 /// Shows in app bar when user is a seller
@@ -31,28 +30,36 @@ class SellerModeToggle extends ConsumerWidget {
           : 'Modo Comprador ativo, toque para mudar para Vendedor',
       button: true,
       child: GestureDetector(
-        onTap: () {
+        onTap: () async {
           // When switching to seller mode, check MP connection
           if (!isSellerMode) {
+            final isMpLoading = ref.read(isMpConnectionLoadingProvider);
+            if (isMpLoading) {
+              // Wait for the initial MP status fetch before deciding
+              await ref.read(mpConnectionProvider.future);
+              if (!context.mounted) return;
+            }
+
             final isMpConnected = ref.read(isMpConnectedProvider);
             if (!isMpConnected) {
-              AppFeedback.showWarning(
-                context,
-                'Conecte seu Mercado Pago para acessar o modo vendedor',
-              );
-              context.push(AppRouter.sellerMpConnect);
-              return;
+              // Push to MP connect and await result; if the user connects
+              // successfully, proceed directly to seller mode.
+              final connected =
+                  await context.push<bool>(AppRouter.sellerMpConnect);
+              if (!context.mounted) return;
+              if (connected != true) return; // cancelled or failed — stay put
+              // Fall through: MP is now connected, switch to seller mode below
             }
           }
 
           ref.read(sellerModeProvider.notifier).toggle();
-          // Navigate to the correct shell
-          if (isSellerMode) {
-            // Was seller → switching to buyer
-            context.go('/');
-          } else {
-            // Was buyer → switching to seller
+          if (!context.mounted) return;
+          // Use the NEW state to determine the destination shell
+          final nowSeller = ref.read(sellerModeProvider);
+          if (nowSeller) {
             context.go('/seller');
+          } else {
+            context.go('/');
           }
         },
         child: AnimatedContainer(

@@ -1,6 +1,8 @@
 /// Wallet model matching SCHEMA.md
 library;
 
+import '../../core/utils/firestore_utils.dart';
+
 class WalletModel {
   final String id;
   final String tenantId;
@@ -43,12 +45,8 @@ class WalletModel {
           : null,
       gatewayRecipientId: json['gatewayRecipientId'] as String?,
       gatewayProvider: json['gatewayProvider'] as String?,
-      createdAt: json['createdAt'] != null
-          ? DateTime.parse(json['createdAt'] as String)
-          : DateTime.now(),
-      updatedAt: json['updatedAt'] != null
-          ? DateTime.parse(json['updatedAt'] as String)
-          : DateTime.now(),
+      createdAt: parseFirestoreDate(json['createdAt']) ?? DateTime.now(),
+      updatedAt: parseFirestoreDate(json['updatedAt']) ?? DateTime.now(),
     );
   }
 

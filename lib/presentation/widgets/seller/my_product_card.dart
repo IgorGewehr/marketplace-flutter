@@ -5,13 +5,16 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../data/models/product_model.dart';
 
-/// Horizontal product card for seller's product list with visible actions
+/// Modern, compact product card for seller's product list.
+/// Primary tap → edit. Bottom action row for quick status toggle.
+/// ⋮ popup for duplicate / delete.
 class MyProductCard extends StatelessWidget {
   final ProductModel product;
   final VoidCallback? onTap;
   final VoidCallback? onToggleStatus;
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
+  final VoidCallback? onDuplicate;
 
   const MyProductCard({
     super.key,
@@ -20,6 +23,7 @@ class MyProductCard extends StatelessWidget {
     this.onToggleStatus,
     this.onEdit,
     this.onDelete,
+    this.onDuplicate,
   });
 
   @override
@@ -27,166 +31,224 @@ class MyProductCard extends StatelessWidget {
     final isActive = product.status == 'active';
     final isPaused = product.status == 'draft';
 
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isPaused ? AppColors.textHint.withAlpha(50) : AppColors.border,
-            width: 1,
+    final Color statusColor;
+    final String statusLabel;
+    if (isActive) {
+      statusColor = AppColors.secondary;
+      statusLabel = 'Ativo';
+    } else if (isPaused) {
+      statusColor = AppColors.textHint;
+      statusLabel = 'Pausado';
+    } else {
+      statusColor = AppColors.warning;
+      statusLabel = 'Sem estoque';
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border, width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withAlpha(8),
+            blurRadius: 12,
+            offset: const Offset(0, 3),
           ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withAlpha(8),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Opacity(
-          opacity: isPaused ? 0.7 : 1.0,
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(16),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              // Image with status badge
-              SizedBox(
-                width: 100,
-                height: 100,
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    ClipRRect(
+              // ── Main content row ──────────────────────────────────
+              // IntrinsicHeight is required because this Row uses
+              // CrossAxisAlignment.stretch (for the status accent bar)
+              // inside a SliverList child whose maxHeight is unbounded.
+              // Without it, stretch forces infinite height on children,
+              // which silently breaks layout in release mode.
+              IntrinsicHeight(
+                child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Status accent bar
+                  Container(
+                    width: 4,
+                    constraints: const BoxConstraints(minHeight: 110),
+                    decoration: BoxDecoration(
+                      color: statusColor,
                       borderRadius: const BorderRadius.only(
-                        topLeft: Radius.circular(16),
-                        bottomLeft: Radius.circular(16),
+                        topLeft: Radius.circular(15),
                       ),
-                      child: product.mainImageUrl != null
-                          ? CachedNetworkImage(
-                              imageUrl: product.mainImageUrl!,
-                              fit: BoxFit.cover,
-                              memCacheWidth: 200,
-                              placeholder: (context, url) => Container(
-                                color: AppColors.surfaceVariant,
-                                child: const Center(
-                                  child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  ),
+
+                  // Product image
+                  SizedBox(
+                    width: 110,
+                    height: 110,
+                    child: _ProductImage(url: product.mainImageUrl),
+                  ),
+
+                  // Info
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 10, 6, 10),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          // Name + more menu
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  product.name,
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.textPrimary,
+                                    height: 1.35,
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ),
-                              errorWidget: (context, url, error) => Container(
-                                color: AppColors.surfaceVariant,
-                                child: const Icon(Icons.image_not_supported),
+                              _MoreMenu(
+                                onDuplicate: onDuplicate,
+                                onDelete: onDelete,
                               ),
-                            )
-                          : Container(
-                              color: AppColors.surfaceVariant,
-                              child: const Icon(Icons.image, size: 32),
-                            ),
-                    ),
-                    Positioned(
-                      top: 6,
-                      left: 6,
-                      child: _StatusBadge(
-                        status: product.status,
-                        isActive: isActive,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+                            ],
+                          ),
 
-              // Info + actions
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Name
-                      Text(
-                        product.name,
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: Theme.of(context).colorScheme.onSurface,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 4),
-
-                      // Price
-                      Text(
-                        Formatters.currency(product.price),
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.sellerAccent,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-
-                      // Stats row
-                      Row(
-                        children: [
-                          if (product.marketplaceStats != null) ...[
-                            const Icon(Icons.visibility_outlined, size: 13, color: AppColors.textHint),
-                            const SizedBox(width: 3),
-                            Text(
-                              '${product.marketplaceStats!.views}',
-                              style: const TextStyle(fontSize: 11, color: AppColors.textHint),
+                          // Price
+                          Text(
+                            Formatters.currency(product.price),
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.sellerAccent,
                             ),
-                            const SizedBox(width: 10),
-                            const Icon(Icons.shopping_bag_outlined, size: 13, color: AppColors.textHint),
-                            const SizedBox(width: 3),
-                            Text(
-                              '${product.marketplaceStats!.sales}',
-                              style: const TextStyle(fontSize: 11, color: AppColors.textHint),
-                            ),
-                            const SizedBox(width: 10),
-                          ],
-                          if (product.quantity != null) ...[
-                            const Icon(Icons.inventory_2_outlined, size: 13, color: AppColors.textHint),
-                            const SizedBox(width: 3),
-                            Text(
-                              '${product.quantity}',
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: product.quantity! <= 3 ? AppColors.error : AppColors.textHint,
-                                fontWeight: product.quantity! <= 3 ? FontWeight.w600 : FontWeight.normal,
+                          ),
+
+                          // Status + stats
+                          Row(
+                            children: [
+                              Container(
+                                width: 7,
+                                height: 7,
+                                decoration: BoxDecoration(
+                                  color: statusColor,
+                                  shape: BoxShape.circle,
+                                ),
                               ),
-                            ),
-                          ],
+                              const SizedBox(width: 5),
+                              Text(
+                                statusLabel,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: statusColor,
+                                ),
+                              ),
+                              if (product.marketplaceStats != null) ...[
+                                const SizedBox(width: 10),
+                                const Icon(
+                                  Icons.visibility_outlined,
+                                  size: 12,
+                                  color: AppColors.textHint,
+                                ),
+                                const SizedBox(width: 3),
+                                Text(
+                                  '${product.marketplaceStats!.views}',
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    color: AppColors.textHint,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                const Icon(
+                                  Icons.shopping_bag_outlined,
+                                  size: 12,
+                                  color: AppColors.textHint,
+                                ),
+                                const SizedBox(width: 3),
+                                Text(
+                                  '${product.marketplaceStats!.sales}',
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    color: AppColors.textHint,
+                                  ),
+                                ),
+                              ],
+                              if (product.quantity != null) ...[
+                                const SizedBox(width: 8),
+                                Icon(
+                                  Icons.inventory_2_outlined,
+                                  size: 12,
+                                  color: product.quantity! <= 3
+                                      ? AppColors.error
+                                      : AppColors.textHint,
+                                ),
+                                const SizedBox(width: 3),
+                                Text(
+                                  '${product.quantity}',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: product.quantity! <= 3
+                                        ? AppColors.error
+                                        : AppColors.textHint,
+                                    fontWeight: product.quantity! <= 3
+                                        ? FontWeight.w600
+                                        : FontWeight.normal,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
                         ],
                       ),
-                    ],
+                    ),
                   ),
-                ),
+                ],
+              ),
               ),
 
-              // Action buttons column
+              // ── Divider ─────────────────────────────────────────
+              const Divider(height: 1, thickness: 1, color: AppColors.borderLight),
+
+              // ── Action row ───────────────────────────────────────
               Padding(
-                padding: const EdgeInsets.only(right: 4, top: 6, bottom: 6),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                child: Row(
                   children: [
-                    _ActionIconButton(
-                      icon: Icons.edit_outlined,
-                      color: AppColors.sellerAccent,
-                      onTap: onEdit,
-                      tooltip: 'Editar',
+                    Expanded(
+                      child: _ActionButton(
+                        icon: Icons.edit_rounded,
+                        label: 'Editar',
+                        color: AppColors.sellerAccent,
+                        onTap: onEdit,
+                      ),
                     ),
-                    _ActionIconButton(
-                      icon: isActive ? Icons.pause_circle_outline : Icons.play_circle_outline,
-                      color: isActive ? AppColors.textHint : AppColors.secondary,
-                      onTap: onToggleStatus,
-                      tooltip: isActive ? 'Pausar' : 'Ativar',
-                    ),
-                    _ActionIconButton(
-                      icon: Icons.delete_outline,
-                      color: AppColors.error,
-                      onTap: onDelete,
-                      tooltip: 'Excluir',
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _ActionButton(
+                        icon: isActive
+                            ? Icons.pause_rounded
+                            : Icons.play_arrow_rounded,
+                        label: isActive ? 'Pausar' : 'Ativar',
+                        color: isActive
+                            ? AppColors.textSecondary
+                            : AppColors.secondary,
+                        outlined: true,
+                        onTap: onToggleStatus,
+                      ),
                     ),
                   ],
                 ),
@@ -199,92 +261,142 @@ class MyProductCard extends StatelessWidget {
   }
 }
 
-class _ActionIconButton extends StatelessWidget {
-  final IconData icon;
-  final Color color;
-  final VoidCallback? onTap;
-  final String tooltip;
+// ────────────────────────────────────────────────────────────
 
-  const _ActionIconButton({
-    required this.icon,
-    required this.color,
-    this.onTap,
-    required this.tooltip,
-  });
+class _ProductImage extends StatelessWidget {
+  final String? url;
+  const _ProductImage({this.url});
+
+  @override
+  Widget build(BuildContext context) {
+    if (url != null && url!.isNotEmpty) {
+      return CachedNetworkImage(
+        imageUrl: url!,
+        fit: BoxFit.cover,
+        memCacheWidth: 220,
+        placeholder: (context, url) => Container(color: AppColors.surfaceVariant),
+        errorWidget: (context, url, error) => _placeholder(),
+      );
+    }
+    return _placeholder();
+  }
+
+  Widget _placeholder() => Container(
+        color: AppColors.surfaceVariant,
+        child: const Center(
+          child: Icon(Icons.image_outlined, size: 32, color: AppColors.textHint),
+        ),
+      );
+}
+
+// ────────────────────────────────────────────────────────────
+
+class _MoreMenu extends StatelessWidget {
+  final VoidCallback? onDuplicate;
+  final VoidCallback? onDelete;
+
+  const _MoreMenu({this.onDuplicate, this.onDelete});
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 44,
-      height: 44,
-      child: IconButton(
-        onPressed: onTap,
-        icon: Icon(icon, size: 18, color: color),
+      width: 30,
+      height: 30,
+      child: PopupMenuButton<String>(
         padding: EdgeInsets.zero,
-        tooltip: tooltip,
-        splashRadius: 18,
+        iconSize: 20,
+        icon: const Icon(Icons.more_vert_rounded, color: AppColors.textHint),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        elevation: 4,
+        onSelected: (value) {
+          if (value == 'duplicate') onDuplicate?.call();
+          if (value == 'delete') onDelete?.call();
+        },
+        itemBuilder: (_) => [
+          PopupMenuItem(
+            value: 'duplicate',
+            child: Row(
+              children: const [
+                Icon(Icons.copy_outlined, size: 18, color: AppColors.textSecondary),
+                SizedBox(width: 10),
+                Text('Duplicar'),
+              ],
+            ),
+          ),
+          PopupMenuItem(
+            value: 'delete',
+            child: Row(
+              children: const [
+                Icon(Icons.delete_outline_rounded, size: 18, color: AppColors.error),
+                SizedBox(width: 10),
+                Text('Excluir', style: TextStyle(color: AppColors.error)),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
 }
 
-class _StatusBadge extends StatelessWidget {
-  final String status;
-  final bool isActive;
+// ────────────────────────────────────────────────────────────
 
-  const _StatusBadge({
-    required this.status,
-    required this.isActive,
+class _ActionButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  final bool outlined;
+  final VoidCallback? onTap;
+
+  const _ActionButton({
+    required this.icon,
+    required this.label,
+    required this.color,
+    this.outlined = false,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    Color bgColor;
-    Color textColor;
-    String label;
-    IconData icon;
-
-    switch (status) {
-      case 'active':
-        bgColor = AppColors.secondary.withAlpha(200);
-        textColor = Colors.white;
-        label = 'Ativo';
-        icon = Icons.check_circle;
-        break;
-      case 'draft':
-        bgColor = AppColors.textHint.withAlpha(200);
-        textColor = Colors.white;
-        label = 'Pausado';
-        icon = Icons.pause_circle;
-        break;
-      default:
-        bgColor = AppColors.warning.withAlpha(200);
-        textColor = Colors.white;
-        label = 'Sem estoque';
-        icon = Icons.warning;
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: textColor, size: 10),
-          const SizedBox(width: 3),
-          Text(
-            label,
-            style: TextStyle(
-              color: textColor,
-              fontSize: 9,
+    final style = outlined
+        ? OutlinedButton.styleFrom(
+            foregroundColor: color,
+            side: BorderSide(color: color.withAlpha(100)),
+            padding: const EdgeInsets.symmetric(vertical: 9),
+            minimumSize: const Size(0, 0),
+            textStyle: const TextStyle(
+              fontSize: 13,
               fontWeight: FontWeight.w600,
             ),
-          ),
-        ],
-      ),
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10)),
+          )
+        : FilledButton.styleFrom(
+            backgroundColor: color.withAlpha(20),
+            foregroundColor: color,
+            padding: const EdgeInsets.symmetric(vertical: 9),
+            minimumSize: const Size(0, 0),
+            textStyle: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10)),
+          );
+
+    if (outlined) {
+      return OutlinedButton.icon(
+        onPressed: onTap,
+        icon: Icon(icon, size: 16),
+        label: Text(label),
+        style: style,
+      );
+    }
+    return FilledButton.icon(
+      onPressed: onTap,
+      icon: Icon(icon, size: 16),
+      label: Text(label),
+      style: style,
     );
   }
 }

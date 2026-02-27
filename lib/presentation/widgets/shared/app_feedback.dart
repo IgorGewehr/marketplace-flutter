@@ -4,6 +4,8 @@ library;
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
+import '../../../core/theme/app_colors.dart';
+
 /// Feedback types
 enum FeedbackType {
   success,
@@ -234,30 +236,30 @@ class _FeedbackContent extends StatelessWidget {
       case FeedbackType.success:
         return _FeedbackConfig(
           icon: LucideIcons.checkCircle2,
-          iconColor: const Color(0xFF10B981),
-          iconBackgroundColor: const Color(0xFF10B981).withAlpha((255 * 0.2).round()),
-          backgroundColor: const Color(0xFF065F46),
+          iconColor: AppColors.feedbackSuccessIcon,
+          iconBackgroundColor: AppColors.feedbackSuccessIcon.withAlpha(51),
+          backgroundColor: AppColors.feedbackSuccessBg,
         );
       case FeedbackType.error:
         return _FeedbackConfig(
           icon: LucideIcons.xCircle,
-          iconColor: const Color(0xFFEF4444),
-          iconBackgroundColor: const Color(0xFFEF4444).withAlpha((255 * 0.2).round()),
-          backgroundColor: const Color(0xFF991B1B),
+          iconColor: AppColors.feedbackErrorIcon,
+          iconBackgroundColor: AppColors.feedbackErrorIcon.withAlpha(51),
+          backgroundColor: AppColors.feedbackErrorBg,
         );
       case FeedbackType.warning:
         return _FeedbackConfig(
           icon: LucideIcons.alertTriangle,
-          iconColor: const Color(0xFFF59E0B),
-          iconBackgroundColor: const Color(0xFFF59E0B).withAlpha((255 * 0.2).round()),
-          backgroundColor: const Color(0xFF92400E),
+          iconColor: AppColors.feedbackWarningIcon,
+          iconBackgroundColor: AppColors.feedbackWarningIcon.withAlpha(51),
+          backgroundColor: AppColors.feedbackWarningBg,
         );
       case FeedbackType.info:
         return _FeedbackConfig(
           icon: LucideIcons.info,
-          iconColor: const Color(0xFF3B82F6),
-          iconBackgroundColor: const Color(0xFF3B82F6).withAlpha((255 * 0.2).round()),
-          backgroundColor: const Color(0xFF1E40AF),
+          iconColor: AppColors.feedbackInfoIcon,
+          iconBackgroundColor: AppColors.feedbackInfoIcon.withAlpha(51),
+          backgroundColor: AppColors.feedbackInfoBg,
         );
     }
   }
@@ -311,13 +313,13 @@ class _ConfirmationDialog extends StatelessWidget {
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
                     color: isDangerous
-                        ? const Color(0xFFEF4444).withAlpha((255 * 0.1).round())
-                        : const Color(0xFF3B82F6).withAlpha((255 * 0.1).round()),
+                        ? AppColors.error.withAlpha((255 * 0.1).round())
+                        : AppColors.primary.withAlpha((255 * 0.1).round()),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Icon(
                     isDangerous ? LucideIcons.alertTriangle : LucideIcons.helpCircle,
-                    color: isDangerous ? const Color(0xFFEF4444) : const Color(0xFF3B82F6),
+                    color: isDangerous ? AppColors.error : AppColors.primary,
                     size: 24,
                   ),
                 ),
@@ -354,7 +356,7 @@ class _ConfirmationDialog extends StatelessWidget {
                   onPressed: () => Navigator.of(context).pop(true),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: isDangerous
-                        ? const Color(0xFFEF4444)
+                        ? AppColors.error
                         : Theme.of(context).primaryColor,
                     foregroundColor: Colors.white,
                   ),

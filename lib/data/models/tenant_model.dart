@@ -2,6 +2,7 @@
 library;
 
 import 'address_model.dart';
+import '../../core/utils/firestore_utils.dart';
 
 class TenantModel {
   final String id;
@@ -18,7 +19,6 @@ class TenantModel {
   final AddressModel? address;
   final TenantSettings? settings;
   final TenantMarketplace? marketplace;
-  final TenantFiscal? fiscal;
   final List<String> memberIds;
   final String ownerUserId;
   final bool isActive;
@@ -41,7 +41,6 @@ class TenantModel {
     this.address,
     this.settings,
     this.marketplace,
-    this.fiscal,
     this.memberIds = const [],
     required this.ownerUserId,
     this.isActive = true,
@@ -74,34 +73,29 @@ class TenantModel {
       logoURL: json['logoURL'] as String?,
       coverURL: json['coverURL'] as String?,
       description: json['description'] as String?,
-      document: json['document'] != null
+      document: json['document'] is Map<String, dynamic>
           ? TenantDocument.fromJson(json['document'] as Map<String, dynamic>)
           : null,
       email: json['email'] as String?,
       phone: json['phone'] as String?,
       whatsapp: json['whatsapp'] as String?,
-      address: json['address'] != null
+      address: json['address'] is Map<String, dynamic>
           ? AddressModel.fromJson(json['address'] as Map<String, dynamic>)
-          : null,
-      settings: json['settings'] != null
+          : json['address'] is String
+              ? AddressModel(street: '', number: '', neighborhood: '', city: json['address'] as String, state: '', zipCode: '')
+              : null,
+      settings: json['settings'] is Map<String, dynamic>
           ? TenantSettings.fromJson(json['settings'] as Map<String, dynamic>)
           : null,
-      marketplace: json['marketplace'] != null
+      marketplace: json['marketplace'] is Map<String, dynamic>
           ? TenantMarketplace.fromJson(json['marketplace'] as Map<String, dynamic>)
-          : null,
-      fiscal: json['fiscal'] != null
-          ? TenantFiscal.fromJson(json['fiscal'] as Map<String, dynamic>)
           : null,
       memberIds: (json['memberIds'] as List<dynamic>?)?.cast<String>() ?? [],
       ownerUserId: json['ownerUserId'] as String? ?? '',
       isActive: json['isActive'] as bool? ?? true,
       isVerified: json['isVerified'] as bool? ?? false,
-      createdAt: json['createdAt'] != null
-          ? DateTime.parse(json['createdAt'] as String)
-          : DateTime.now(),
-      updatedAt: json['updatedAt'] != null
-          ? DateTime.parse(json['updatedAt'] as String)
-          : DateTime.now(),
+      createdAt: parseFirestoreDate(json['createdAt']) ?? DateTime.now(),
+      updatedAt: parseFirestoreDate(json['updatedAt']) ?? DateTime.now(),
     );
   }
 
@@ -121,7 +115,6 @@ class TenantModel {
       if (address != null) 'address': address!.toJson(),
       if (settings != null) 'settings': settings!.toJson(),
       if (marketplace != null) 'marketplace': marketplace!.toJson(),
-      if (fiscal != null) 'fiscal': fiscal!.toJson(),
       'memberIds': memberIds,
       'ownerUserId': ownerUserId,
       'isActive': isActive,
@@ -146,7 +139,6 @@ class TenantModel {
     AddressModel? address,
     TenantSettings? settings,
     TenantMarketplace? marketplace,
-    TenantFiscal? fiscal,
     List<String>? memberIds,
     String? ownerUserId,
     bool? isActive,
@@ -169,7 +161,6 @@ class TenantModel {
       address: address ?? this.address,
       settings: settings ?? this.settings,
       marketplace: marketplace ?? this.marketplace,
-      fiscal: fiscal ?? this.fiscal,
       memberIds: memberIds ?? this.memberIds,
       ownerUserId: ownerUserId ?? this.ownerUserId,
       isActive: isActive ?? this.isActive,
@@ -238,11 +229,11 @@ class TenantSettings {
 
   factory TenantSettings.fromJson(Map<String, dynamic> json) {
     Map<String, BusinessHours?>? hours;
-    if (json['businessHours'] != null) {
+    if (json['businessHours'] is Map<String, dynamic>) {
       hours = {};
       final hoursMap = json['businessHours'] as Map<String, dynamic>;
       for (final entry in hoursMap.entries) {
-        hours[entry.key] = entry.value != null
+        hours[entry.key] = entry.value is Map<String, dynamic>
             ? BusinessHours.fromJson(entry.value as Map<String, dynamic>)
             : null;
       }
@@ -448,178 +439,5 @@ class DeliveryTypes {
 
   static String getLabel(String type) {
     return typeLabels[type] ?? type;
-  }
-}
-
-class TenantFiscal {
-  final String? taxRegime;
-  final FiscalCertificate? certificate;
-  final NfeConfig? nfeConfig;
-  final NfceConfig? nfceConfig;
-  final NfseConfig? nfseConfig;
-
-  const TenantFiscal({
-    this.taxRegime,
-    this.certificate,
-    this.nfeConfig,
-    this.nfceConfig,
-    this.nfseConfig,
-  });
-
-  bool get hasCertificate => certificate != null;
-
-  factory TenantFiscal.fromJson(Map<String, dynamic> json) {
-    return TenantFiscal(
-      taxRegime: json['taxRegime'] as String?,
-      certificate: json['certificate'] != null
-          ? FiscalCertificate.fromJson(json['certificate'] as Map<String, dynamic>)
-          : null,
-      nfeConfig: json['nfeConfig'] != null
-          ? NfeConfig.fromJson(json['nfeConfig'] as Map<String, dynamic>)
-          : null,
-      nfceConfig: json['nfceConfig'] != null
-          ? NfceConfig.fromJson(json['nfceConfig'] as Map<String, dynamic>)
-          : null,
-      nfseConfig: json['nfseConfig'] != null
-          ? NfseConfig.fromJson(json['nfseConfig'] as Map<String, dynamic>)
-          : null,
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      if (taxRegime != null) 'taxRegime': taxRegime,
-      if (certificate != null) 'certificate': certificate!.toJson(),
-      if (nfeConfig != null) 'nfeConfig': nfeConfig!.toJson(),
-      if (nfceConfig != null) 'nfceConfig': nfceConfig!.toJson(),
-      if (nfseConfig != null) 'nfseConfig': nfseConfig!.toJson(),
-    };
-  }
-}
-
-class FiscalCertificate {
-  final String? serialNumber;
-  final DateTime? expiresAt;
-  final String? storagePath;
-
-  const FiscalCertificate({
-    this.serialNumber,
-    this.expiresAt,
-    this.storagePath,
-  });
-
-  bool get isExpired => expiresAt != null && expiresAt!.isBefore(DateTime.now());
-  bool get isExpiringSoon =>
-      expiresAt != null &&
-      expiresAt!.difference(DateTime.now()).inDays <= 30;
-
-  factory FiscalCertificate.fromJson(Map<String, dynamic> json) {
-    return FiscalCertificate(
-      serialNumber: json['serialNumber'] as String?,
-      expiresAt: json['expiresAt'] != null
-          ? DateTime.parse(json['expiresAt'] as String)
-          : null,
-      storagePath: json['storagePath'] as String?,
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      if (serialNumber != null) 'serialNumber': serialNumber,
-      if (expiresAt != null) 'expiresAt': expiresAt!.toIso8601String(),
-      if (storagePath != null) 'storagePath': storagePath,
-    };
-  }
-}
-
-class NfeConfig {
-  final int series;
-  final int nextNumber;
-  final String environment; // production, homologation
-
-  const NfeConfig({
-    this.series = 1,
-    this.nextNumber = 1,
-    this.environment = 'homologation',
-  });
-
-  factory NfeConfig.fromJson(Map<String, dynamic> json) {
-    return NfeConfig(
-      series: json['series'] as int? ?? 1,
-      nextNumber: json['nextNumber'] as int? ?? 1,
-      environment: json['environment'] as String? ?? 'homologation',
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'series': series,
-      'nextNumber': nextNumber,
-      'environment': environment,
-    };
-  }
-}
-
-class NfceConfig extends NfeConfig {
-  final String? cscId;
-  final String? cscToken;
-
-  const NfceConfig({
-    super.series,
-    super.nextNumber,
-    super.environment,
-    this.cscId,
-    this.cscToken,
-  });
-
-  factory NfceConfig.fromJson(Map<String, dynamic> json) {
-    return NfceConfig(
-      series: json['series'] as int? ?? 1,
-      nextNumber: json['nextNumber'] as int? ?? 1,
-      environment: json['environment'] as String? ?? 'homologation',
-      cscId: json['cscId'] as String?,
-      cscToken: json['cscToken'] as String?,
-    );
-  }
-
-  @override
-  Map<String, dynamic> toJson() {
-    return {
-      ...super.toJson(),
-      if (cscId != null) 'cscId': cscId,
-      if (cscToken != null) 'cscToken': cscToken,
-    };
-  }
-}
-
-class NfseConfig {
-  final String? municipalCode;
-  final String? username;
-  final String? password;
-  final String environment;
-
-  const NfseConfig({
-    this.municipalCode,
-    this.username,
-    this.password,
-    this.environment = 'homologation',
-  });
-
-  factory NfseConfig.fromJson(Map<String, dynamic> json) {
-    return NfseConfig(
-      municipalCode: json['municipalCode'] as String?,
-      username: json['username'] as String?,
-      password: json['password'] as String?,
-      environment: json['environment'] as String? ?? 'homologation',
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      if (municipalCode != null) 'municipalCode': municipalCode,
-      if (username != null) 'username': username,
-      if (password != null) 'password': password,
-      'environment': environment,
-    };
   }
 }

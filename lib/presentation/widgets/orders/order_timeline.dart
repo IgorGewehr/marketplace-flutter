@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 
+import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../data/models/order_model.dart';
 
@@ -24,6 +26,7 @@ class OrderTimeline extends StatelessWidget {
           isLast: index == steps.length - 1,
           isCompleted: index <= currentIndex,
           isCurrent: index == currentIndex,
+          stepNumber: index + 1,
         ),
       ),
     );
@@ -122,6 +125,7 @@ class _TimelineStep extends StatelessWidget {
   final bool isLast;
   final bool isCompleted;
   final bool isCurrent;
+  final int stepNumber;
 
   const _TimelineStep({
     required this.step,
@@ -129,67 +133,123 @@ class _TimelineStep extends StatelessWidget {
     required this.isLast,
     required this.isCompleted,
     required this.isCurrent,
+    required this.stepNumber,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    Color dotColor;
-    Color lineColor;
+    // Connector line colours
+    final lineColor = (isCompleted && !isCurrent)
+        ? AppColors.primary
+        : theme.colorScheme.outline.withAlpha(50);
 
-    if (isCurrent) {
-      dotColor = theme.colorScheme.secondary;
-      lineColor = theme.colorScheme.outline.withAlpha(50);
-    } else if (isCompleted) {
-      dotColor = theme.colorScheme.primary;
-      lineColor = theme.colorScheme.primary;
+    // Build the step indicator circle
+    Widget stepCircle;
+
+    if (isCompleted && !isCurrent) {
+      // Completed steps: filled primary circle with a check mark
+      stepCircle = Container(
+        width: 28,
+        height: 28,
+        decoration: BoxDecoration(
+          color: AppColors.primary,
+          shape: BoxShape.circle,
+        ),
+        child: const Icon(Icons.check, color: Colors.white, size: 16),
+      );
+    } else if (isCurrent) {
+      // Active step: filled primary circle with step number + pulse shadow
+      final circle = Container(
+        width: 28,
+        height: 28,
+        decoration: BoxDecoration(
+          color: AppColors.primary,
+          shape: BoxShape.circle,
+        ),
+        child: Center(
+          child: Text(
+            '$stepNumber',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+      );
+
+      stepCircle = circle
+          .animate(onPlay: (c) => c.repeat(reverse: true))
+          .custom(
+            duration: 1200.ms,
+            curve: Curves.easeInOut,
+            builder: (_, value, child) => Container(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.primary.withAlpha((60 * value).round()),
+                    blurRadius: 10 * value,
+                    spreadRadius: 3 * value,
+                  ),
+                ],
+              ),
+              child: child,
+            ),
+          );
     } else {
-      dotColor = theme.colorScheme.outline.withAlpha(50);
-      lineColor = theme.colorScheme.outline.withAlpha(50);
+      // Future steps: outlined circle with greyed number
+      stepCircle = Container(
+        width: 28,
+        height: 28,
+        decoration: BoxDecoration(
+          color: Colors.transparent,
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: theme.colorScheme.outline.withAlpha(80),
+            width: 1.5,
+          ),
+        ),
+        child: Center(
+          child: Text(
+            '$stepNumber',
+            style: TextStyle(
+              color: theme.colorScheme.onSurfaceVariant,
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+      );
     }
 
     return IntrinsicHeight(
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Timeline line and dot
+          // Timeline indicator column
           SizedBox(
-            width: 32,
+            width: 36,
             child: Column(
               children: [
-                // Top line
+                // Top connector line
                 if (!isFirst)
                   Container(
                     width: 2,
-                    height: 12,
+                    height: 10,
                     color: lineColor,
                   ),
 
-                // Dot
-                Container(
-                  width: 12,
-                  height: 12,
-                  decoration: BoxDecoration(
-                    color: dotColor,
-                    shape: BoxShape.circle,
-                    border: isCurrent
-                        ? Border.all(
-                            color: theme.colorScheme.secondary.withAlpha(100),
-                            width: 4,
-                          )
-                        : null,
-                  ),
-                ),
+                stepCircle,
 
-                // Bottom line
+                // Bottom connector line
                 if (!isLast)
                   Expanded(
                     child: Container(
                       width: 2,
-                      color: isCompleted && !isCurrent
-                          ? theme.colorScheme.primary
-                          : theme.colorScheme.outline.withAlpha(50),
+                      color: lineColor,
                     ),
                   ),
               ],
@@ -201,7 +261,10 @@ class _TimelineStep extends StatelessWidget {
           // Content
           Expanded(
             child: Padding(
-              padding: EdgeInsets.only(bottom: isLast ? 0 : 24),
+              padding: EdgeInsets.only(
+                top: isFirst ? 4 : 10,
+                bottom: isLast ? 0 : 24,
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -209,9 +272,9 @@ class _TimelineStep extends StatelessWidget {
                     children: [
                       Icon(
                         step.icon,
-                        size: 20,
+                        size: 18,
                         color: isCompleted
-                            ? theme.colorScheme.primary
+                            ? AppColors.primary
                             : theme.colorScheme.onSurfaceVariant,
                       ),
                       const SizedBox(width: 8),

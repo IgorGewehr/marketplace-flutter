@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/router/app_router.dart';
+import '../../../core/theme/app_colors.dart';
 import '../../providers/auth_providers.dart';
 import '../../providers/chat_provider.dart';
 import '../../providers/services_provider.dart';
@@ -104,17 +105,11 @@ class _ServiceDetailsScreenState extends ConsumerState<ServiceDetailsScreen>
               // App bar
               SliverAppBar(
                 pinned: true,
-                backgroundColor: theme.colorScheme.surface,
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
                 leading: IconButton(
                   onPressed: () => context.pop(),
-                  icon: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withAlpha(230),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.arrow_back),
-                  ),
+                  icon: const Icon(Icons.arrow_back),
                 ),
                 actions: [
                   IconButton(

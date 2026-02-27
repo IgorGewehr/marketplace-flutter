@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_text_styles.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../data/models/order_model.dart';
 
@@ -19,10 +20,14 @@ class SellerOrderTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final isNew = order.status == 'pending';
 
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.surface,
@@ -50,8 +55,7 @@ class SellerOrderTile extends StatelessWidget {
                 // Order number
                 Text(
                   order.orderNumber,
-                  style: TextStyle(
-                    fontSize: 15,
+                  style: AppTextStyles.titleSmall.copyWith(
                     fontWeight: FontWeight.bold,
                     color: Theme.of(context).colorScheme.onSurface,
                   ),
@@ -71,7 +75,7 @@ class SellerOrderTile extends StatelessWidget {
             // Items preview
             Text(
               _getItemsPreview(),
-              style: const TextStyle(
+              style: AppTextStyles.bodySmall.copyWith(
                 fontSize: 13,
                 color: AppColors.textSecondary,
               ),
@@ -86,8 +90,7 @@ class SellerOrderTile extends StatelessWidget {
                 // Total
                 Text(
                   _formatPrice(order.total),
-                  style: const TextStyle(
-                    fontSize: 16,
+                  style: AppTextStyles.titleSmall.copyWith(
                     fontWeight: FontWeight.bold,
                     color: AppColors.sellerAccent,
                   ),
@@ -96,8 +99,7 @@ class SellerOrderTile extends StatelessWidget {
                 // Time ago
                 Text(
                   _getTimeAgo(),
-                  style: const TextStyle(
-                    fontSize: 12,
+                  style: AppTextStyles.statLabel.copyWith(
                     color: AppColors.textHint,
                   ),
                 ),
@@ -110,6 +112,8 @@ class SellerOrderTile extends StatelessWidget {
               ],
             ),
           ],
+        ),
+      ),
         ),
       ),
     );
@@ -214,7 +218,7 @@ class _PaymentChip extends StatelessWidget {
         label = 'Pgto pendente';
         break;
       case 'held':
-        color = Colors.orange;
+        color = AppColors.warning;
         label = 'Pgto retido';
         break;
       case 'released':

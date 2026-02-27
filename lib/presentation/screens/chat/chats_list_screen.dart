@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -21,29 +22,167 @@ class ChatsListScreen extends ConsumerStatefulWidget {
 }
 
 class _ChatsListScreenState extends ConsumerState<ChatsListScreen> {
+  final _searchController = TextEditingController();
+  String _searchQuery = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final chatsAsync = ref.watch(chatsProvider);
     final user = ref.watch(currentUserProvider).valueOrNull;
+    final unreadCount = ref.watch(unreadChatsCountProvider);
+    final theme = Theme.of(context);
 
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Conversas'),
-        backgroundColor: Theme.of(context).colorScheme.surface,
-        foregroundColor: Theme.of(context).colorScheme.onSurface,
+        titleSpacing: 20,
+        toolbarHeight: 60,
+        title: Row(
+          children: [
+            Text(
+              'Conversas',
+              style: theme.textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            if (unreadCount > 0) ...[
+              const SizedBox(width: AppSpacing.s),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: AppColors.primary,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  '$unreadCount',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+        centerTitle: false,
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
         elevation: 0,
-        centerTitle: true,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(56),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+            child: TextField(
+              controller: _searchController,
+              onChanged: (v) => setState(() => _searchQuery = v),
+              decoration: InputDecoration(
+                hintText: 'Buscar conversas...',
+                hintStyle: const TextStyle(
+                  color: AppColors.textHint,
+                  fontSize: 14,
+                ),
+                prefixIcon: const Icon(
+                  Icons.search_rounded,
+                  color: AppColors.textHint,
+                  size: 20,
+                ),
+                suffixIcon: _searchQuery.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(
+                          Icons.clear_rounded,
+                          color: AppColors.textHint,
+                          size: 18,
+                        ),
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() => _searchQuery = '');
+                        },
+                      )
+                    : null,
+                filled: true,
+                fillColor: AppColors.background,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(AppSpacing.radiusXXL),
+                  borderSide: BorderSide(
+                    color: AppColors.border,
+                    width: 0.8,
+                  ),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(AppSpacing.radiusXXL),
+                  borderSide: const BorderSide(
+                    color: AppColors.border,
+                    width: 0.8,
+                  ),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(AppSpacing.radiusXXL),
+                  borderSide: BorderSide(
+                    color: AppColors.primary.withAlpha(120),
+                    width: 1.2,
+                  ),
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
+                ),
+                isDense: true,
+              ),
+              style: const TextStyle(fontSize: 14),
+            ),
+          ),
+        ),
       ),
       body: chatsAsync.when(
-        loading: () => const ShimmerLoading(itemCount: 5, isGrid: false, height: 72),
+        loading: () =>
+            const ShimmerLoading(itemCount: 5, isGrid: false, height: 72),
         error: (error, stack) => ErrorState(
           message: 'Erro ao carregar conversas',
           onRetry: () => ref.invalidate(chatsProvider),
         ),
         data: (chats) {
+          // Filter chats by search query
+          final filtered = _searchQuery.isEmpty
+              ? chats
+              : chats.where((c) {
+                  final q = _searchQuery.toLowerCase();
+                  return (c.tenantName?.toLowerCase().contains(q) ?? false) ||
+                      (c.buyerName?.toLowerCase().contains(q) ?? false) ||
+                      (c.lastMessage?.text.toLowerCase().contains(q) ?? false);
+                }).toList();
+
           if (chats.isEmpty) {
             return const EmptyChatsState();
+          }
+
+          if (filtered.isEmpty) {
+            return Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.search_off_rounded,
+                    size: 56,
+                    color: AppColors.textHint,
+                  ),
+                  const SizedBox(height: AppSpacing.m),
+                  Text(
+                    'Nenhuma conversa encontrada',
+                    style: TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 15,
+                    ),
+                  ),
+                ],
+              ),
+            );
           }
 
           return RefreshIndicator(
@@ -51,16 +190,17 @@ class _ChatsListScreenState extends ConsumerState<ChatsListScreen> {
             color: AppColors.primary,
             child: ListView.separated(
               padding: const EdgeInsets.symmetric(vertical: AppSpacing.s),
-              itemCount: chats.length,
+              itemCount: filtered.length,
               separatorBuilder: (context, index) => const Divider(
                 height: 1,
                 indent: 72,
                 endIndent: 16,
               ),
               itemBuilder: (context, index) {
-                final chat = chats[index];
+                final chat = filtered[index];
                 final isBuyer = user?.id == chat.buyerUserId;
-                final participant = ref.watch(chatParticipantProvider(chat.id));
+                final participant =
+                    ref.watch(chatParticipantProvider(chat.id));
 
                 return ChatTile(
                   chat: chat,
@@ -74,7 +214,10 @@ class _ChatsListScreenState extends ConsumerState<ChatsListScreen> {
                     );
                   },
                   onLongPress: () => _showChatActions(context, chat),
-                );
+                )
+                    .animate(delay: Duration(milliseconds: (index % 8) * 60))
+                    .fadeIn(duration: 300.ms, curve: Curves.easeOut)
+                    .slideY(begin: 0.08, end: 0, duration: 300.ms, curve: Curves.easeOut);
               },
             ),
           );
@@ -92,7 +235,8 @@ class _ChatsListScreenState extends ConsumerState<ChatsListScreen> {
         padding: const EdgeInsets.all(AppSpacing.l),
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.surface,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(AppSpacing.radiusXXL)),
+          borderRadius: const BorderRadius.vertical(
+              top: Radius.circular(AppSpacing.radiusXXL)),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,

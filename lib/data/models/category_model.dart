@@ -1,6 +1,8 @@
 /// Category model matching SCHEMA.md
 library;
 
+import '../../core/utils/firestore_utils.dart';
+
 class CategoryModel {
   final String id;
   final String name;
@@ -45,12 +47,8 @@ class CategoryModel {
       order: json['order'] as int? ?? 0,
       isActive: json['isActive'] as bool? ?? true,
       productCount: json['productCount'] as int? ?? 0,
-      createdAt: json['createdAt'] != null
-          ? DateTime.parse(json['createdAt'] as String)
-          : DateTime.now(),
-      updatedAt: json['updatedAt'] != null
-          ? DateTime.parse(json['updatedAt'] as String)
-          : DateTime.now(),
+      createdAt: parseFirestoreDate(json['createdAt']) ?? DateTime.now(),
+      updatedAt: parseFirestoreDate(json['updatedAt']) ?? DateTime.now(),
     );
   }
 

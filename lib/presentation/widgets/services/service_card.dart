@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/theme/app_colors.dart';
 import '../../../data/models/service_model.dart';
 import '../../providers/services_provider.dart';
 
@@ -115,7 +116,7 @@ class ServiceCard extends ConsumerWidget {
                               child: Icon(
                                 isFavorite ? Icons.favorite : Icons.favorite_border,
                                 color: isFavorite
-                                    ? Colors.red
+                                    ? AppColors.error
                                     : theme.colorScheme.onSurfaceVariant,
                                 size: 20,
                               ),
@@ -198,10 +199,10 @@ class ServiceCard extends ConsumerWidget {
                         ),
                       ),
                       if (service.rating > 0) ...[
-                        const Icon(
+                        Icon(
                           Icons.star,
                           size: 14,
-                          color: Colors.amber,
+                          color: AppColors.rating,
                         ),
                         const SizedBox(width: 2),
                         Text(

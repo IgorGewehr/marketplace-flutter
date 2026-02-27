@@ -284,28 +284,23 @@ router.post("/withdraw", async (req: Request, res: Response): Promise<void> => {
       const batch = db.batch();
 
       batch.update(db.collection("withdrawals").doc(withdrawalId), {
-        status: "completed",
+        status: "processing", // Will be updated to "completed" via MP webhook when bank confirms
         gatewayTransferId: transferResult.id || null,
-        completedAt: now2,
         updatedAt: now2,
       });
 
       batch.update(db.collection("transactions").doc(txId), {
-        status: "completed",
+        status: "processing", // Will be updated to "completed" via MP webhook when bank confirms
         gatewayTransactionId: transferResult.id?.toString() || null,
         updatedAt: now2,
       });
 
-      // Move from blocked to actually deducted
-      batch.update(db.collection("wallets").doc(tenantId), {
-        "balance.blocked": admin.firestore.FieldValue.increment(-amount),
-        "balance.total": admin.firestore.FieldValue.increment(-amount),
-        updatedAt: now2,
-      });
+      // Keep amount in blocked until bank confirms (webhook will move to deducted)
+      // Do NOT decrement balance.total here — wait for webhook confirmation
 
       await batch.commit();
 
-      functions.logger.info("Withdrawal completed via MP", {
+      functions.logger.info("Withdrawal processing via MP (awaiting bank confirmation)", {
         tenantId,
         amount,
         withdrawalId,

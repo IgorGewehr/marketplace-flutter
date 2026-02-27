@@ -1,10 +1,14 @@
 /// Review model for products and sellers
 library;
 
+import '../../core/utils/firestore_utils.dart';
+
 class ReviewModel {
   final String id;
   final String targetId; // productId or tenantId
   final String targetType; // product, seller
+  final String? productId; // Always set for product reviews (used by Firestore trigger)
+  final String? tenantId; // Always set — identifies the seller (used for seller profile)
   final String userId;
   final String userName;
   final String? userPhotoURL;
@@ -24,6 +28,8 @@ class ReviewModel {
     required this.id,
     required this.targetId,
     required this.targetType,
+    this.productId,
+    this.tenantId,
     required this.userId,
     required this.userName,
     this.userPhotoURL,
@@ -57,6 +63,8 @@ class ReviewModel {
       id: json['id'] as String? ?? '',
       targetId: json['targetId'] as String? ?? '',
       targetType: json['targetType'] as String? ?? 'product',
+      productId: json['productId'] as String?,
+      tenantId: json['tenantId'] as String?,
       userId: json['userId'] as String? ?? '',
       userName: json['userName'] as String? ?? '',
       userPhotoURL: json['userPhotoURL'] as String?,
@@ -71,12 +79,8 @@ class ReviewModel {
       helpfulCount: json['helpfulCount'] as int? ?? 0,
       reportCount: json['reportCount'] as int? ?? 0,
       isHidden: json['isHidden'] as bool? ?? false,
-      createdAt: json['createdAt'] != null
-          ? DateTime.parse(json['createdAt'] as String)
-          : DateTime.now(),
-      updatedAt: json['updatedAt'] != null
-          ? DateTime.parse(json['updatedAt'] as String)
-          : DateTime.now(),
+      createdAt: parseFirestoreDate(json['createdAt']) ?? DateTime.now(),
+      updatedAt: parseFirestoreDate(json['updatedAt']) ?? DateTime.now(),
     );
   }
 
@@ -85,6 +89,8 @@ class ReviewModel {
       'id': id,
       'targetId': targetId,
       'targetType': targetType,
+      if (productId != null) 'productId': productId,
+      if (tenantId != null) 'tenantId': tenantId,
       'userId': userId,
       'userName': userName,
       if (userPhotoURL != null) 'userPhotoURL': userPhotoURL,
@@ -106,6 +112,8 @@ class ReviewModel {
     String? id,
     String? targetId,
     String? targetType,
+    String? productId,
+    String? tenantId,
     String? userId,
     String? userName,
     String? userPhotoURL,
@@ -125,6 +133,8 @@ class ReviewModel {
       id: id ?? this.id,
       targetId: targetId ?? this.targetId,
       targetType: targetType ?? this.targetType,
+      productId: productId ?? this.productId,
+      tenantId: tenantId ?? this.tenantId,
       userId: userId ?? this.userId,
       userName: userName ?? this.userName,
       userPhotoURL: userPhotoURL ?? this.userPhotoURL,
@@ -169,9 +179,7 @@ class ReviewResponse {
       message: json['message'] as String? ?? '',
       userId: json['userId'] as String? ?? '',
       userName: json['userName'] as String? ?? '',
-      createdAt: json['createdAt'] != null
-          ? DateTime.parse(json['createdAt'] as String)
-          : DateTime.now(),
+      createdAt: parseFirestoreDate(json['createdAt']) ?? DateTime.now(),
     );
   }
 

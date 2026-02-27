@@ -4,8 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/router/app_router.dart';
+import '../../../core/theme/app_colors.dart';
 import '../../providers/auth_providers.dart';
 import '../../providers/mercadopago_provider.dart';
+import '../../providers/seller_mode_provider.dart';
 import '../../widgets/auth/auth_button.dart';
 import '../../widgets/auth/auth_text_field.dart';
 import '../../widgets/auth/cpf_cnpj_field.dart';
@@ -127,7 +129,7 @@ class _BecomeSellerScreenState extends ConsumerState<BecomeSellerScreen> {
   }
 
   void _showExitConfirmation() {
-    showDialog(
+    showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Sair do cadastro?'),
@@ -137,19 +139,21 @@ class _BecomeSellerScreenState extends ConsumerState<BecomeSellerScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
+            onPressed: () => Navigator.of(ctx).pop(false),
             child: const Text('Continuar cadastro'),
           ),
           FilledButton(
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              context.go(AppRouter.sellerDashboard);
-            },
+            onPressed: () => Navigator.of(ctx).pop(true),
             child: const Text('Ir ao painel'),
           ),
         ],
       ),
-    );
+    ).then((confirmed) {
+      if (confirmed == true && mounted) {
+        ref.read(sellerModeProvider.notifier).setMode(true);
+        context.go(AppRouter.sellerDashboard);
+      }
+    });
   }
 
   bool _canAdvance() {
@@ -175,6 +179,7 @@ class _BecomeSellerScreenState extends ConsumerState<BecomeSellerScreen> {
           documentNumber: _documentController.text.trim(),
           documentType: _documentType,
           phone: _phoneController.text.trim(),
+          address: _addressController.text.trim(),
         );
 
     if (!mounted) return;
@@ -575,13 +580,13 @@ class _BecomeSellerScreenState extends ConsumerState<BecomeSellerScreen> {
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: _mpConnected
-                  ? Colors.green.withAlpha(25)
-                  : Colors.orange.withAlpha(25),
+                  ? AppColors.success.withAlpha(25)
+                  : AppColors.warning.withAlpha(25),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
                 color: _mpConnected
-                    ? Colors.green.withAlpha(76)
-                    : Colors.orange.withAlpha(76),
+                    ? AppColors.success.withAlpha(76)
+                    : AppColors.warning.withAlpha(76),
               ),
             ),
             child: Row(
@@ -590,7 +595,7 @@ class _BecomeSellerScreenState extends ConsumerState<BecomeSellerScreen> {
                   _mpConnected
                       ? Icons.check_circle_outlined
                       : Icons.info_outline,
-                  color: _mpConnected ? Colors.green : Colors.orange,
+                  color: _mpConnected ? AppColors.success : AppColors.warning,
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -604,6 +609,59 @@ class _BecomeSellerScreenState extends ConsumerState<BecomeSellerScreen> {
               ],
             ),
           ),
+
+          const SizedBox(height: 16),
+
+          // PIX key reminder
+          if (!_mpConnected)
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.rating.withAlpha(25),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.rating.withAlpha(76)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.pix, color: AppColors.rating, size: 20),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Para aceitar pagamentos via PIX, você precisa ter uma chave PIX cadastrada na sua conta do Mercado Pago.',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurface,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+          if (_mpConnected)
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.success.withAlpha(20),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.success.withAlpha(60)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.pix, color: AppColors.success, size: 20),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Lembre-se: para receber via PIX, é necessário ter uma chave PIX ativa na sua conta do Mercado Pago.',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurface,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
 
           const SizedBox(height: 24),
 
@@ -670,12 +728,12 @@ class _BecomeSellerScreenState extends ConsumerState<BecomeSellerScreen> {
                 height: 100,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: Colors.green.withAlpha(25),
+                  color: AppColors.success.withAlpha(25),
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.check_circle_rounded,
                   size: 64,
-                  color: Colors.green,
+                  color: AppColors.success,
                 ),
               ),
 
@@ -705,7 +763,10 @@ class _BecomeSellerScreenState extends ConsumerState<BecomeSellerScreen> {
 
               AuthButton(
                 text: 'Ir para o Painel do Vendedor',
-                onPressed: () => context.go(AppRouter.sellerDashboard),
+                onPressed: () {
+                  ref.read(sellerModeProvider.notifier).setMode(true);
+                  context.go(AppRouter.sellerDashboard);
+                },
               ),
             ],
           ),
@@ -721,7 +782,7 @@ class _BecomeSellerScreenState extends ConsumerState<BecomeSellerScreen> {
             colors: [
               theme.colorScheme.primary,
               theme.colorScheme.secondary,
-              Colors.orange,
+              AppColors.warning,
               Colors.purple,
               Colors.pink,
             ],

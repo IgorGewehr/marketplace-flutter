@@ -104,6 +104,11 @@ class CreateProductRequest {
   final String? sku;
   final String visibility;
   final List<Map<String, dynamic>>? variants;
+  final List<ProductImage>? images;
+  final List<String>? tags;
+  final int? quantity;
+  final bool? trackInventory;
+  final bool? hasVariants;
 
   const CreateProductRequest({
     required this.name,
@@ -115,6 +120,11 @@ class CreateProductRequest {
     this.sku,
     this.visibility = 'both',
     this.variants,
+    this.images,
+    this.tags,
+    this.quantity,
+    this.trackInventory,
+    this.hasVariants,
   });
 
   Map<String, dynamic> toJson() {
@@ -128,6 +138,11 @@ class CreateProductRequest {
       if (sku != null) 'sku': sku,
       'visibility': visibility,
       if (variants != null) 'variants': variants,
+      if (images != null) 'images': images!.map((i) => i.toJson()).toList(),
+      if (tags != null && tags!.isNotEmpty) 'tags': tags,
+      if (quantity != null) 'quantity': quantity,
+      if (trackInventory != null) 'trackInventory': trackInventory,
+      if (hasVariants != null) 'hasVariants': hasVariants,
     };
   }
 }
@@ -143,6 +158,12 @@ class UpdateProductRequest {
   final String? sku;
   final String? visibility;
   final String? status;
+  final List<ProductImage>? images;
+  final List<String>? tags;
+  final List<Map<String, dynamic>>? variants;
+  final int? quantity;
+  final bool? trackInventory;
+  final bool? hasVariants;
 
   const UpdateProductRequest({
     this.name,
@@ -154,6 +175,12 @@ class UpdateProductRequest {
     this.sku,
     this.visibility,
     this.status,
+    this.images,
+    this.tags,
+    this.variants,
+    this.quantity,
+    this.trackInventory,
+    this.hasVariants,
   });
 
   Map<String, dynamic> toJson() {
@@ -167,6 +194,12 @@ class UpdateProductRequest {
       if (sku != null) 'sku': sku,
       if (visibility != null) 'visibility': visibility,
       if (status != null) 'status': status,
+      if (images != null) 'images': images!.map((i) => i.toJson()).toList(),
+      if (tags != null) 'tags': tags,
+      if (variants != null) 'variants': variants,
+      if (quantity != null) 'quantity': quantity,
+      if (trackInventory != null) 'trackInventory': trackInventory,
+      if (hasVariants != null) 'hasVariants': hasVariants,
     };
   }
 }

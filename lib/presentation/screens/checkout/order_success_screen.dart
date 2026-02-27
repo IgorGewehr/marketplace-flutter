@@ -1,5 +1,6 @@
 import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -50,20 +51,36 @@ class _OrderSuccessScreenState extends ConsumerState<OrderSuccessScreen> {
                 children: [
                   const Spacer(),
 
-                  // Success icon
+                  // Success icon with bounce animation
                   Container(
-                    width: 100,
-                    height: 100,
+                    width: 112,
+                    height: 112,
                     decoration: BoxDecoration(
-                      color: theme.colorScheme.secondary,
+                      color: theme.colorScheme.primary,
                       shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: theme.colorScheme.primary.withAlpha(80),
+                          blurRadius: 32,
+                          spreadRadius: 4,
+                          offset: const Offset(0, 8),
+                        ),
+                      ],
                     ),
                     child: const Icon(
-                      Icons.check,
-                      size: 50,
+                      Icons.check_rounded,
+                      size: 56,
                       color: Colors.white,
                     ),
-                  ),
+                  )
+                      .animate()
+                      .scaleXY(
+                        begin: 0.0,
+                        end: 1.0,
+                        duration: 600.ms,
+                        curve: Curves.elasticOut,
+                      )
+                      .fadeIn(duration: 200.ms),
                   const SizedBox(height: 32),
 
                   Text(
@@ -71,7 +88,10 @@ class _OrderSuccessScreenState extends ConsumerState<OrderSuccessScreen> {
                     style: theme.textTheme.headlineMedium?.copyWith(
                       fontWeight: FontWeight.bold,
                     ),
-                  ),
+                  )
+                      .animate()
+                      .fadeIn(delay: 400.ms, duration: 400.ms)
+                      .slideY(begin: 0.2, end: 0, delay: 400.ms, duration: 400.ms),
                   const SizedBox(height: 12),
                   Text(
                     'Seu pedido foi realizado com sucesso',
@@ -79,7 +99,9 @@ class _OrderSuccessScreenState extends ConsumerState<OrderSuccessScreen> {
                       color: theme.colorScheme.onSurfaceVariant,
                     ),
                     textAlign: TextAlign.center,
-                  ),
+                  )
+                      .animate()
+                      .fadeIn(delay: 500.ms, duration: 400.ms),
 
                   if (order != null) ...[
                     const SizedBox(height: 32),
@@ -198,7 +220,10 @@ class _OrderSuccessScreenState extends ConsumerState<OrderSuccessScreen> {
                           ),
                         ],
                       ),
-                    ),
+                    )
+                        .animate()
+                        .fadeIn(delay: 600.ms, duration: 500.ms)
+                        .slideY(begin: 0.15, end: 0, delay: 600.ms, duration: 400.ms),
                   ],
 
                   const Spacer(),

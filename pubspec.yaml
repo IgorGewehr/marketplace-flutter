@@ -2,7 +2,7 @@ name: nexmarket
 description: "Compre Aqui - Marketplace regional do Meio Oeste Catarinense"
 publish_to: 'none'
 
-version: 1.3.0+9
+version: 2.1.1+23
 
 environment:
   sdk: ^3.10.0
@@ -41,6 +41,9 @@ dependencies:
   cached_network_image: ^3.4.1
   shimmer: ^3.0.0
 
+  # Deep Links
+  app_links: ^6.4.0
+
   # Utils
   intl: ^0.20.2
   uuid: ^4.5.1
@@ -52,9 +55,11 @@ dependencies:
   flutter_dotenv: ^5.2.1
   logger: ^2.5.0
 
+  # QR Code generation
+  qr_flutter: ^4.1.0
+
   # Animations
   flutter_animate: ^4.5.2
-  webview_flutter: ^4.13.1
   google_sign_in: ^6.0.0
   confetti: ^0.8.0
 
@@ -76,11 +81,11 @@ flutter_launcher_icons:
   web:
     generate: true
     image_path: "assets/images/logo.png"
-    background_color: "#42B4E6"
-    theme_color: "#42B4E6"
-  image_path: "assets/images/logo.png"
-  adaptive_icon_background: "#42B4E6"
-  adaptive_icon_foreground: "assets/images/logo.png"
+    background_color: "#4CAF50"
+    theme_color: "#4CAF50"
+  image_path: "assets/images/icon.png"
+  adaptive_icon_background: "#4CAF50"
+  adaptive_icon_foreground: "assets/images/icon.png"
   remove_alpha_ios: true
 
 flutter:

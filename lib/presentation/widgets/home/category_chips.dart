@@ -62,7 +62,7 @@ class CategoryTabs extends ConsumerWidget {
         height: 80,
         child: ListView.separated(
           scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
+          padding: const EdgeInsets.only(left: 16, right: 24),
           itemCount: categories.length,
           separatorBuilder: (_, __) => const SizedBox(width: 16),
           itemBuilder: (context, index) {

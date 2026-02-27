@@ -2,7 +2,6 @@ import '../../core/constants/api_constants.dart';
 import '../../domain/repositories/mercadopago_repository.dart';
 import '../datasources/api_client.dart';
 import '../models/mp_connection_model.dart';
-import '../models/mp_subscription_model.dart';
 
 /// Mercado Pago Repository Implementation
 class MercadoPagoRepositoryImpl implements MercadoPagoRepository {
@@ -46,38 +45,6 @@ class MercadoPagoRepositoryImpl implements MercadoPagoRepository {
   @override
   Future<void> disconnect() async {
     await _apiClient.delete(ApiConstants.mpOAuthDisconnect);
-  }
-
-  // === Subscriptions ===
-
-  @override
-  Future<MpSubscriptionModel> createSubscription({
-    required String planType,
-    String? cardTokenId,
-  }) async {
-    final response = await _apiClient.post<Map<String, dynamic>>(
-      ApiConstants.mpSubscriptions,
-      data: {
-        'planType': planType,
-        if (cardTokenId != null) 'cardTokenId': cardTokenId,
-      },
-    );
-    return MpSubscriptionModel.fromJson(response);
-  }
-
-  @override
-  Future<MpSubscriptionModel?> getCurrentSubscription() async {
-    final response = await _apiClient.get<Map<String, dynamic>>(
-      ApiConstants.mpSubscriptions,
-    );
-    final sub = response['subscription'];
-    if (sub == null) return null;
-    return MpSubscriptionModel.fromJson(sub as Map<String, dynamic>);
-  }
-
-  @override
-  Future<void> cancelSubscription() async {
-    await _apiClient.delete(ApiConstants.mpSubscriptions);
   }
 
   // === Public Key ===

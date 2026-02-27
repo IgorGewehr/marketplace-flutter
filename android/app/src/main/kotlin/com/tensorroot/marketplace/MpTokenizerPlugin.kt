@@ -4,6 +4,7 @@ import android.content.Context
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
+import org.json.JSONObject
 
 /**
  * Platform Channel plugin for Mercado Pago card tokenization.
@@ -91,21 +92,21 @@ class MpTokenizerPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                 connection.setRequestProperty("Content-Type", "application/json")
                 connection.doOutput = true
 
-                val body = """
-                    {
-                        "card_number": "$cardNumber",
-                        "expiration_month": "$expirationMonth",
-                        "expiration_year": "$expirationYear",
-                        "security_code": "$securityCode",
-                        "cardholder": {
-                            "name": "$cardholderName",
-                            "identification": {
-                                "type": "$identificationType",
-                                "number": "$identificationNumber"
-                            }
-                        }
-                    }
-                """.trimIndent()
+                val identificationJson = JSONObject().apply {
+                    put("type", identificationType)
+                    put("number", identificationNumber)
+                }
+                val cardholderJson = JSONObject().apply {
+                    put("name", cardholderName)
+                    put("identification", identificationJson)
+                }
+                val body = JSONObject().apply {
+                    put("card_number", cardNumber)
+                    put("expiration_month", expirationMonth)
+                    put("expiration_year", expirationYear)
+                    put("security_code", securityCode)
+                    put("cardholder", cardholderJson)
+                }.toString()
 
                 connection.outputStream.use { it.write(body.toByteArray()) }
 
@@ -117,17 +118,15 @@ class MpTokenizerPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                 }
 
                 if (responseCode in 200..299) {
-                    // Parse token ID from JSON response
-                    val tokenId = parseJsonField(responseBody, "id")
-                    val lastFour = parseJsonField(responseBody, "last_four_digits")
-                    val firstSix = parseJsonField(responseBody, "first_six_digits")
+                    // Parse token response using JSONObject
+                    val parsed = parseTokenResponse(responseBody)
 
                     android.os.Handler(android.os.Looper.getMainLooper()).post {
                         result.success(
                             mapOf(
-                                "tokenId" to tokenId,
-                                "lastFourDigits" to lastFour,
-                                "firstSixDigits" to firstSix
+                                "tokenId" to parsed["id"],
+                                "lastFourDigits" to parsed["last_four_digits"],
+                                "firstSixDigits" to parsed["first_six_digits"]
                             )
                         )
                     }
@@ -144,9 +143,15 @@ class MpTokenizerPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
         }.start()
     }
 
-    private fun parseJsonField(json: String, field: String): String? {
-        val regex = """"$field"\s*:\s*"([^"]+)"""".toRegex()
-        return regex.find(json)?.groupValues?.get(1)
+    private fun parseTokenResponse(responseBody: String): Map<String, String> {
+        val json = JSONObject(responseBody)
+        return mapOf(
+            "id" to json.optString("id", ""),
+            "first_six_digits" to json.optString("first_six_digits", ""),
+            "last_four_digits" to json.optString("last_four_digits", ""),
+            "expiration_month" to json.optString("expiration_month", ""),
+            "expiration_year" to json.optString("expiration_year", ""),
+        )
     }
 
     companion object {

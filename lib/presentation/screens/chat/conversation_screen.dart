@@ -13,8 +13,10 @@ import '../../../data/models/chat_model.dart';
 import '../../../data/models/message_model.dart';
 import '../../providers/auth_providers.dart';
 import '../../providers/chat_provider.dart';
+import '../../providers/core_providers.dart';
 import '../../widgets/chat/message_bubble.dart';
 import '../../widgets/chat/message_input.dart';
+import '../../widgets/chat/typing_indicator.dart';
 import '../../widgets/shared/app_feedback.dart';
 import '../../widgets/shared/error_state.dart';
 import '../../widgets/shared/shimmer_loading.dart';
@@ -33,6 +35,8 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
   final _scrollController = ScrollController();
   MessageModel? _replyingTo;
   String? _replyingSenderName;
+  bool _isUploadingImage = false;
+  bool _showScrollToBottom = false;
 
   @override
   void initState() {
@@ -43,10 +47,22 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
         ref.read(chatMessagesProvider(widget.chatId).notifier).markAsRead();
       }
     });
+    _scrollController.addListener(() {
+      final isNearBottom = _scrollController.hasClients &&
+          _scrollController.position.maxScrollExtent -
+                  _scrollController.offset >
+              300;
+      if (isNearBottom != _showScrollToBottom) {
+        setState(() => _showScrollToBottom = isNearBottom);
+      }
+    });
   }
 
   @override
   void dispose() {
+    try {
+      ref.read(chatMessagesProvider(widget.chatId).notifier).updateTypingStatus(false);
+    } catch (_) {}
     _scrollController.dispose();
     super.dispose();
   }
@@ -83,7 +99,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     if (name.isEmpty) return AppColors.textHint;
     final hash = name.codeUnits.fold<int>(0, (prev, c) => prev + c);
     const colors = [
-      Color(0xFF2196F3),
+      Color(0xFF43A047),
       Color(0xFF00BCD4),
       Color(0xFF009688),
       Color(0xFF4CAF50),
@@ -102,6 +118,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     final user = ref.watch(currentUserProvider).valueOrNull;
     final chats = ref.watch(chatsProvider).valueOrNull ?? [];
     final chat = chats.where((c) => c.id == widget.chatId).firstOrNull;
+    final isOtherTyping = ref.watch(isOtherUserTypingProvider(widget.chatId));
 
     // Scroll to bottom when new messages arrive
     ref.listen(chatMessagesProvider(widget.chatId), (prev, next) {
@@ -115,10 +132,22 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     final avatarColor = _getAvatarColor(participant?.name ?? '');
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: const Color(0xFFECF0F5),
+      floatingActionButton: _showScrollToBottom
+          ? Padding(
+              padding: const EdgeInsets.only(bottom: 72),
+              child: FloatingActionButton.small(
+                onPressed: _scrollToBottom,
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                elevation: 4,
+                child: const Icon(Icons.keyboard_arrow_down_rounded),
+              ),
+            )
+          : null,
       appBar: AppBar(
-        backgroundColor: Theme.of(context).colorScheme.surface,
-        foregroundColor: Theme.of(context).colorScheme.onSurface,
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
         elevation: 0,
         titleSpacing: 0,
         bottom: PreferredSize(
@@ -214,11 +243,41 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
               ),
               data: (messages) {
                 if (messages.isEmpty) {
-                  return const Center(
-                    child: Text(
-                      'Nenhuma mensagem ainda.\nDiga olá!',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: AppColors.textSecondary),
+                  return Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 72,
+                          height: 72,
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withAlpha(12),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.chat_bubble_outline_rounded,
+                            size: 36,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.m),
+                        const Text(
+                          'Nenhuma mensagem ainda',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.xs),
+                        const Text(
+                          'Diga olá! 👋',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
                     ),
                   );
                 }
@@ -261,18 +320,39 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
               },
             ),
           ),
+          // Typing indicator
+          if (isOtherTyping)
+            TypingIndicator(name: participant?.name),
+          // Image upload progress indicator
+          if (_isUploadingImage)
+            const LinearProgressIndicator(
+              minHeight: 2,
+              color: AppColors.primary,
+              backgroundColor: AppColors.border,
+            ),
           // Message input
           MessageInput(
-            onSend: (text) {
-              ref.read(chatMessagesProvider(widget.chatId).notifier)
-                  .sendMessage(text, replyToId: _replyingTo?.id);
+            onSend: (text) async {
+              try {
+                await ref.read(chatMessagesProvider(widget.chatId).notifier)
+                    .sendMessage(text, replyToId: _replyingTo?.id);
+              } catch (e) {
+                if (mounted) {
+                  AppFeedback.showError(context, 'Falha ao enviar mensagem. Tente novamente.');
+                }
+              }
               _cancelReply();
             },
             onAttachment: () => _showAttachmentOptions(context),
             onImagePick: () => _pickImage(context),
+            isEnabled: !_isUploadingImage,
             replyingTo: _replyingTo,
             replyingSenderName: _replyingSenderName,
             onCancelReply: _cancelReply,
+            onTyping: (isTyping) {
+              ref.read(chatMessagesProvider(widget.chatId).notifier)
+                  .updateTypingStatus(isTyping);
+            },
           ),
         ],
       ),
@@ -372,6 +452,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
 
   /// Upload and send image message
   Future<void> _sendImage(File imageFile) async {
+    setState(() => _isUploadingImage = true);
     try {
       await ref.read(chatMessagesProvider(widget.chatId).notifier)
           .sendImageMessage(imageFile);
@@ -379,6 +460,10 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
       if (mounted) {
         // Gap #21: Friendly error message
         AppFeedback.showError(context, 'Erro ao enviar imagem. Tente novamente.');
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isUploadingImage = false);
       }
     }
   }
@@ -421,7 +506,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
               onTap: () {
                 Navigator.pop(ctx);
                 if (context.mounted) {
-                  AppFeedback.showInfo(context, 'Denúncia registrada. Vamos analisar.');
+                  _showReportDialog(context);
                 }
               },
             ),
@@ -430,6 +515,78 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _showReportDialog(BuildContext context) async {
+    String? selectedReason;
+    final detailsController = TextEditingController();
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => StatefulBuilder(
+        builder: (dialogCtx, setDialogState) => AlertDialog(
+          title: const Text('Denunciar conversa'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Motivo da denúncia:'),
+              const SizedBox(height: 8),
+              ...['Conteúdo inapropriado', 'Spam', 'Assédio', 'Outro']
+                  .map((reason) => RadioListTile<String>(
+                        title: Text(reason),
+                        value: reason,
+                        groupValue: selectedReason,
+                        contentPadding: EdgeInsets.zero,
+                        onChanged: (v) => setDialogState(() => selectedReason = v),
+                      )),
+              const SizedBox(height: 8),
+              TextField(
+                controller: detailsController,
+                maxLength: 200,
+                maxLines: 3,
+                decoration: const InputDecoration(
+                  labelText: 'Detalhes (opcional)',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogCtx, false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: selectedReason == null
+                  ? null
+                  : () => Navigator.pop(dialogCtx, true),
+              child: const Text('Enviar'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (confirmed != true || selectedReason == null) return;
+    if (!mounted) return;
+
+    try {
+      await ref.read(chatRepositoryProvider).reportChat(
+            widget.chatId,
+            selectedReason!,
+            details: detailsController.text.trim(),
+          );
+      if (mounted) {
+        AppFeedback.showSuccess(context, 'Denúncia enviada. Nossa equipe irá analisar.');
+      }
+    } catch (_) {
+      if (mounted) {
+        AppFeedback.showError(context, 'Erro ao enviar denúncia. Tente novamente.');
+      }
+    } finally {
+      detailsController.dispose();
+    }
   }
 
   void _showAttachmentOptions(BuildContext context) {
