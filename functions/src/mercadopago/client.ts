@@ -59,6 +59,10 @@ interface MpPaymentResponse {
     amount: number;
     fee_payer: string;
   }>;
+  three_ds_info?: {
+    external_resource_url?: string;
+    creq?: string;
+  };
 }
 
 interface MpOAuthTokenResponse {
@@ -119,12 +123,11 @@ async function mpRequest<T>(options: MpRequestOptions): Promise<T> {
     functions.logger.error("MP API Error", {
       status: response.status,
       path: options.path,
-      body: parsed,
+      response: parsed,
     });
     throw new functions.https.HttpsError(
       "internal",
-      `Mercado Pago API error: ${response.status}`,
-      parsed as Record<string, unknown>
+      "Payment processing failed. Please try again."
     );
   }
 
@@ -242,12 +245,11 @@ export async function exchangeOAuthCode(
   if (!response.ok) {
     functions.logger.error("OAuth token exchange failed", {
       status: response.status,
-      body: parsed,
+      response: parsed,
     });
     throw new functions.https.HttpsError(
       "internal",
-      "Failed to exchange OAuth code",
-      parsed as Record<string, unknown>
+      "Failed to connect payment account. Please try again."
     );
   }
 
@@ -293,12 +295,11 @@ export async function refreshOAuthToken(
   if (!response.ok) {
     functions.logger.error("OAuth token refresh failed", {
       status: response.status,
-      body: parsed,
+      response: parsed,
     });
     throw new functions.https.HttpsError(
       "internal",
-      "Failed to refresh OAuth token",
-      parsed as Record<string, unknown>
+      "Payment account session expired. Please reconnect."
     );
   }
 

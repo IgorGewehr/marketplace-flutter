@@ -522,56 +522,80 @@ class _CardDetailsStep extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (checkoutState.cardTokenId != null) ...[
+            // Success badge
             Container(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               decoration: BoxDecoration(
-                color: theme.colorScheme.secondaryContainer,
-                borderRadius: BorderRadius.circular(12),
+                gradient: LinearGradient(
+                  colors: [
+                    AppColors.primary.withAlpha(20),
+                    AppColors.primaryLight.withAlpha(15),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: AppColors.primary.withAlpha(60)),
               ),
               child: Row(
                 children: [
-                  Icon(
-                    Icons.check_circle,
-                    color: theme.colorScheme.secondary,
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withAlpha(30),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.check_rounded, color: AppColors.primary, size: 20),
                   ),
                   const SizedBox(width: 12),
-                  const Expanded(
-                    child: Text('Cartão verificado com sucesso!'),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Cartão verificado',
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.primaryDark,
+                          ),
+                        ),
+                        Text(
+                          'Agora escolha o parcelamento',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
-            ),
-            const SizedBox(height: 20),
+            ).animate().fadeIn(duration: 350.ms).slideY(begin: -0.1),
+            const SizedBox(height: 24),
 
             // Installment selector for credit card
             if (checkoutState.paymentMethod == PaymentMethod.creditCard) ...[
-              Text('Parcelas', style: theme.textTheme.titleSmall),
-              const SizedBox(height: 8),
+              Text(
+                'Parcelas',
+                style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 12),
               Builder(
                 builder: (context) {
                   final bin = checkoutState.cardBin ?? '';
                   if (bin.length < 6) {
-                    // BIN not available, show simple dropdown
-                    return DropdownButtonFormField<int>(
-                      value: checkoutState.installments,
-                      decoration: const InputDecoration(
-                        border: OutlineInputBorder(),
-                        contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      ),
-                      items: List.generate(12, (i) {
+                    return _InstallmentsList(
+                      options: List.generate(12, (i) {
                         final n = i + 1;
-                        final v = total / n;
-                        return DropdownMenuItem(
-                          value: n,
-                          child: Text(n == 1
-                              ? '1x de ${Formatters.currency(v)} (à vista)'
-                              : '${n}x de ${Formatters.currency(v)}'),
+                        return _InstallmentOption(
+                          installments: n,
+                          amount: total / n,
+                          totalAmount: total,
+                          interestFree: true,
                         );
                       }),
-                      onChanged: (value) {
-                        if (value != null) {
-                          ref.read(checkoutProvider.notifier).setInstallments(value);
-                        }
+                      selectedInstallments: checkoutState.installments,
+                      onSelected: (value) {
+                        ref.read(checkoutProvider.notifier).setInstallments(value);
                       },
                     );
                   }
@@ -583,36 +607,32 @@ class _CardDetailsStep extends ConsumerWidget {
                   );
 
                   return installmentsAsync.when(
-                    loading: () => const Center(
-                      child: Padding(
-                        padding: EdgeInsets.symmetric(vertical: 12),
-                        child: CircularProgressIndicator(),
-                      ),
+                    loading: () => Column(
+                      children: List.generate(3, (i) => Container(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        height: 64,
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.surfaceContainerHighest.withAlpha(80),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      )).animate(interval: 100.ms).fadeIn().shimmer(duration: 800.ms),
                     ),
-                    error: (_, __) => DropdownButtonFormField<int>(
-                      value: checkoutState.installments,
-                      decoration: const InputDecoration(
-                        border: OutlineInputBorder(),
-                        contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      ),
-                      items: List.generate(12, (i) {
+                    error: (_, __) => _InstallmentsList(
+                      options: List.generate(12, (i) {
                         final n = i + 1;
-                        final v = total / n;
-                        return DropdownMenuItem(
-                          value: n,
-                          child: Text(n == 1
-                              ? '1x de ${Formatters.currency(v)} (à vista)'
-                              : '${n}x de ${Formatters.currency(v)}'),
+                        return _InstallmentOption(
+                          installments: n,
+                          amount: total / n,
+                          totalAmount: total,
+                          interestFree: true,
                         );
                       }),
-                      onChanged: (value) {
-                        if (value != null) {
-                          ref.read(checkoutProvider.notifier).setInstallments(value);
-                        }
+                      selectedInstallments: checkoutState.installments,
+                      onSelected: (value) {
+                        ref.read(checkoutProvider.notifier).setInstallments(value);
                       },
                     ),
                     data: (options) {
-                      // Auto-select 1x if current selection not in options
                       final validOption = options.any((o) => o.installments == checkoutState.installments);
                       if (!validOption && options.isNotEmpty) {
                         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -622,29 +642,17 @@ class _CardDetailsStep extends ConsumerWidget {
                           }
                         });
                       }
-                      return DropdownButtonFormField<int>(
-                        value: validOption ? checkoutState.installments : 1,
-                        decoration: const InputDecoration(
-                          border: OutlineInputBorder(),
-                          contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                        ),
-                        items: options.map((option) {
-                          return DropdownMenuItem<int>(
-                            value: option.installments,
-                            child: Text(
-                              option.recommendedMessage,
-                              style: TextStyle(
-                                color: option.interestFree
-                                    ? null
-                                    : Theme.of(context).colorScheme.error,
-                              ),
-                            ),
-                          );
-                        }).toList(),
-                        onChanged: (value) {
-                          if (value != null) {
-                            ref.read(checkoutProvider.notifier).setInstallments(value);
-                          }
+                      return _InstallmentsList(
+                        options: options.map((o) => _InstallmentOption(
+                          installments: o.installments,
+                          amount: o.installmentAmount,
+                          totalAmount: o.totalAmount,
+                          interestFree: o.interestFree,
+                          label: o.recommendedMessage,
+                        )).toList(),
+                        selectedInstallments: validOption ? checkoutState.installments : 1,
+                        onSelected: (value) {
+                          ref.read(checkoutProvider.notifier).setInstallments(value);
                         },
                       );
                     },
@@ -661,6 +669,160 @@ class _CardDetailsStep extends ConsumerWidget {
             ),
         ],
       ),
+    );
+  }
+}
+
+/// Data class for installment option display
+class _InstallmentOption {
+  final int installments;
+  final double amount;
+  final double totalAmount;
+  final bool interestFree;
+  final String? label;
+
+  const _InstallmentOption({
+    required this.installments,
+    required this.amount,
+    required this.totalAmount,
+    required this.interestFree,
+    this.label,
+  });
+}
+
+/// Modern installments list replacing DropdownButtonFormField
+class _InstallmentsList extends StatelessWidget {
+  final List<_InstallmentOption> options;
+  final int selectedInstallments;
+  final ValueChanged<int> onSelected;
+
+  const _InstallmentsList({
+    required this.options,
+    required this.selectedInstallments,
+    required this.onSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Column(
+      children: options.map((option) {
+        final isSelected = option.installments == selectedInstallments;
+        return GestureDetector(
+          onTap: () {
+            HapticFeedback.selectionClick();
+            onSelected(option.installments);
+          },
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            decoration: BoxDecoration(
+              color: isSelected
+                  ? AppColors.primary.withAlpha(12)
+                  : theme.colorScheme.surface,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: isSelected
+                    ? AppColors.primary
+                    : theme.colorScheme.outline.withAlpha(40),
+                width: isSelected ? 1.5 : 1,
+              ),
+            ),
+            child: Row(
+              children: [
+                // Selection indicator
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  width: 22,
+                  height: 22,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: isSelected ? AppColors.primary : Colors.transparent,
+                    border: Border.all(
+                      color: isSelected
+                          ? AppColors.primary
+                          : theme.colorScheme.outline.withAlpha(80),
+                      width: isSelected ? 0 : 1.5,
+                    ),
+                  ),
+                  child: isSelected
+                      ? const Icon(Icons.check, size: 14, color: Colors.white)
+                      : null,
+                ),
+                const SizedBox(width: 14),
+
+                // Installment info
+                Expanded(
+                  child: Row(
+                    children: [
+                      Text(
+                        '${option.installments}x',
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: isSelected ? AppColors.primaryDark : null,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        'de ${Formatters.currency(option.amount)}',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: isSelected
+                              ? theme.colorScheme.onSurface
+                              : theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Badge
+                if (option.interestFree && option.installments > 1)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withAlpha(20),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      'sem juros',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: AppColors.primaryDark,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  )
+                else if (!option.interestFree)
+                  Text(
+                    Formatters.currency(option.totalAmount),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.error.withAlpha(180),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  )
+                else if (option.installments == 1)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.primaryContainer.withAlpha(60),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      'à vista',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: AppColors.primaryDark,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
+      }).toList(),
     );
   }
 }

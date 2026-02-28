@@ -90,11 +90,11 @@ class EmptyState extends StatelessWidget {
                 color: theme.colorScheme.primary.withAlpha(180),
               ),
             )
-                .animate(onPlay: (c) => c.repeat(count: 3, reverse: true))
+                .animate(onPlay: (c) => c.repeat(reverse: true))
                 .scaleXY(
-                  begin: 1.0,
-                  end: 1.06,
-                  duration: 1800.ms,
+                  begin: 0.95,
+                  end: 1.08,
+                  duration: 1500.ms,
                   curve: Curves.easeInOut,
                 )
                 .then()

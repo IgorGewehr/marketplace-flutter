@@ -11,6 +11,7 @@ import 'auth_providers.dart';
 import 'cart_provider.dart';
 import 'core_providers.dart';
 import 'mercadopago_provider.dart';
+import 'orders_provider.dart';
 
 /// Checkout step enum
 enum CheckoutStep {
@@ -308,17 +309,17 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
       // WebView/browser. Once the user completes the challenge the payment
       // status will update via webhook and the order will transition normally.
       if (order.paymentStatus == 'pending_challenge') {
-        // TODO: add `threeDsUrl` field to OrderModel when the backend surfaces it.
-        // For now the URL must be extracted from a future order field. The state
-        // field is ready so the screen can act as soon as the model is updated.
         state = state.copyWith(
           createdOrder: order,
           isLoading: false,
           currentStep: CheckoutStep.processing,
-          // threeDsUrl: order.threeDsUrl, — uncomment once OrderModel has the field
+          threeDsUrl: order.threeDsUrl,
         );
         return true;
       }
+
+      // Invalidate orders list so the buyer sees the new order immediately
+      ref.invalidate(ordersProvider);
 
       // Handle PIX payment - populate PIX data from order response
       if (state.paymentMethod == PaymentMethod.pix) {
@@ -368,6 +369,8 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
         );
         // PIX confirmed — now safe to clear cart
         ref.read(cartProvider.notifier).clearCart();
+        // Refresh orders list so the buyer sees the updated payment status
+        ref.invalidate(ordersProvider);
         return true;
       }
       return false;
@@ -410,6 +413,7 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
   /// Fire-and-forget: auto-sends a chat message to the seller when the
   /// checkout fails due to seller-side configuration issues (PIX not enabled,
   /// MercadoPago not connected). Never blocks or affects the buyer error flow.
+  /// Each tenant+error combination is notified only once (persisted via Hive).
   void _notifySellerViaChat(Object error) {
     try {
       // Detect error code from ApiException.responseData or fallback to string matching
@@ -420,9 +424,11 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
       final msg = error.toString().toLowerCase();
 
       String? chatMessage;
+      String? errorType;
       if (code == 'SELLER_PIX_NOT_ENABLED' ||
           msg.contains('seller_pix_not_enabled') ||
           msg.contains('key enabled for qr')) {
+        errorType = 'pix_not_enabled';
         chatMessage =
             'Olá! Tentei comprar um produto da sua loja via PIX, mas não '
             'consegui finalizar. Parece que o recebimento via PIX ainda não '
@@ -432,19 +438,28 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
           msg.contains('seller_not_connected') ||
           msg.contains('não conectou') ||
           msg.contains('nao conectou')) {
+        errorType = 'not_connected';
         chatMessage =
             'Olá! Tentei comprar um produto da sua loja, mas não consegui '
             'finalizar o pagamento porque sua conta do Mercado Pago ainda '
             'não está conectada. Poderia verificar? Obrigado!';
       }
 
-      if (chatMessage == null) return;
+      if (chatMessage == null || errorType == null) return;
 
       // Get tenantId from cart items
       final cartItems = ref.read(cartProvider).items;
       if (cartItems.isEmpty) return;
       final tenantId = cartItems.first.tenantId;
       if (tenantId.isEmpty) return;
+
+      // Dedup: check if we already notified this tenant about this error
+      final localStorage = ref.read(localStorageProvider);
+      final dedupKey = 'seller_notified_${tenantId}_$errorType';
+      if (localStorage.getBool(dedupKey) == true) return;
+
+      // Mark as notified before sending (prevents duplicates on rapid retries)
+      localStorage.setBool(dedupKey, true);
 
       // Fire-and-forget — startChat + sendMessage
       final chatRepo = ref.read(chatRepositoryProvider);

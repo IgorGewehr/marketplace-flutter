@@ -171,21 +171,27 @@ class SettingsScreen extends ConsumerWidget {
 
             // Version info
             const SizedBox(height: 16),
-            const Text(
-              'Compre Aqui v1.0.0 (build 1)',
-              style: TextStyle(
-                fontSize: 12,
-                color: AppColors.textHint,
-              ),
-            ),
-            const SizedBox(height: 4),
-            const Text(
-              '© 2024 Compre Aqui. Todos os direitos reservados.',
-              style: TextStyle(
-                fontSize: 11,
-                color: AppColors.textHint,
-              ),
-            ),
+            Column(
+              children: [
+                const Text(
+                  'Compre Aqui v1.0.0 (build 1)',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textHint,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  '© 2024 Compre Aqui. Todos os direitos reservados.',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: AppColors.textHint,
+                  ),
+                ),
+              ],
+            )
+                .animate()
+                .fadeIn(delay: 500.ms, duration: 350.ms),
             const SizedBox(height: 24),
           ],
         ),

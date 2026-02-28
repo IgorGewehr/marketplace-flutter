@@ -6,6 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 
+import 'package:flutter_animate/flutter_animate.dart';
+
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
@@ -232,7 +234,11 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
       body: Column(
         children: [
           // Order context card
-          if (chat?.orderId != null) _buildOrderContextCard(chat!),
+          if (chat?.orderId != null)
+            _buildOrderContextCard(chat!)
+                .animate()
+                .fadeIn(duration: 400.ms)
+                .slideY(begin: -0.05, duration: 400.ms, curve: Curves.easeOut),
           // Messages
           Expanded(
             child: messagesAsync.when(
@@ -259,7 +265,10 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
                             size: 36,
                             color: AppColors.primary,
                           ),
-                        ),
+                        )
+                            .animate()
+                            .fadeIn(duration: 400.ms)
+                            .scale(begin: const Offset(0.8, 0.8), duration: 500.ms, curve: Curves.elasticOut),
                         const SizedBox(height: AppSpacing.m),
                         const Text(
                           'Nenhuma mensagem ainda',
@@ -268,15 +277,19 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
                             fontWeight: FontWeight.w600,
                             color: AppColors.textPrimary,
                           ),
-                        ),
+                        )
+                            .animate()
+                            .fadeIn(delay: 200.ms, duration: 400.ms),
                         const SizedBox(height: AppSpacing.xs),
                         const Text(
-                          'Diga olá! 👋',
+                          'Diga olá!',
                           style: TextStyle(
                             fontSize: 14,
                             color: AppColors.textSecondary,
                           ),
-                        ),
+                        )
+                            .animate()
+                            .fadeIn(delay: 400.ms, duration: 400.ms),
                       ],
                     ),
                   );
@@ -477,8 +490,15 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.surface,
           borderRadius: const BorderRadius.vertical(
-            top: Radius.circular(AppSpacing.radiusXXL),
+            top: Radius.circular(28),
           ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withAlpha(15),
+              blurRadius: 20,
+              offset: const Offset(0, -4),
+            ),
+          ],
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -490,7 +510,8 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
                 color: AppColors.border,
                 borderRadius: BorderRadius.circular(2),
               ),
-            ),
+            ).animate(onPlay: (c) => c.repeat(reverse: true))
+              .scaleX(begin: 0.8, end: 1.0, duration: 800.ms, curve: Curves.easeInOut),
             const SizedBox(height: AppSpacing.m),
             ListTile(
               leading: const Icon(Icons.refresh),
@@ -598,8 +619,15 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.surface,
           borderRadius: const BorderRadius.vertical(
-            top: Radius.circular(AppSpacing.radiusXXL),
+            top: Radius.circular(28),
           ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withAlpha(15),
+              blurRadius: 20,
+              offset: const Offset(0, -4),
+            ),
+          ],
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -611,7 +639,8 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
                 color: AppColors.border,
                 borderRadius: BorderRadius.circular(2),
               ),
-            ),
+            ).animate(onPlay: (c) => c.repeat(reverse: true))
+              .scaleX(begin: 0.8, end: 1.0, duration: 800.ms, curve: Curves.easeInOut),
             const SizedBox(height: AppSpacing.m),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -674,30 +703,39 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     required Color color,
     required VoidCallback onTap,
   }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 56,
-            height: 56,
-            decoration: BoxDecoration(
-              color: color.withAlpha(20),
-              shape: BoxShape.circle,
+    return InkWell(
+      onTap: () {
+        HapticFeedback.selectionClick();
+        onTap();
+      },
+      borderRadius: BorderRadius.circular(16),
+      splashColor: color.withAlpha(30),
+      highlightColor: color.withAlpha(15),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                color: color.withAlpha(20),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: color, size: 26),
             ),
-            child: Icon(icon, color: color, size: 26),
-          ),
-          const SizedBox(height: AppSpacing.s),
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 13,
-              color: AppColors.textSecondary,
-              fontWeight: FontWeight.w500,
+            const SizedBox(height: AppSpacing.s),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 13,
+                color: AppColors.textSecondary,
+                fontWeight: FontWeight.w500,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

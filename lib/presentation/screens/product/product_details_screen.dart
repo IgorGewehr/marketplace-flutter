@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_colors.dart';
@@ -795,12 +796,15 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
         },
       ),
 
-      // OLX-style bottom bar: Comprar + Chat
+      // Bottom bar: Comprar + Chat (< R$500) or WhatsApp/Chat (>= R$500)
       bottomNavigationBar: productAsync.when(
         loading: () => null,
         error: (_, __) => null,
         data: (product) {
           if (product == null) return null;
+
+          final isHighValue = _effectivePrice(product) >= 500;
+          final hasWhatsApp = tenant?.whatsapp != null && tenant!.whatsapp!.isNotEmpty;
 
           return Container(
             padding: EdgeInsets.fromLTRB(
@@ -822,76 +826,174 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Row(
-              children: [
-                // Comprar button (adds to cart)
-                Expanded(
-                  flex: 3,
-                  child: FilledButton.icon(
-                    onPressed: (product.quantity != null && product.quantity! <= 0) || _isAddingToCart
-                        ? null
-                        : _addToCart,
-                    icon: _isAddingToCart
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
+                // Info banner for high-value products
+                if (isHighValue)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.info_outline,
+                            size: 16,
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Produto acima de R\$ 500 — negocie diretamente com o vendedor',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
                             ),
-                          )
-                        : const Icon(Icons.shopping_bag_outlined, size: 20),
-                    label: Text(
-                      product.quantity != null && product.quantity! <= 0
-                          ? 'Sem estoque'
-                          : 'Comprar',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    style: FilledButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                          ),
+                        ],
                       ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                // Chat button
-                Expanded(
-                  flex: 2,
-                  child: OutlinedButton.icon(
-                    onPressed: _isOpeningChat ? null : () => _openChat(product.tenantId),
-                    icon: _isOpeningChat
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.chat_bubble_outline, size: 20),
-                    label: Text(
-                      _isOpeningChat ? 'Abrindo...' : 'Chat',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
+
+                if (!isHighValue)
+                  // Standard layout: Comprar + Chat
+                  Row(
+                    children: [
+                      Expanded(
+                        flex: 3,
+                        child: FilledButton.icon(
+                          onPressed: (product.quantity != null && product.quantity! <= 0) || _isAddingToCart
+                              ? null
+                              : _addToCart,
+                          icon: _isAddingToCart
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Icon(Icons.shopping_bag_outlined, size: 20),
+                          label: Text(
+                            product.quantity != null && product.quantity! <= 0
+                                ? 'Sem estoque'
+                                : 'Comprar',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          style: FilledButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
                       ),
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      side: BorderSide(
-                        color: theme.colorScheme.outline.withAlpha(80),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        flex: 2,
+                        child: OutlinedButton.icon(
+                          onPressed: _isOpeningChat ? null : () => _openChat(product.tenantId),
+                          icon: _isOpeningChat
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                )
+                              : const Icon(Icons.chat_bubble_outline, size: 20),
+                          label: Text(
+                            _isOpeningChat ? 'Abrindo...' : 'Chat',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            side: BorderSide(
+                              color: theme.colorScheme.outline.withAlpha(80),
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
                       ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                    ],
+                  )
+                else
+                  // High-value layout: WhatsApp + Chat (or Chat only)
+                  Row(
+                    children: [
+                      if (hasWhatsApp) ...[
+                        Expanded(
+                          flex: 3,
+                          child: FilledButton.icon(
+                            onPressed: () => launchWhatsApp(
+                              phoneNumber: tenant.whatsapp!,
+                              message: 'Olá! Tenho interesse no produto: ${product.name} - ${Formatters.currency(_effectivePrice(product))}',
+                              context: context,
+                            ),
+                            icon: const Icon(LucideIcons.messageCircle, size: 20),
+                            label: const Text(
+                              'WhatsApp',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            style: FilledButton.styleFrom(
+                              backgroundColor: const Color(0xFF25D366),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                      ],
+                      Expanded(
+                        flex: hasWhatsApp ? 2 : 1,
+                        child: OutlinedButton.icon(
+                          onPressed: _isOpeningChat ? null : () => _openChat(product.tenantId),
+                          icon: _isOpeningChat
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                )
+                              : const Icon(Icons.chat_bubble_outline, size: 20),
+                          label: Text(
+                            _isOpeningChat ? 'Abrindo...' : 'Chat',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            side: BorderSide(
+                              color: theme.colorScheme.outline.withAlpha(80),
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
                       ),
-                    ),
+                    ],
                   ),
-                ),
-              ],
-            ),
-                if (product.quantity != null && product.quantity! <= 0)
+
+                if (!isHighValue && product.quantity != null && product.quantity! <= 0)
                   Padding(
                     padding: const EdgeInsets.only(top: 4),
                     child: Text(

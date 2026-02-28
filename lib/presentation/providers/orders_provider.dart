@@ -166,6 +166,7 @@ class OrdersNotifier extends AsyncNotifier<OrdersState> {
       }
       final orderRepo = ref.read(orderRepositoryProvider);
       await orderRepo.confirmDelivery(orderId);
+      ref.invalidate(orderDetailProvider(orderId));
       await refresh();
       return true;
     } catch (e) {
@@ -187,6 +188,7 @@ class OrdersNotifier extends AsyncNotifier<OrdersState> {
       }
       final orderRepo = ref.read(orderRepositoryProvider);
       await orderRepo.disputeOrder(orderId, reason: reason);
+      ref.invalidate(orderDetailProvider(orderId));
       await refresh();
       return true;
     } catch (e) {
@@ -208,6 +210,7 @@ class OrdersNotifier extends AsyncNotifier<OrdersState> {
       }
       final orderRepo = ref.read(orderRepositoryProvider);
       await orderRepo.cancel(orderId, reason: reason);
+      ref.invalidate(orderDetailProvider(orderId));
       await refresh();
       return true;
     } catch (e) {

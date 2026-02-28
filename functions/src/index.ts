@@ -75,6 +75,17 @@ const chatLimiter = rateLimit({
 });
 app.use("/api/chats", chatLimiter);
 
+// Stricter rate limit for public (unauthenticated) browsing endpoints
+const publicBrowseLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000,
+  max: 40, // 40 requests per minute per IP (stricter than general 60)
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Muitas requisições. Tente novamente em instantes." },
+});
+app.use("/api/marketplace", publicBrowseLimiter);
+app.use("/api/users/:userId/public", publicBrowseLimiter);
+
 // Health check (no auth required)
 app.get("/api/health", (_req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });

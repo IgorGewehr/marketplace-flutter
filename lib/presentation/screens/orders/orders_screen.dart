@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -7,7 +8,7 @@ import '../../../core/router/app_router.dart';
 import '../../providers/orders_provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../widgets/orders/order_tile.dart';
-import '../../widgets/shared/loading_overlay.dart';
+import '../../widgets/shared/error_state.dart';
 import '../../widgets/shared/shimmer_loading.dart';
 
 /// Orders list screen
@@ -72,31 +73,11 @@ class OrdersScreen extends ConsumerWidget {
           // Orders list
           Expanded(
             child: ordersState.when(
-              loading: () => Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const LoadingIndicator(),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Carregando pedidos...',
-                      style: TextStyle(color: Colors.grey[600]),
-                    ),
-                  ],
-                ),
-              ),
-              error: (_, __) => Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Text('Erro ao carregar pedidos'),
-                    const SizedBox(height: 8),
-                    FilledButton(
-                      onPressed: () => ref.invalidate(ordersProvider),
-                      child: const Text('Tentar novamente'),
-                    ),
-                  ],
-                ),
+              loading: () => const ShimmerLoading(itemCount: 4, isGrid: false, height: 100),
+              error: (_, __) => ErrorState(
+                icon: Icons.receipt_long_rounded,
+                message: 'Erro ao carregar pedidos.',
+                onRetry: () => ref.invalidate(ordersProvider),
               ),
               data: (data) {
                 final displayOrders = data.filteredOrders;
@@ -194,7 +175,10 @@ class _FilterChip extends StatelessWidget {
       child: FilterChip(
         label: Text(label),
         selected: isSelected,
-        onSelected: (_) => onTap(),
+        onSelected: (_) {
+          HapticFeedback.selectionClick();
+          onTap();
+        },
         selectedColor: theme.colorScheme.primary,
         backgroundColor: theme.colorScheme.surfaceContainerHighest,
         checkmarkColor: Colors.white,

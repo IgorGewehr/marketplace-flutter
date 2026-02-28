@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shimmer/shimmer.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/constants/app_constants.dart';
@@ -16,7 +17,7 @@ import '../../providers/products_provider.dart';
 import '../../providers/seller_mode_provider.dart';
 import '../../widgets/profile/profile_header.dart';
 import '../../widgets/profile/profile_menu_item.dart';
-import '../../widgets/shared/shimmer_loading.dart';
+import '../../widgets/shared/error_state.dart';
 
 /// Profile screen
 class ProfileScreen extends ConsumerWidget {
@@ -43,22 +44,11 @@ class ProfileScreen extends ConsumerWidget {
         ],
       ),
       body: userAsync.when(
-        loading: () => const ShimmerLoading(itemCount: 4, isGrid: false, height: 64),
-        error: (_, __) => Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.error_outline, size: 48, color: Theme.of(context).colorScheme.error),
-              const SizedBox(height: 16),
-              const Text('Erro ao carregar perfil'),
-              const SizedBox(height: 12),
-              FilledButton.icon(
-                onPressed: () => ref.invalidate(currentUserProvider),
-                icon: const Icon(Icons.refresh),
-                label: const Text('Tentar novamente'),
-              ),
-            ],
-          ),
+        loading: () => _buildProfileShimmer(Theme.of(context)),
+        error: (_, __) => ErrorState(
+          icon: Icons.person_off_rounded,
+          message: 'Erro ao carregar perfil.',
+          onRetry: () => ref.invalidate(currentUserProvider),
         ),
         data: (user) {
           // If user is null but we're in the middle of signing out,
@@ -235,6 +225,72 @@ class ProfileScreen extends ConsumerWidget {
             ),
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildProfileShimmer(ThemeData theme) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Shimmer.fromColors(
+        baseColor: theme.colorScheme.surfaceContainerHighest,
+        highlightColor: theme.colorScheme.surface,
+        child: Column(
+          children: [
+            // Profile header shimmer
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surface,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Column(
+                children: [
+                  // Avatar circle
+                  CircleAvatar(
+                    radius: 48,
+                    backgroundColor: theme.colorScheme.surfaceContainerHighest,
+                  ),
+                  const SizedBox(height: 16),
+                  // Name bar
+                  Container(
+                    width: 140,
+                    height: 20,
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.surfaceContainerHighest,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  // Email bar
+                  Container(
+                    width: 180,
+                    height: 14,
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.surfaceContainerHighest,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+            // Menu items shimmer
+            ...List.generate(
+              4,
+              (index) => Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Container(
+                  height: 56,
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 
 import '../../core/utils/validators.dart';
 import '../../data/datasources/mp_card_tokenizer.dart';
@@ -33,7 +34,20 @@ class _CardPaymentFormState extends State<CardPaymentForm> {
   String? _error;
 
   @override
+  void initState() {
+    super.initState();
+    _cardNumberController.addListener(_onFieldChanged);
+    _holderNameController.addListener(_onFieldChanged);
+    _expiryController.addListener(_onFieldChanged);
+  }
+
+  void _onFieldChanged() => setState(() {});
+
+  @override
   void dispose() {
+    _cardNumberController.removeListener(_onFieldChanged);
+    _holderNameController.removeListener(_onFieldChanged);
+    _expiryController.removeListener(_onFieldChanged);
     // Clear sensitive data before disposing
     _cardNumberController.clear();
     _cvvController.clear();
@@ -117,10 +131,20 @@ class _CardPaymentFormState extends State<CardPaymentForm> {
     return sum % 10 == 0;
   }
 
+  String _getCardBrand(String digits) {
+    if (digits.startsWith('4')) return 'visa';
+    if (digits.startsWith('5') || digits.startsWith('2')) return 'master';
+    if (digits.startsWith('3')) return 'amex';
+    if (digits.startsWith('6')) return 'elo';
+    return '';
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final loading = widget.isLoading || _isTokenizing;
+    final cardDigits = _cardNumberController.text.replaceAll(RegExp(r'\D'), '');
+    final brand = _getCardBrand(cardDigits);
 
     return Form(
       key: _formKey,
@@ -135,38 +159,45 @@ class _CardPaymentFormState extends State<CardPaymentForm> {
           ),
           const SizedBox(height: 16),
 
-          // Error banner (above form fields so they remain visible)
+          // Card preview
+          _CardPreview(
+            cardNumber: _cardNumberController.text,
+            holderName: _holderNameController.text,
+            expiry: _expiryController.text,
+            brand: brand,
+          ).animate().fadeIn(duration: 400.ms).slideY(begin: -0.1, curve: Curves.easeOut),
+          const SizedBox(height: 24),
+
+          // Error banner
           if (_error != null) ...[
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: theme.colorScheme.errorContainer,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(12),
               ),
               child: Row(
                 children: [
-                  Icon(Icons.error_outline, color: theme.colorScheme.error),
-                  const SizedBox(width: 8),
+                  Icon(Icons.error_outline, color: theme.colorScheme.error, size: 20),
+                  const SizedBox(width: 10),
                   Expanded(
                     child: Text(
                       _error!,
-                      style: TextStyle(color: theme.colorScheme.error),
+                      style: TextStyle(color: theme.colorScheme.error, fontSize: 13),
                     ),
                   ),
                 ],
               ),
-            ),
-            const SizedBox(height: 12),
+            ).animate().fadeIn(duration: 200.ms).shake(hz: 2, offset: const Offset(4, 0)),
+            const SizedBox(height: 16),
           ],
 
           // Card number
-          TextFormField(
+          _StyledFormField(
             controller: _cardNumberController,
-            decoration: const InputDecoration(
-              labelText: 'Número do cartão',
-              hintText: '0000 0000 0000 0000',
-              prefixIcon: Icon(Icons.credit_card),
-            ),
+            label: 'Número do cartão',
+            hint: '0000 0000 0000 0000',
+            icon: Icons.credit_card_outlined,
             keyboardType: TextInputType.number,
             inputFormatters: [
               FilteringTextInputFormatter.digitsOnly,
@@ -174,9 +205,7 @@ class _CardPaymentFormState extends State<CardPaymentForm> {
               _CardNumberFormatter(),
             ],
             onChanged: (_) {
-              if (_error != null) {
-                setState(() => _error = null);
-              }
+              if (_error != null) setState(() => _error = null);
             },
             validator: (value) {
               final digits = value?.replaceAll(RegExp(r'\D'), '') ?? '';
@@ -186,17 +215,18 @@ class _CardPaymentFormState extends State<CardPaymentForm> {
               if (!_luhnCheck(digits)) return 'Número do cartão inválido';
               return null;
             },
+            suffix: brand.isNotEmpty
+                ? _CardBrandIcon(brand: brand)
+                : null,
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
 
           // Holder name
-          TextFormField(
+          _StyledFormField(
             controller: _holderNameController,
-            decoration: const InputDecoration(
-              labelText: 'Nome no cartão',
-              hintText: 'NOME COMO NO CARTÃO',
-              prefixIcon: Icon(Icons.person_outline),
-            ),
+            label: 'Nome no cartão',
+            hint: 'NOME COMO NO CARTÃO',
+            icon: Icons.person_outline,
             textCapitalization: TextCapitalization.characters,
             validator: (value) {
               if (value == null || value.trim().length < 2) {
@@ -205,19 +235,17 @@ class _CardPaymentFormState extends State<CardPaymentForm> {
               return null;
             },
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
 
           // Expiry and CVV row
           Row(
             children: [
               Expanded(
-                child: TextFormField(
+                child: _StyledFormField(
                   controller: _expiryController,
-                  decoration: const InputDecoration(
-                    labelText: 'Validade',
-                    hintText: 'MM/AA',
-                    prefixIcon: Icon(Icons.calendar_today_outlined),
-                  ),
+                  label: 'Validade',
+                  hint: 'MM/AA',
+                  icon: Icons.calendar_today_outlined,
                   keyboardType: TextInputType.number,
                   inputFormatters: [
                     FilteringTextInputFormatter.digitsOnly,
@@ -244,19 +272,17 @@ class _CardPaymentFormState extends State<CardPaymentForm> {
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: TextFormField(
+                child: _StyledFormField(
                   controller: _cvvController,
-                  decoration: const InputDecoration(
-                    labelText: 'CVV',
-                    hintText: '123',
-                    prefixIcon: Icon(Icons.lock_outline),
-                  ),
+                  label: 'CVV',
+                  hint: '123',
+                  icon: Icons.lock_outline,
                   keyboardType: TextInputType.number,
+                  obscureText: true,
                   inputFormatters: [
                     FilteringTextInputFormatter.digitsOnly,
                     LengthLimitingTextInputFormatter(4),
                   ],
-                  obscureText: true,
                   validator: (value) {
                     if (value == null || value.length < 3) {
                       return 'CVV inválido';
@@ -267,16 +293,14 @@ class _CardPaymentFormState extends State<CardPaymentForm> {
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
 
           // CPF
-          TextFormField(
+          _StyledFormField(
             controller: _documentController,
-            decoration: const InputDecoration(
-              labelText: 'CPF do titular',
-              hintText: '000.000.000-00',
-              prefixIcon: Icon(Icons.badge_outlined),
-            ),
+            label: 'CPF do titular',
+            hint: '000.000.000-00',
+            icon: Icons.badge_outlined,
             keyboardType: TextInputType.number,
             inputFormatters: [
               FilteringTextInputFormatter.digitsOnly,
@@ -291,26 +315,316 @@ class _CardPaymentFormState extends State<CardPaymentForm> {
             },
           ),
 
-          const SizedBox(height: 20),
+          const SizedBox(height: 24),
+
+          // Security badge
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.shield_outlined, size: 14, color: theme.colorScheme.onSurfaceVariant),
+              const SizedBox(width: 6),
+              Text(
+                'Pagamento seguro via Mercado Pago',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
 
           SizedBox(
             width: double.infinity,
             child: FilledButton(
               onPressed: loading ? null : _tokenize,
               style: FilledButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 14),
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
               ),
               child: loading
                   ? const SizedBox(
                       height: 20,
                       width: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                     )
-                  : const Text('Confirmar cartão'),
+                  : Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.lock_outline, size: 18),
+                        const SizedBox(width: 8),
+                        const Text('Confirmar cartão', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                      ],
+                    ),
             ),
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Visual card preview that updates live as user types
+class _CardPreview extends StatelessWidget {
+  final String cardNumber;
+  final String holderName;
+  final String expiry;
+  final String brand;
+
+  const _CardPreview({
+    required this.cardNumber,
+    required this.holderName,
+    required this.expiry,
+    required this.brand,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final displayNumber = cardNumber.isEmpty ? '**** **** **** ****' : cardNumber;
+    final displayName = holderName.isEmpty ? 'NOME DO TITULAR' : holderName;
+    final displayExpiry = expiry.isEmpty ? 'MM/AA' : expiry;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFF1A1A2E),
+            Color(0xFF16213E),
+            Color(0xFF0F3460),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0F3460).withAlpha(80),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Top row: chip + brand
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              // Chip icon
+              Container(
+                width: 40,
+                height: 28,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFFE8B730), Color(0xFFC99A2E)],
+                  ),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: const Center(
+                  child: Icon(Icons.memory, size: 16, color: Color(0xFF8B6914)),
+                ),
+              ),
+              if (brand.isNotEmpty)
+                Text(
+                  brand.toUpperCase(),
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 1.5,
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 28),
+
+          // Card number
+          Text(
+            displayNumber,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.w500,
+              letterSpacing: 3,
+              fontFamily: 'monospace',
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          // Bottom row: name + expiry
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'TITULAR',
+                      style: TextStyle(
+                        color: Colors.white.withAlpha(100),
+                        fontSize: 9,
+                        letterSpacing: 1.2,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      displayName,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        letterSpacing: 0.5,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    'VALIDADE',
+                    style: TextStyle(
+                      color: Colors.white.withAlpha(100),
+                      fontSize: 9,
+                      letterSpacing: 1.2,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    displayExpiry,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Card brand icon shown in the card number field suffix
+class _CardBrandIcon extends StatelessWidget {
+  final String brand;
+
+  const _CardBrandIcon({required this.brand});
+
+  @override
+  Widget build(BuildContext context) {
+    final (Color color, IconData icon) = switch (brand) {
+      'visa' => (const Color(0xFF1A1F71), Icons.credit_card),
+      'master' => (const Color(0xFFEB001B), Icons.credit_card),
+      'amex' => (const Color(0xFF006FCF), Icons.credit_card),
+      'elo' => (const Color(0xFF000000), Icons.credit_card),
+      _ => (Colors.grey, Icons.credit_card),
+    };
+
+    return Container(
+      margin: const EdgeInsets.only(right: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withAlpha(20),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        brand.toUpperCase(),
+        style: TextStyle(
+          color: color,
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.5,
+        ),
+      ),
+    );
+  }
+}
+
+/// Styled form field with modern look
+class _StyledFormField extends StatelessWidget {
+  final TextEditingController controller;
+  final String label;
+  final String hint;
+  final IconData icon;
+  final TextInputType? keyboardType;
+  final List<TextInputFormatter>? inputFormatters;
+  final String? Function(String?)? validator;
+  final ValueChanged<String>? onChanged;
+  final TextCapitalization textCapitalization;
+  final bool obscureText;
+  final Widget? suffix;
+
+  const _StyledFormField({
+    required this.controller,
+    required this.label,
+    required this.hint,
+    required this.icon,
+    this.keyboardType,
+    this.inputFormatters,
+    this.validator,
+    this.onChanged,
+    this.textCapitalization = TextCapitalization.none,
+    this.obscureText = false,
+    this.suffix,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return TextFormField(
+      controller: controller,
+      decoration: InputDecoration(
+        labelText: label,
+        hintText: hint,
+        hintStyle: TextStyle(color: theme.colorScheme.onSurfaceVariant.withAlpha(100)),
+        prefixIcon: Icon(icon, size: 20),
+        suffixIcon: suffix,
+        filled: true,
+        fillColor: theme.colorScheme.surfaceContainerHighest.withAlpha(80),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: theme.colorScheme.outline.withAlpha(40)),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: theme.colorScheme.outline.withAlpha(40)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: theme.colorScheme.primary, width: 1.5),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: theme.colorScheme.error),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: theme.colorScheme.error, width: 1.5),
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      ),
+      keyboardType: keyboardType,
+      inputFormatters: inputFormatters,
+      textCapitalization: textCapitalization,
+      obscureText: obscureText,
+      onChanged: onChanged,
+      validator: validator,
     );
   }
 }

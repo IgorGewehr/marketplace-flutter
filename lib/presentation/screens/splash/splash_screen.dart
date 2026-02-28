@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/router/app_router.dart';
 import '../../providers/auth_providers.dart';
+import '../../providers/force_update_provider.dart';
 import '../../providers/seller_mode_provider.dart';
 
 /// Splash Screen - Shows while checking auth state
@@ -56,6 +57,14 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     await Future.delayed(const Duration(milliseconds: 2000));
 
     if (!mounted) return;
+
+    // Check if force update is required
+    final updateRequired = await ref.read(forceUpdateProvider.future);
+    if (!mounted) return;
+    if (updateRequired) {
+      context.go(AppRouter.forceUpdate);
+      return;
+    }
 
     final authStatus = ref.read(authStatusProvider);
 

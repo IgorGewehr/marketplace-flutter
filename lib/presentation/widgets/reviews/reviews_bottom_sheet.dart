@@ -199,7 +199,7 @@ class _ReviewsBottomSheetState extends State<_ReviewsBottomSheet> {
                 ),
               ),
 
-              const Divider(height: 1),
+              const Divider(height: 1, thickness: 0.5),
 
               // Scrollable content
               Expanded(

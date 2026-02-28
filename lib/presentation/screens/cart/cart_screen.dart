@@ -76,32 +76,36 @@ class CartScreen extends ConsumerWidget {
 
                     // Cart items list
                     Expanded(
-                      child: ListView.separated(
-                        padding: const EdgeInsets.all(16),
-                        itemCount: cartState.items.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 12),
-                        itemBuilder: (context, index) {
-                          final item = cartState.items[index];
-                          return CartItemTile(
-                            item: item,
-                            onRemove: () {
-                              ref.read(cartProvider.notifier).removeFromCart(
-                                    item.productId,
-                                    variant: item.variant,
-                                  );
-                            },
-                            onQuantityChanged: (quantity) {
-                              ref.read(cartProvider.notifier).updateQuantity(
-                                    item.productId,
-                                    quantity,
-                                    variant: item.variant,
-                                  );
-                            },
-                          )
-                              .animate(delay: Duration(milliseconds: (index % 6) * 60))
-                              .fadeIn(duration: 300.ms, curve: Curves.easeOut)
-                              .slideY(begin: 0.08, end: 0, duration: 300.ms, curve: Curves.easeOut);
-                        },
+                      child: RefreshIndicator(
+                        color: AppColors.primary,
+                        onRefresh: () => ref.read(cartProvider.notifier).pullRemoteCart(),
+                        child: ListView.separated(
+                          padding: const EdgeInsets.all(16),
+                          itemCount: cartState.items.length,
+                          separatorBuilder: (_, __) => const SizedBox(height: 12),
+                          itemBuilder: (context, index) {
+                            final item = cartState.items[index];
+                            return CartItemTile(
+                              item: item,
+                              onRemove: () {
+                                ref.read(cartProvider.notifier).removeFromCart(
+                                      item.productId,
+                                      variant: item.variant,
+                                    );
+                              },
+                              onQuantityChanged: (quantity) {
+                                ref.read(cartProvider.notifier).updateQuantity(
+                                      item.productId,
+                                      quantity,
+                                      variant: item.variant,
+                                    );
+                              },
+                            )
+                                .animate(delay: Duration(milliseconds: (index % 6) * 60))
+                                .fadeIn(duration: 300.ms, curve: Curves.easeOut)
+                                .slideY(begin: 0.08, end: 0, duration: 300.ms, curve: Curves.easeOut);
+                          },
+                        ),
                       ),
                     ),
 

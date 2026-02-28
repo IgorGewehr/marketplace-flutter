@@ -345,7 +345,7 @@ class _SearchBar extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Semantics(
-      label: 'Buscar produtos no Compre Aqui',
+      label: 'Buscar produtos',
       button: true,
       child: GestureDetector(
       onTap: onTap,
@@ -375,7 +375,7 @@ class _SearchBar extends StatelessWidget {
             const SizedBox(width: 12),
             Expanded(
               child: Text(
-                'Buscar em Compre Aqui',
+                'Buscar produtos...',
                 style: theme.textTheme.bodyMedium?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                 ),

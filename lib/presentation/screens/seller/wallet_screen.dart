@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -140,7 +141,10 @@ class _WalletScreenState extends ConsumerState<WalletScreen> {
                       ),
                     ],
                   ),
-                ),
+                )
+                    .animate()
+                    .fadeIn(duration: 500.ms)
+                    .slideY(begin: 0.08, duration: 500.ms, curve: Curves.easeOut),
               ),
             ),
 
@@ -153,7 +157,10 @@ class _WalletScreenState extends ConsumerState<WalletScreen> {
                     availableBalance: wallet?.balance.available ?? 0,
                     pendingBalance: wallet?.balance.pending ?? 0,
                     blockedBalance: wallet?.balance.blocked ?? 0,
-                  ),
+                  )
+                      .animate()
+                      .fadeIn(delay: 100.ms, duration: 500.ms)
+                      .slideY(begin: 0.08, duration: 500.ms, curve: Curves.easeOut),
                   loading: () => const WalletBalanceCard(
                     availableBalance: 0,
                     isLoading: true,
@@ -201,7 +208,10 @@ class _WalletScreenState extends ConsumerState<WalletScreen> {
                           ),
                         ),
                       ],
-                    );
+                    )
+                        .animate()
+                        .fadeIn(delay: 200.ms, duration: 500.ms)
+                        .slideY(begin: 0.08, duration: 500.ms, curve: Curves.easeOut);
                   },
                   loading: () => Row(
                     children: [
@@ -241,7 +251,10 @@ class _WalletScreenState extends ConsumerState<WalletScreen> {
                     fontWeight: FontWeight.bold,
                     color: Theme.of(context).colorScheme.onSurface,
                   ),
-                ),
+                )
+                    .animate()
+                    .fadeIn(delay: 300.ms, duration: 500.ms)
+                    .slideY(begin: 0.08, duration: 500.ms, curve: Curves.easeOut),
               ),
             ),
             const SliverPadding(padding: EdgeInsets.only(top: 8)),

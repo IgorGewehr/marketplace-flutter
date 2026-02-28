@@ -13,7 +13,8 @@ import '../../providers/review_provider.dart';
 import '../../widgets/orders/order_timeline.dart';
 import '../../widgets/reviews/reviews_bottom_sheet.dart';
 import '../../widgets/shared/app_feedback.dart';
-import '../../widgets/shared/loading_overlay.dart';
+import '../../widgets/shared/error_state.dart';
+import '../../widgets/shared/shimmer_loading.dart';
 
 /// Order details screen
 class OrderDetailsScreen extends ConsumerStatefulWidget {
@@ -42,19 +43,11 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
         foregroundColor: Colors.white,
       ),
       body: orderAsync.when(
-        loading: () => const Center(child: LoadingIndicator()),
-        error: (error, _) => Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Text('Erro ao carregar pedido'),
-              const SizedBox(height: 16),
-              FilledButton(
-                onPressed: () => ref.invalidate(orderDetailProvider(widget.orderId)),
-                child: const Text('Tentar novamente'),
-              ),
-            ],
-          ),
+        loading: () => const _OrderDetailShimmer(),
+        error: (error, _) => ErrorState(
+          icon: Icons.receipt_long_rounded,
+          message: 'Erro ao carregar detalhes do pedido.',
+          onRetry: () => ref.invalidate(orderDetailProvider(widget.orderId)),
         ),
         data: (order) {
           if (order == null) {
@@ -63,10 +56,16 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
 
           final statusInfo = getOrderStatusInfo(order.status);
 
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          return RefreshIndicator(
+            color: AppColors.primary,
+            onRefresh: () async {
+              ref.invalidate(orderDetailProvider(widget.orderId));
+            },
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Order header
                 Container(
@@ -134,45 +133,59 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
                       ),
                     ],
                   ),
-                ),
+                )
+                    .animate()
+                    .fadeIn(duration: 400.ms)
+                    .slideY(begin: 0.05, duration: 400.ms),
 
                 const SizedBox(height: 16),
 
                 // Timeline
-                Text(
-                  'Status do pedido',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.surface,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: OrderTimeline(order: order),
-                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Status do pedido',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surface,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: OrderTimeline(order: order),
+                    ),
+                  ],
+                )
+                    .animate()
+                    .fadeIn(delay: 100.ms, duration: 400.ms)
+                    .slideY(begin: 0.05, duration: 400.ms),
 
                 const SizedBox(height: 16),
 
                 // Items
-                Text(
-                  'Itens do pedido',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.surface,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Column(
-                    children: order.items.map((item) {
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Itens do pedido',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surface,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Column(
+                        children: order.items.map((item) {
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 12),
                         child: Row(
@@ -230,8 +243,13 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
                         ),
                       );
                     }).toList(),
-                  ),
-                ),
+                      ),
+                    ),
+                  ],
+                )
+                    .animate()
+                    .fadeIn(delay: 200.ms, duration: 400.ms)
+                    .slideY(begin: 0.05, duration: 400.ms),
 
                 const SizedBox(height: 16),
 
@@ -374,8 +392,11 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
                 const SizedBox(height: 16),
 
                 // Payment summary
-                Text(
-                  'Resumo do pagamento',
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Resumo do pagamento',
                   style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
@@ -468,8 +489,13 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
                         ),
                       ],
                     ],
+                    ),
                   ),
-                ),
+                  ],
+                )
+                    .animate()
+                    .fadeIn(delay: 300.ms, duration: 400.ms)
+                    .slideY(begin: 0.05, duration: 400.ms),
 
                 // Buyer actions: Confirm delivery or Report problem
                 if ((order.status == 'shipped' || order.status == 'out_for_delivery') &&
@@ -735,6 +761,7 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
                 // Bottom padding
                 const SizedBox(height: 32),
               ],
+              ),
             ),
           );
         },
@@ -1124,7 +1151,7 @@ class OrderStatusChip extends StatelessWidget {
 
     if (!_isActive) return chip;
 
-    // Pulse the border/shadow by animating a wrapping container's box shadow opacity
+    // Pulse glow + subtle shimmer for active statuses
     return chip
         .animate(onPlay: (c) => c.repeat(reverse: true))
         .custom(
@@ -1145,6 +1172,49 @@ class OrderStatusChip extends StatelessWidget {
             ),
             child: child,
           ),
+        )
+        .shimmer(
+          duration: 2000.ms,
+          color: statusInfo.textColor.withAlpha(30),
         );
+  }
+}
+
+/// Shimmer skeleton for order details loading state
+class _OrderDetailShimmer extends StatelessWidget {
+  const _OrderDetailShimmer();
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Order status timeline placeholder
+          const ShimmerBox(width: double.infinity, height: 100, borderRadius: BorderRadius.all(Radius.circular(12))),
+          const SizedBox(height: 20),
+          // Address card placeholder
+          const ShimmerBox(width: 140, height: 18),
+          const SizedBox(height: 12),
+          const ShimmerBox(width: double.infinity, height: 80, borderRadius: BorderRadius.all(Radius.circular(12))),
+          const SizedBox(height: 24),
+          // Items section placeholder
+          const ShimmerBox(width: 100, height: 18),
+          const SizedBox(height: 12),
+          const ShimmerBox(width: double.infinity, height: 90, borderRadius: BorderRadius.all(Radius.circular(12))),
+          const SizedBox(height: 10),
+          const ShimmerBox(width: double.infinity, height: 90, borderRadius: BorderRadius.all(Radius.circular(12))),
+          const SizedBox(height: 24),
+          // Payment info placeholder
+          const ShimmerBox(width: 160, height: 18),
+          const SizedBox(height: 12),
+          const ShimmerBox(width: double.infinity, height: 60, borderRadius: BorderRadius.all(Radius.circular(12))),
+          const SizedBox(height: 24),
+          // Action buttons placeholder
+          const ShimmerBox(width: double.infinity, height: 48, borderRadius: BorderRadius.all(Radius.circular(12))),
+        ],
+      ),
+    );
   }
 }

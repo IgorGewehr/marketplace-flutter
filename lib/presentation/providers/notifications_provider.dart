@@ -29,8 +29,10 @@ dynamic _serializeValue(dynamic value) {
   return value;
 }
 
-/// Notifications provider
-class NotificationsNotifier extends AsyncNotifier<List<NotificationModel>> {
+/// Notifications provider.
+/// Uses AutoDispose to cancel the Firestore real-time listener when no widget
+/// is watching, preventing listener leaks across navigation boundaries.
+class NotificationsNotifier extends AutoDisposeAsyncNotifier<List<NotificationModel>> {
   StreamSubscription<QuerySnapshot>? _firestoreSubscription;
 
   @override
@@ -180,7 +182,7 @@ class NotificationsNotifier extends AsyncNotifier<List<NotificationModel>> {
   }
 }
 
-final notificationsProvider = AsyncNotifierProvider<NotificationsNotifier, List<NotificationModel>>(
+final notificationsProvider = AsyncNotifierProvider.autoDispose<NotificationsNotifier, List<NotificationModel>>(
   () => NotificationsNotifier(),
 );
 

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 
 import '../../../core/theme/app_colors.dart';
 
@@ -36,7 +37,10 @@ class ErrorState extends StatelessWidget {
                 size: 48,
                 color: AppColors.error,
               ),
-            ),
+            ).animate().scale(
+                  duration: 600.ms,
+                  curve: Curves.elasticOut,
+                ),
             const SizedBox(height: 24),
             if (title != null) ...[
               Text(
@@ -47,7 +51,7 @@ class ErrorState extends StatelessWidget {
                   color: AppColors.textPrimary,
                 ),
                 textAlign: TextAlign.center,
-              ),
+              ).animate().fadeIn(delay: 300.ms, duration: 400.ms),
               const SizedBox(height: 8),
             ],
             Text(
@@ -57,7 +61,7 @@ class ErrorState extends StatelessWidget {
                 color: AppColors.textSecondary,
               ),
               textAlign: TextAlign.center,
-            ),
+            ).animate().fadeIn(delay: 500.ms, duration: 400.ms),
             if (onRetry != null) ...[
               const SizedBox(height: 24),
               ElevatedButton.icon(
@@ -75,7 +79,9 @@ class ErrorState extends StatelessWidget {
                   'Tentar novamente',
                   style: TextStyle(fontWeight: FontWeight.w600),
                 ),
-              ),
+              ).animate()
+                  .fadeIn(delay: 700.ms, duration: 400.ms)
+                  .slideY(begin: 0.3, delay: 700.ms, duration: 400.ms),
             ],
           ],
         ),

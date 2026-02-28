@@ -1,6 +1,8 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+import 'package:shimmer/shimmer.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
@@ -269,16 +271,17 @@ class _MessageBubbleState extends State<MessageBubble>
         width: 200,
         fit: BoxFit.cover,
         memCacheWidth: 400,
-        placeholder: (_, __) => Container(
-          width: 200,
-          height: 150,
-          color: widget.isMe
-              ? Colors.white.withAlpha(20)
-              : AppColors.border,
-          child: Center(
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              color: widget.isMe ? Colors.white : AppColors.primary,
+        fadeInDuration: const Duration(milliseconds: 300),
+        fadeOutDuration: const Duration(milliseconds: 200),
+        placeholder: (_, __) => Shimmer.fromColors(
+          baseColor: widget.isMe ? Colors.white.withAlpha(20) : AppColors.border,
+          highlightColor: widget.isMe ? Colors.white.withAlpha(40) : AppColors.surfaceVariant,
+          child: Container(
+            width: 200,
+            height: 150,
+            decoration: BoxDecoration(
+              color: widget.isMe ? Colors.white.withAlpha(20) : AppColors.border,
+              borderRadius: BorderRadius.circular(AppSpacing.radiusM),
             ),
           ),
         ),
@@ -352,49 +355,58 @@ class _MessageBubbleState extends State<MessageBubble>
     final uri = Uri.tryParse(url);
     final domain = uri?.host ?? url;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: AppSpacing.s),
-      padding: const EdgeInsets.all(AppSpacing.s),
-      decoration: BoxDecoration(
-        color: widget.isMe
-            ? Colors.white.withAlpha(20)
-            : AppColors.surfaceVariant,
-        borderRadius: BorderRadius.circular(AppSpacing.radiusS),
-        border: Border.all(
-          color:
-              widget.isMe ? Colors.white.withAlpha(40) : AppColors.border,
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.lightImpact();
+        Clipboard.setData(ClipboardData(text: url));
+        if (context.mounted) {
+          AppFeedback.showInfo(context, 'Link copiado');
+        }
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: AppSpacing.s),
+        padding: const EdgeInsets.all(AppSpacing.s),
+        decoration: BoxDecoration(
+          color: widget.isMe
+              ? Colors.white.withAlpha(20)
+              : AppColors.surfaceVariant,
+          borderRadius: BorderRadius.circular(AppSpacing.radiusS),
+          border: Border.all(
+            color:
+                widget.isMe ? Colors.white.withAlpha(40) : AppColors.border,
+          ),
         ),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            Icons.link_rounded,
-            size: 16,
-            color: widget.isMe
-                ? Colors.white.withAlpha(180)
-                : AppColors.primary,
-          ),
-          const SizedBox(width: AppSpacing.s),
-          Flexible(
-            child: Text(
-              domain,
-              style: TextStyle(
-                fontSize: 12,
-                color: widget.isMe
-                    ? Colors.white.withAlpha(200)
-                    : AppColors.primary,
-                fontWeight: FontWeight.w500,
-                decoration: TextDecoration.underline,
-                decorationColor: widget.isMe
-                    ? Colors.white.withAlpha(180)
-                    : AppColors.primary,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.link_rounded,
+              size: 16,
+              color: widget.isMe
+                  ? Colors.white.withAlpha(180)
+                  : AppColors.primary,
             ),
-          ),
-        ],
+            const SizedBox(width: AppSpacing.s),
+            Flexible(
+              child: Text(
+                domain,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: widget.isMe
+                      ? Colors.white.withAlpha(200)
+                      : AppColors.primary,
+                  fontWeight: FontWeight.w500,
+                  decoration: TextDecoration.underline,
+                  decorationColor: widget.isMe
+                      ? Colors.white.withAlpha(180)
+                      : AppColors.primary,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -408,7 +420,10 @@ class _MessageBubbleState extends State<MessageBubble>
           final emoji = entry.key;
           final count = entry.value.length;
           return GestureDetector(
-            onTap: () => widget.onReact?.call(widget.message, emoji),
+            onTap: () {
+              HapticFeedback.lightImpact();
+              widget.onReact?.call(widget.message, emoji);
+            },
             child: Container(
               padding:
                   const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -459,8 +474,15 @@ class _MessageBubbleState extends State<MessageBubble>
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.surface,
           borderRadius: const BorderRadius.vertical(
-            top: Radius.circular(AppSpacing.radiusXXL),
+            top: Radius.circular(28),
           ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withAlpha(15),
+              blurRadius: 20,
+              offset: const Offset(0, -4),
+            ),
+          ],
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -472,10 +494,11 @@ class _MessageBubbleState extends State<MessageBubble>
                 color: AppColors.border,
                 borderRadius: BorderRadius.circular(2),
               ),
-            ),
+            ).animate(onPlay: (c) => c.repeat(reverse: true))
+              .scaleX(begin: 0.8, end: 1.0, duration: 800.ms, curve: Curves.easeInOut),
             const SizedBox(height: AppSpacing.m),
             _buildQuickReactions(ctx),
-            const Divider(height: AppSpacing.l),
+            const Divider(height: AppSpacing.l, thickness: 0.5),
             ListTile(
               leading: const Icon(Icons.reply_rounded),
               title: const Text('Responder'),
@@ -512,6 +535,7 @@ class _MessageBubbleState extends State<MessageBubble>
       children: emojis.map((emoji) {
         return GestureDetector(
           onTap: () {
+            HapticFeedback.lightImpact();
             Navigator.pop(context);
             widget.onReact?.call(widget.message, emoji);
           },

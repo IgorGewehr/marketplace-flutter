@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -10,6 +11,7 @@ import '../../providers/follows_provider.dart';
 import '../../providers/products_provider.dart';
 import '../../widgets/home/section_header.dart';
 import '../../widgets/products/product_carousel.dart';
+import '../../../core/theme/app_colors.dart';
 import '../../widgets/search/search_filters_sheet.dart';
 import '../../widgets/search/search_product_list_card.dart';
 import '../../widgets/shared/empty_state.dart';
@@ -459,35 +461,49 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 filters.followedOnly
                     ? Icons.people_outline_rounded
                     : Icons.search_off_rounded,
-                size: 64,
-              ),
+                size: 80,
+                color: AppColors.border,
+              ).animate().scale(
+                    duration: 600.ms,
+                    curve: Curves.elasticOut,
+                  ),
               const SizedBox(height: 16),
               Text(
                 filters.followedOnly
                     ? 'Nenhum produto dos vendedores seguidos'
                     : 'Nenhum produto encontrado',
-                style: theme.textTheme.titleMedium,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
                 textAlign: TextAlign.center,
-              ),
+              ).animate().fadeIn(delay: 300.ms, duration: 400.ms),
               if (filters.followedOnly) ...[
                 const SizedBox(height: 8),
                 Text(
                   'Siga vendedores na tela de perfil deles para ver os produtos aqui.',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: AppColors.textSecondary,
                   ),
                   textAlign: TextAlign.center,
-                ),
+                ).animate().fadeIn(delay: 500.ms, duration: 400.ms),
               ] else if (query != null && query.isNotEmpty) ...[
                 const SizedBox(height: 8),
                 Text(
                   'para "$query"',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: AppColors.textSecondary,
                   ),
                   textAlign: TextAlign.center,
-                ),
+                ).animate().fadeIn(delay: 500.ms, duration: 400.ms),
               ],
+              const SizedBox(height: 24),
+              FilledButton.icon(
+                icon: const Icon(Icons.tune_rounded),
+                label: const Text('Ajustar filtros'),
+                onPressed: _showFilters,
+              ).animate()
+                  .fadeIn(delay: 700.ms, duration: 400.ms)
+                  .slideY(begin: 0.3, delay: 700.ms, duration: 400.ms),
             ],
           ),
         ),
@@ -524,8 +540,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           }
           if (state.isLoadingMore) {
             return const Padding(
-              padding: EdgeInsets.symmetric(vertical: 16),
-              child: Center(child: CircularProgressIndicator()),
+              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: ShimmerLoading(itemCount: 2, isGrid: false, height: 120),
             );
           }
           if (state.hasMore) {
@@ -569,7 +585,10 @@ class _ActionChip extends StatelessWidget {
     final theme = Theme.of(context);
 
     return GestureDetector(
-      onTap: onTap,
+      onTap: () {
+        HapticFeedback.selectionClick();
+        onTap();
+      },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
         decoration: BoxDecoration(
@@ -643,7 +662,10 @@ class _SortOption extends StatelessWidget {
       trailing: isSelected
           ? Icon(Icons.check, color: theme.colorScheme.primary)
           : null,
-      onTap: onTap,
+      onTap: () {
+        HapticFeedback.selectionClick();
+        onTap();
+      },
     );
   }
 }

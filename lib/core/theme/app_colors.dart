@@ -48,7 +48,7 @@ class AppColors {
   static const Color statusCancelled = Color(0xFFEF5350);
 
   // === Rating Colors ===
-  static const Color rating = Color(0xFFFFC107);
+  static const Color rating = Color(0xFFF59E0B); // amber-600, better contrast on white
   static const Color ratingDark = Color(0xFFF57F17);
   static const Color ratingLight = Color(0xFFFFECB3);
   static const Color ratingInactive = Color(0xFFE0E0E0);
@@ -80,6 +80,8 @@ class AppColors {
   // === Shadow Colors ===
   static const Color shadow = Color(0x1A000000);
   static const Color shadowLight = Color(0x0D000000);
+  static const Color shadowMedium = Color(0x26000000); // ~15% alpha
+  static const Color shadowStrong = Color(0x40000000); // ~25% alpha
 
   // === Glass Effect Colors ===
   static const Color glassBackground = Color(0xB3FFFFFF);
@@ -101,7 +103,7 @@ class AppColors {
   static const LinearGradient sellerGradient = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: [sellerAccent, sellerAccentDark],
+    colors: [sellerAccent, Color(0xFF5A4BD1)],
   );
 
   // === Dark Mode Colors ===

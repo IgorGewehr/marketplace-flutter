@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -5,8 +7,8 @@ import 'package:flutter/services.dart';
 import '../../../core/utils/formatters.dart';
 import '../../providers/cart_provider.dart';
 
-/// Cart item tile with swipe to delete
-class CartItemTile extends StatelessWidget {
+/// Cart item tile with swipe to delete and long-press repeat for quantity
+class CartItemTile extends StatefulWidget {
   final LocalCartItem item;
   final VoidCallback onRemove;
   final ValueChanged<int> onQuantityChanged;
@@ -19,13 +21,40 @@ class CartItemTile extends StatelessWidget {
   });
 
   @override
+  State<CartItemTile> createState() => _CartItemTileState();
+}
+
+class _CartItemTileState extends State<CartItemTile> {
+  Timer? _repeatTimer;
+
+  @override
+  void dispose() {
+    _repeatTimer?.cancel();
+    super.dispose();
+  }
+
+  void _increment() {
+    HapticFeedback.selectionClick();
+    widget.onQuantityChanged(widget.item.quantity + 1);
+  }
+
+  void _decrement() {
+    HapticFeedback.selectionClick();
+    if (widget.item.quantity > 1) {
+      widget.onQuantityChanged(widget.item.quantity - 1);
+    } else {
+      widget.onRemove();
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
     return Dismissible(
-      key: Key('${item.productId}_${item.variant}'),
+      key: Key('${widget.item.productId}_${widget.item.variant}'),
       direction: DismissDirection.endToStart,
-      onDismissed: (_) => onRemove(),
+      onDismissed: (_) => widget.onRemove(),
       background: Container(
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 20),
@@ -56,9 +85,9 @@ class CartItemTile extends StatelessWidget {
             // Product image
             ClipRRect(
               borderRadius: BorderRadius.circular(8),
-              child: item.productImage != null
+              child: widget.item.productImage != null
                   ? CachedNetworkImage(
-                      imageUrl: item.productImage!,
+                      imageUrl: widget.item.productImage!,
                       width: 80,
                       height: 80,
                       fit: BoxFit.cover,
@@ -76,17 +105,17 @@ class CartItemTile extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    item.productName,
+                    widget.item.productName,
                     style: theme.textTheme.bodyMedium?.copyWith(
                       fontWeight: FontWeight.w500,
                     ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  if (item.variant != null) ...[
+                  if (widget.item.variant != null) ...[
                     const SizedBox(height: 2),
                     Text(
-                      item.variant!,
+                      widget.item.variant!,
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant,
                       ),
@@ -96,7 +125,7 @@ class CartItemTile extends StatelessWidget {
                   ],
                   const SizedBox(height: 8),
                   Text(
-                    Formatters.currency(item.price),
+                    Formatters.currency(widget.item.price),
                     style: theme.textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.bold,
                       color: theme.colorScheme.primary,
@@ -118,17 +147,25 @@ class CartItemTile extends StatelessWidget {
                     children: [
                       Tooltip(
                         message: 'Aumentar quantidade',
-                        child: InkWell(
-                          onTap: () {
-                            HapticFeedback.selectionClick();
-                            onQuantityChanged(item.quantity + 1);
+                        child: GestureDetector(
+                          onTap: _increment,
+                          onLongPressStart: (_) {
+                            _repeatTimer = Timer.periodic(
+                              const Duration(milliseconds: 150),
+                              (_) => _increment(),
+                            );
                           },
-                          borderRadius: const BorderRadius.vertical(
-                            top: Radius.circular(8),
-                          ),
-                          child: const Padding(
-                            padding: EdgeInsets.all(15),
-                            child: Icon(
+                          onLongPressEnd: (_) {
+                            _repeatTimer?.cancel();
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.all(15),
+                            decoration: const BoxDecoration(
+                              borderRadius: BorderRadius.vertical(
+                                top: Radius.circular(8),
+                              ),
+                            ),
+                            child: const Icon(
                               Icons.add,
                               size: 18,
                             ),
@@ -141,36 +178,44 @@ class CartItemTile extends StatelessWidget {
                           vertical: 4,
                         ),
                         child: Text(
-                          '${item.quantity}',
+                          '${widget.item.quantity}',
                           style: theme.textTheme.titleSmall?.copyWith(
                             fontWeight: FontWeight.bold,
                           ),
                         ),
                       ),
                       Tooltip(
-                        message: item.quantity > 1
+                        message: widget.item.quantity > 1
                             ? 'Diminuir quantidade'
                             : 'Remover item',
-                        child: InkWell(
-                          onTap: () {
-                            HapticFeedback.selectionClick();
-                            if (item.quantity > 1) {
-                              onQuantityChanged(item.quantity - 1);
-                            } else {
-                              onRemove();
-                            }
-                          },
-                          borderRadius: const BorderRadius.vertical(
-                            bottom: Radius.circular(8),
-                          ),
-                          child: Padding(
+                        child: GestureDetector(
+                          onTap: _decrement,
+                          onLongPressStart: widget.item.quantity > 1
+                              ? (_) {
+                                  _repeatTimer = Timer.periodic(
+                                    const Duration(milliseconds: 150),
+                                    (_) => _decrement(),
+                                  );
+                                }
+                              : null,
+                          onLongPressEnd: widget.item.quantity > 1
+                              ? (_) {
+                                  _repeatTimer?.cancel();
+                                }
+                              : null,
+                          child: Container(
                             padding: const EdgeInsets.all(15),
+                            decoration: const BoxDecoration(
+                              borderRadius: BorderRadius.vertical(
+                                bottom: Radius.circular(8),
+                              ),
+                            ),
                             child: Icon(
-                              item.quantity > 1
+                              widget.item.quantity > 1
                                   ? Icons.remove
                                   : Icons.delete_outline,
                               size: 18,
-                              color: item.quantity > 1
+                              color: widget.item.quantity > 1
                                   ? theme.colorScheme.primary
                                   : theme.colorScheme.error,
                             ),

@@ -99,7 +99,7 @@ class OrderTile extends StatelessWidget {
             ),
 
             const SizedBox(height: 12),
-            const Divider(height: 1),
+            const Divider(height: 1, thickness: 0.5),
             const SizedBox(height: 12),
 
             // Items preview

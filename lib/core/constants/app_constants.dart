@@ -6,7 +6,7 @@ class AppConstants {
 
   // App Info
   static const String appName = 'Compre Aqui';
-  static const String appVersion = '1.0.0';
+  static const String appVersion = '2.1.2';
 
   // User Types
   static const String userTypeBuyer = 'buyer';

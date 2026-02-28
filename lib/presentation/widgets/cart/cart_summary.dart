@@ -45,7 +45,7 @@ class CartSummary extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
-          const Divider(),
+          const Divider(thickness: 0.5),
           const SizedBox(height: 12),
 
           // Total row

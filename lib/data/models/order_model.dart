@@ -36,6 +36,7 @@ class OrderModel {
   final String? pixCode; // PIX copia e cola code (from payment creation)
   final String? pixQrCodeUrl; // PIX QR code image URL
   final DateTime? pixExpiration; // PIX payment expiration
+  final String? threeDsUrl; // 3DS challenge URL for card payments requiring verification
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -71,6 +72,7 @@ class OrderModel {
     this.pixCode,
     this.pixQrCodeUrl,
     this.pixExpiration,
+    this.threeDsUrl,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -148,6 +150,7 @@ class OrderModel {
       pixCode: json['pixCode'] as String?,
       pixQrCodeUrl: json['pixQrCodeUrl'] as String?,
       pixExpiration: parseFirestoreDate(json['pixExpiration']),
+      threeDsUrl: json['threeDsUrl'] as String?,
       createdAt: parseFirestoreDate(json['createdAt']) ?? DateTime.now(),
       updatedAt: parseFirestoreDate(json['updatedAt']) ?? DateTime.now(),
     );
@@ -186,6 +189,7 @@ class OrderModel {
       if (pixCode != null) 'pixCode': pixCode,
       if (pixQrCodeUrl != null) 'pixQrCodeUrl': pixQrCodeUrl,
       if (pixExpiration != null) 'pixExpiration': pixExpiration!.toIso8601String(),
+      if (threeDsUrl != null) 'threeDsUrl': threeDsUrl,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
     };
@@ -223,6 +227,7 @@ class OrderModel {
     String? pixCode,
     String? pixQrCodeUrl,
     DateTime? pixExpiration,
+    String? threeDsUrl,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -258,6 +263,7 @@ class OrderModel {
       pixCode: pixCode ?? this.pixCode,
       pixQrCodeUrl: pixQrCodeUrl ?? this.pixQrCodeUrl,
       pixExpiration: pixExpiration ?? this.pixExpiration,
+      threeDsUrl: threeDsUrl ?? this.threeDsUrl,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );

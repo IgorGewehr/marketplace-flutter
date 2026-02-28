@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:shimmer/shimmer.dart';
 
 import 'fullscreen_image_viewer.dart';
 
@@ -75,7 +76,9 @@ class _ImageCarouselState extends State<ImageCarousel> {
                   height: widget.height,
                   memCacheWidth: 800,
                   memCacheHeight: 600,
-                  placeholder: (_, __) => _buildPlaceholder(),
+                  fadeInDuration: const Duration(milliseconds: 300),
+                  fadeOutDuration: const Duration(milliseconds: 150),
+                  placeholder: (_, __) => _buildShimmerPlaceholder(),
                   errorWidget: (context, url, error) => GestureDetector(
                     onTap: () {
                       CachedNetworkImage.evictFromCache(imageUrl);
@@ -153,6 +156,18 @@ class _ImageCarouselState extends State<ImageCarousel> {
           size: 60,
           color: theme.colorScheme.onSurfaceVariant.withAlpha(100),
         ),
+      ),
+    );
+  }
+
+  Widget _buildShimmerPlaceholder() {
+    final theme = Theme.of(context);
+    return Shimmer.fromColors(
+      baseColor: theme.colorScheme.surfaceContainerHighest,
+      highlightColor: theme.colorScheme.surface,
+      child: Container(
+        height: widget.height,
+        color: theme.colorScheme.surfaceContainerHighest,
       ),
     );
   }

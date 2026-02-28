@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_colors.dart';
@@ -41,7 +42,10 @@ class IllustratedEmptyState extends StatelessWidget {
                 size: 56,
                 color: iconColor ?? AppColors.primary,
               ),
-            ),
+            ).animate().scale(
+                  duration: 600.ms,
+                  curve: Curves.elasticOut,
+                ),
             const SizedBox(height: 24),
             Text(
               title,
@@ -51,7 +55,7 @@ class IllustratedEmptyState extends StatelessWidget {
                 color: AppColors.textPrimary,
               ),
               textAlign: TextAlign.center,
-            ),
+            ).animate().fadeIn(delay: 300.ms, duration: 400.ms),
             if (subtitle != null) ...[
               const SizedBox(height: 8),
               Text(
@@ -61,7 +65,7 @@ class IllustratedEmptyState extends StatelessWidget {
                   color: AppColors.textSecondary,
                 ),
                 textAlign: TextAlign.center,
-              ),
+              ).animate().fadeIn(delay: 500.ms, duration: 400.ms),
             ],
             if (actionLabel != null && onAction != null) ...[
               const SizedBox(height: 24),
@@ -80,7 +84,9 @@ class IllustratedEmptyState extends StatelessWidget {
                   actionLabel!,
                   style: const TextStyle(fontWeight: FontWeight.w600),
                 ),
-              ),
+              ).animate()
+                  .fadeIn(delay: 700.ms, duration: 400.ms)
+                  .slideY(begin: 0.3, delay: 700.ms, duration: 400.ms),
             ],
           ],
         ),

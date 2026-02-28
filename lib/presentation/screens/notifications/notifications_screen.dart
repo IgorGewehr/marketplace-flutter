@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -157,7 +158,10 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                   ],
                 ),
                 selected: isSelected,
-                onSelected: (_) => setState(() => _activeFilter = filter),
+                onSelected: (_) {
+                  HapticFeedback.selectionClick();
+                  setState(() => _activeFilter = filter);
+                },
                 selectedColor: AppColors.primary,
                 backgroundColor: AppColors.surfaceVariant,
                 checkmarkColor: Colors.white,
@@ -285,7 +289,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                 },
               ),
               if (i < entry.value.length - 1)
-                const Divider(height: 1, indent: 72, endIndent: 16),
+                const Divider(height: 1, thickness: 0.5, indent: 72, endIndent: 16),
             ],
           )
               .animate(delay: Duration(milliseconds: (i % 8) * 60))

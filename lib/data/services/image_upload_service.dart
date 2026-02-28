@@ -227,7 +227,7 @@ class ImageUploadService {
       final compressedFile = await _compressImage(imageFile);
 
       final fileName = '${_uuid.v4()}.jpg';
-      final filePath = 'avatars/$userId/$fileName';
+      final filePath = 'users/$userId/$fileName';
 
       final ref = _storage.ref().child(filePath);
       final metadata = SettableMetadata(

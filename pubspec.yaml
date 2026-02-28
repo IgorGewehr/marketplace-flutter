@@ -2,7 +2,7 @@ name: nexmarket
 description: "Compre Aqui - Marketplace regional do Meio Oeste Catarinense"
 publish_to: 'none'
 
-version: 2.1.1+23
+version: 2.2.0+26
 
 environment:
   sdk: ^3.10.0
@@ -16,6 +16,7 @@ dependencies:
   # Firebase
   firebase_core: ^3.9.0
   firebase_auth: ^5.4.1
+  firebase_app_check: ^0.3.2+10
   firebase_messaging: ^15.2.4
   firebase_storage: ^12.3.8
   cloud_firestore: ^5.6.0
@@ -43,6 +44,9 @@ dependencies:
 
   # Deep Links
   app_links: ^6.4.0
+
+  # App Info
+  package_info_plus: ^8.0.0
 
   # Utils
   intl: ^0.20.2

@@ -177,9 +177,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 ),
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
-                  child: Form(
-                    key: _formKey,
-                    child: Column(
+                  child: AutofillGroup(
+                    child: Form(
+                      key: _formKey,
+                      child: Column(
                       children: [
                         // Email field
                         AuthTextField(
@@ -191,6 +192,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           textInputAction: TextInputAction.next,
                           validator: Validators.validateEmail,
                           enabled: !isLoading,
+                          autofillHints: const [AutofillHints.email],
                         )
                             .animate()
                             .fadeIn(delay: 200.ms, duration: 400.ms)
@@ -214,6 +216,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           },
                           enabled: !isLoading,
                           onSubmitted: (_) => _handleLogin(),
+                          autofillHints: const [AutofillHints.password],
                         )
                             .animate()
                             .fadeIn(delay: 300.ms, duration: 400.ms)
@@ -309,6 +312,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         const SizedBox(height: 16),
                       ],
                     ),
+                  ),
                   ),
                 ),
               ),

@@ -126,7 +126,7 @@ class _SearchFiltersSheetState extends ConsumerState<SearchFiltersSheet> {
             ),
           ),
 
-          const Divider(height: 1),
+          const Divider(height: 1, thickness: 0.5),
 
           // Scrollable content
           Flexible(

@@ -145,7 +145,7 @@ class ProfileMenuSection extends StatelessWidget {
             children: [
               item,
               if (items.last != item)
-                const Divider(height: 1, indent: 68),
+                const Divider(height: 1, thickness: 0.5, indent: 68),
             ],
           )),
         ],

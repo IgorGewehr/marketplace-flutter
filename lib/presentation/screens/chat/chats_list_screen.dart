@@ -193,6 +193,7 @@ class _ChatsListScreenState extends ConsumerState<ChatsListScreen> {
               itemCount: filtered.length,
               separatorBuilder: (context, index) => const Divider(
                 height: 1,
+                thickness: 0.5,
                 indent: 72,
                 endIndent: 16,
               ),

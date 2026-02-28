@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shimmer/shimmer.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
@@ -61,6 +62,7 @@ class _ProductCardState extends ConsumerState<ProductCard> {
         onTapDown: (_) => setState(() => _isPressed = true),
         onTapUp: (_) {
           setState(() => _isPressed = false);
+          HapticFeedback.selectionClick();
           context.push('/product/${widget.product.id}');
         },
         onTapCancel: () => setState(() => _isPressed = false),
@@ -71,6 +73,13 @@ class _ProductCardState extends ConsumerState<ProductCard> {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(AppSpacing.radiusM),
             border: Border.all(color: AppColors.border.withAlpha(40)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withAlpha(8),
+                blurRadius: 12,
+                offset: const Offset(0, 2),
+              ),
+            ],
           ),
           clipBehavior: Clip.antiAlias,
           child: Column(
@@ -90,12 +99,13 @@ class _ProductCardState extends ConsumerState<ProductCard> {
                               imageUrl: product.images.first.url,
                               fit: BoxFit.cover,
                               memCacheWidth: 400,
-                              placeholder: (_, __) => Container(
-                                color: theme.colorScheme.surfaceContainerHighest,
-                                child: const Icon(
-                                  Icons.image_outlined,
-                                  size: 40,
-                                  color: Colors.grey,
+                              fadeInDuration: const Duration(milliseconds: 300),
+                              fadeOutDuration: const Duration(milliseconds: 150),
+                              placeholder: (_, __) => Shimmer.fromColors(
+                                baseColor: theme.colorScheme.surfaceContainerHighest,
+                                highlightColor: theme.colorScheme.surface,
+                                child: Container(
+                                  color: theme.colorScheme.surfaceContainerHighest,
                                 ),
                               ),
                               errorWidget: (_, __, ___) => Container(
@@ -230,7 +240,7 @@ class _ProductCardState extends ConsumerState<ProductCard> {
 
               // Product info
               Padding(
-                padding: const EdgeInsets.all(10),
+                padding: const EdgeInsets.all(12),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [

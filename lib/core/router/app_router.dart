@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../presentation/providers/auth_providers.dart';
 import '../../presentation/providers/seller_mode_provider.dart';
+import '../../presentation/screens/splash/force_update_screen.dart';
 import '../../presentation/screens/splash/splash_screen.dart';
 import '../../presentation/screens/auth/login_screen.dart';
 import '../../presentation/screens/auth/register_screen.dart';
@@ -116,6 +117,7 @@ class AppRouter {
   static const serviceDetails = '/service/:id';
   static const sellerProfile = '/seller-profile/:id';
   static const sellerEditProfile = '/seller/edit-profile';
+  static const forceUpdate = '/force-update';
 }
 
 /// Navigator keys for shell routes
@@ -140,6 +142,9 @@ final routerProvider = Provider<GoRouter>((ref) {
       final isOnAuth = _isAuthRoute(state.matchedLocation);
       final isOnCompleteProfile =
           state.matchedLocation == AppRouter.completeProfile;
+
+      // Never redirect away from force update screen
+      if (state.matchedLocation == AppRouter.forceUpdate) return null;
 
       // Show splash while loading
       if (isLoading && !isOnSplash) {
@@ -211,6 +216,12 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRouter.splash,
         builder: (context, state) => const SplashScreen(),
+      ),
+
+      // Force Update
+      GoRoute(
+        path: AppRouter.forceUpdate,
+        builder: (context, state) => const ForceUpdateScreen(),
       ),
 
       // Auth Routes

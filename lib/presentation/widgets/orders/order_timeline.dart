@@ -143,14 +143,16 @@ class _TimelineStep extends StatelessWidget {
     // Connector line colours
     final lineColor = (isCompleted && !isCurrent)
         ? AppColors.primary
-        : theme.colorScheme.outline.withAlpha(50);
+        : theme.colorScheme.outline.withAlpha(100);
 
     // Build the step indicator circle
     Widget stepCircle;
 
     if (isCompleted && !isCurrent) {
       // Completed steps: filled primary circle with a check mark
-      stepCircle = Container(
+      stepCircle = AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
         width: 28,
         height: 28,
         decoration: BoxDecoration(
@@ -161,7 +163,9 @@ class _TimelineStep extends StatelessWidget {
       );
     } else if (isCurrent) {
       // Active step: filled primary circle with step number + pulse shadow
-      final circle = Container(
+      final circle = AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
         width: 28,
         height: 28,
         decoration: BoxDecoration(
@@ -201,7 +205,9 @@ class _TimelineStep extends StatelessWidget {
           );
     } else {
       // Future steps: outlined circle with greyed number
-      stepCircle = Container(
+      stepCircle = AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
         width: 28,
         height: 28,
         decoration: BoxDecoration(
@@ -236,7 +242,9 @@ class _TimelineStep extends StatelessWidget {
               children: [
                 // Top connector line
                 if (!isFirst)
-                  Container(
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeInOut,
                     width: 2,
                     height: 10,
                     color: lineColor,
@@ -247,7 +255,9 @@ class _TimelineStep extends StatelessWidget {
                 // Bottom connector line
                 if (!isLast)
                   Expanded(
-                    child: Container(
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeInOut,
                       width: 2,
                       color: lineColor,
                     ),

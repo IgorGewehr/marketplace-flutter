@@ -146,7 +146,7 @@ class _NavItem extends StatelessWidget {
                 alignment: Alignment.center,
                 children: [
                   AnimatedScale(
-                    scale: isSelected ? 1.15 : 1.0,
+                    scale: isSelected ? 1.12 : 0.92,
                     duration: const Duration(milliseconds: 200),
                     curve: Curves.easeOutBack,
                     child: Icon(icon, color: color, size: 24),

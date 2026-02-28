@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -8,6 +9,8 @@ import '../../providers/services_provider.dart';
 import '../../widgets/home/section_header.dart';
 import '../../widgets/services/service_card.dart';
 import '../../widgets/services/service_grid.dart';
+import '../../widgets/shared/error_state.dart';
+import '../../widgets/shared/shimmer_loading.dart';
 
 /// Services screen - browse services marketplace
 class ServicesScreen extends ConsumerStatefulWidget {
@@ -103,32 +106,24 @@ class _ServicesScreenState extends ConsumerState<ServicesScreen> {
               featuredAsync.when(
                 loading: () => const SliverServiceGrid(isLoading: true),
                 error: (_, __) => SliverToBoxAdapter(
-                  child: Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Column(
-                        children: [
-                          Icon(
-                            Icons.error_outline,
-                            size: 48,
-                            color: theme.colorScheme.error,
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            'Erro ao carregar serviços',
-                            style: theme.textTheme.titleMedium,
-                          ),
-                          const SizedBox(height: 8),
-                          TextButton(
-                            onPressed: () => ref.invalidate(featuredServicesProvider),
-                            child: const Text('Tentar novamente'),
-                          ),
-                        ],
-                      ),
-                    ),
+                  child: ErrorState(
+                    icon: Icons.cloud_off_rounded,
+                    message: 'Erro ao carregar serviços em destaque.',
+                    onRetry: () => ref.invalidate(featuredServicesProvider),
                   ),
                 ),
-                data: (services) => SliverServiceGrid(services: services),
+                data: (services) {
+                  if (services.isEmpty) {
+                    return SliverToBoxAdapter(
+                      child: _AnimatedEmptySection(
+                        icon: Icons.home_repair_service_outlined,
+                        title: 'Nenhum serviço em destaque',
+                        subtitle: 'Novos serviços aparecerão aqui em breve',
+                      ),
+                    );
+                  }
+                  return SliverServiceGrid(services: services);
+                },
               ),
 
               const SliverToBoxAdapter(child: SizedBox(height: 32)),
@@ -151,32 +146,24 @@ class _ServicesScreenState extends ConsumerState<ServicesScreen> {
               recentAsync.when(
                 loading: () => const SliverServiceGrid(isLoading: true),
                 error: (_, __) => SliverToBoxAdapter(
-                  child: Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Column(
-                        children: [
-                          Icon(
-                            Icons.error_outline,
-                            size: 48,
-                            color: theme.colorScheme.error,
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            'Erro ao carregar serviços',
-                            style: theme.textTheme.titleMedium,
-                          ),
-                          const SizedBox(height: 8),
-                          TextButton(
-                            onPressed: () => ref.invalidate(recentServicesProvider),
-                            child: const Text('Tentar novamente'),
-                          ),
-                        ],
-                      ),
-                    ),
+                  child: ErrorState(
+                    icon: Icons.cloud_off_rounded,
+                    message: 'Erro ao carregar serviços recentes.',
+                    onRetry: () => ref.invalidate(recentServicesProvider),
                   ),
                 ),
-                data: (services) => SliverServiceGrid(services: services),
+                data: (services) {
+                  if (services.isEmpty) {
+                    return SliverToBoxAdapter(
+                      child: _AnimatedEmptySection(
+                        icon: Icons.schedule_rounded,
+                        title: 'Nenhum serviço recente',
+                        subtitle: 'Serviços adicionados recentemente aparecerão aqui',
+                      ),
+                    );
+                  }
+                  return SliverServiceGrid(services: services);
+                },
               ),
 
               const SliverToBoxAdapter(child: SizedBox(height: 32)),
@@ -232,8 +219,8 @@ class _ServicesScreenState extends ConsumerState<ServicesScreen> {
       if (paginatedState.isLoading)
         const SliverToBoxAdapter(
           child: Padding(
-            padding: EdgeInsets.all(16),
-            child: Center(child: CircularProgressIndicator()),
+            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: ShimmerLoading(itemCount: 2, isGrid: true),
           ),
         ),
     ];
@@ -277,6 +264,7 @@ class _ServiceCategoryChips extends ConsumerWidget {
                   selected: isSelected,
                   onSelected: (selected) {
                     if (selected) {
+                      HapticFeedback.selectionClick();
                       ref.read(selectedServiceCategoryProvider.notifier).state = category;
                       ref.invalidate(featuredServicesProvider);
                       ref.invalidate(recentServicesProvider);
@@ -299,6 +287,56 @@ class _ServiceCategoryChips extends ConsumerWidget {
           ),
         );
       },
+    );
+  }
+}
+
+/// Animated empty section for when a service category returns no data
+class _AnimatedEmptySection extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+
+  const _AnimatedEmptySection({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 32),
+        child: Column(
+          children: [
+            Icon(
+              icon,
+              size: 80,
+              color: AppColors.border,
+            ).animate().scale(
+                  duration: 600.ms,
+                  curve: Curves.elasticOut,
+                ),
+            const SizedBox(height: 16),
+            Text(
+              title,
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ).animate().fadeIn(delay: 300.ms, duration: 400.ms),
+            const SizedBox(height: 8),
+            Text(
+              subtitle,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: AppColors.textSecondary,
+              ),
+              textAlign: TextAlign.center,
+            ).animate().fadeIn(delay: 500.ms, duration: 400.ms),
+          ],
+        ),
+      ),
     );
   }
 }

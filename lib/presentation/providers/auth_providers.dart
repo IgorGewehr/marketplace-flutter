@@ -5,7 +5,20 @@ import 'package:google_sign_in/google_sign_in.dart';
 import '../../core/constants/api_constants.dart';
 import '../../core/services/push_notification_service.dart';
 import '../../data/models/user_model.dart';
+import 'address_provider.dart';
+import 'cart_provider.dart';
+import 'chat_provider.dart';
 import 'core_providers.dart';
+import 'follows_provider.dart';
+import 'mercadopago_provider.dart';
+import 'my_products_provider.dart';
+import 'my_services_provider.dart';
+import 'notifications_provider.dart';
+import 'orders_provider.dart';
+import 'products_provider.dart';
+import 'seller_mode_provider.dart';
+import 'seller_orders_provider.dart';
+import 'wallet_provider.dart';
 
 /// Auth Status enum for router and UI
 enum AuthStatus {
@@ -199,6 +212,10 @@ class AuthNotifier extends Notifier<AsyncValue<void>> {
       } catch (_) {}
 
       await ref.read(authRepositoryProvider).signOut();
+
+      // Invalidate all user-specific cached providers to prevent stale data
+      // from leaking into the next session.
+      _invalidateUserProviders();
     });
   }
 
@@ -260,8 +277,53 @@ class AuthNotifier extends Notifier<AsyncValue<void>> {
       } catch (_) {}
 
       await ref.read(authRepositoryProvider).deleteAccount();
+
+      // Invalidate all user-specific cached providers to prevent stale data
+      // from leaking into the next session.
+      _invalidateUserProviders();
     });
     return !state.hasError;
+  }
+
+  /// Invalidate all user-specific providers so no stale data persists
+  /// across sign-out / account deletion boundaries.
+  void _invalidateUserProviders() {
+    // Auth & user profile
+    ref.invalidate(currentUserProvider);
+
+    // Orders (buyer + seller)
+    ref.invalidate(ordersProvider);
+    ref.invalidate(sellerOrdersProvider);
+
+    // Wallet
+    ref.invalidate(walletProvider);
+    ref.invalidate(walletTransactionsProvider);
+
+    // MercadoPago connection
+    ref.invalidate(mpConnectionProvider);
+
+    // Chat & notifications
+    ref.invalidate(chatsProvider);
+    ref.invalidate(notificationsProvider);
+
+    // Address book
+    ref.invalidate(addressProvider);
+
+    // Cart
+    ref.invalidate(cartProvider);
+
+    // Favorites
+    ref.invalidate(favoriteProductIdsProvider);
+
+    // Seller products & services
+    ref.invalidate(myProductsProvider);
+    ref.invalidate(myServicesProvider);
+
+    // Seller mode toggle
+    ref.invalidate(sellerModeProvider);
+
+    // Follows (locally persisted set of followed tenant IDs)
+    ref.invalidate(followsProvider);
   }
 
   /// Clear error state

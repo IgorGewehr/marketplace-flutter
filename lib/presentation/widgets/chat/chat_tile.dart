@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
@@ -57,7 +58,12 @@ class ChatTile extends StatelessWidget {
     return Material(
       color: hasUnread ? AppColors.primary.withAlpha(10) : Colors.transparent,
       child: InkWell(
-        onTap: onTap,
+        onTap: onTap != null
+            ? () {
+                HapticFeedback.selectionClick();
+                onTap!();
+              }
+            : null,
         onLongPress: onLongPress,
         child: Padding(
           padding: const EdgeInsets.symmetric(

@@ -13,8 +13,10 @@ import 'auth_providers.dart';
 import 'core_providers.dart';
 import 'tenant_provider.dart';
 
-/// Chat provider for managing conversations
-class ChatsNotifier extends AsyncNotifier<List<ChatModel>> {
+/// Chat provider for managing conversations.
+/// Uses AutoDispose to cancel the Firestore real-time listener when no widget
+/// is watching, preventing listener leaks across navigation boundaries.
+class ChatsNotifier extends AutoDisposeAsyncNotifier<List<ChatModel>> {
   StreamSubscription<QuerySnapshot>? _chatsSubscription;
 
   @override
@@ -125,7 +127,7 @@ class ChatsNotifier extends AsyncNotifier<List<ChatModel>> {
   }
 }
 
-final chatsProvider = AsyncNotifierProvider<ChatsNotifier, List<ChatModel>>(
+final chatsProvider = AsyncNotifierProvider.autoDispose<ChatsNotifier, List<ChatModel>>(
   () => ChatsNotifier(),
 );
 
@@ -141,9 +143,11 @@ final unreadChatsCountProvider = Provider<int>((ref) {
   });
 });
 
-/// Real-time messages provider using Firestore snapshots
-/// Reads from Firestore directly for instant updates, sends via REST API
-class ChatMessagesNotifier extends FamilyAsyncNotifier<List<MessageModel>, String> {
+/// Real-time messages provider using Firestore snapshots.
+/// Reads from Firestore directly for instant updates, sends via REST API.
+/// Uses AutoDispose to cancel the Firestore listener when the conversation
+/// screen is popped, preventing listener leaks.
+class ChatMessagesNotifier extends AutoDisposeFamilyAsyncNotifier<List<MessageModel>, String> {
   StreamSubscription<QuerySnapshot>? _messagesSubscription;
 
   @override
@@ -361,7 +365,7 @@ class ChatMessagesNotifier extends FamilyAsyncNotifier<List<MessageModel>, Strin
   }
 }
 
-final chatMessagesProvider = AsyncNotifierProvider.family<ChatMessagesNotifier, List<MessageModel>, String>(
+final chatMessagesProvider = AsyncNotifierProvider.autoDispose.family<ChatMessagesNotifier, List<MessageModel>, String>(
   () => ChatMessagesNotifier(),
 );
 

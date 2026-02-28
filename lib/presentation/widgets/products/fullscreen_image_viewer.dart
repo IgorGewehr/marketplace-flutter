@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:shimmer/shimmer.dart';
 
 /// Fullscreen image viewer with pinch-to-zoom and swipe navigation
 class FullscreenImageViewer extends StatefulWidget {
@@ -68,9 +69,13 @@ class _FullscreenImageViewerState extends State<FullscreenImageViewer> {
                   child: CachedNetworkImage(
                     imageUrl: widget.images[index],
                     fit: BoxFit.contain,
-                    placeholder: (_, __) => const Center(
-                      child: CircularProgressIndicator(
-                        color: Colors.white,
+                    fadeInDuration: const Duration(milliseconds: 300),
+                    fadeOutDuration: const Duration(milliseconds: 150),
+                    placeholder: (_, __) => Shimmer.fromColors(
+                      baseColor: Colors.white.withAlpha(20),
+                      highlightColor: Colors.white.withAlpha(50),
+                      child: Container(
+                        color: Colors.white.withAlpha(20),
                       ),
                     ),
                     errorWidget: (_, __, ___) => const Center(

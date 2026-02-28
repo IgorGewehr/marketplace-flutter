@@ -1,12 +1,14 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../data/models/address_model.dart';
 import '../../providers/address_provider.dart';
 import '../../widgets/shared/app_feedback.dart';
+import '../../widgets/shared/error_state.dart';
 import '../../widgets/shared/illustrated_empty_state.dart';
 import '../../widgets/shared/shimmer_loading.dart';
 
@@ -29,18 +31,10 @@ class AddressesScreen extends ConsumerWidget {
       ),
       body: addressesAsync.when(
         loading: () => const ShimmerLoading(itemCount: 3, isGrid: false, height: 100),
-        error: (_, __) => Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Text('Erro ao carregar endereços'),
-              const SizedBox(height: 16),
-              FilledButton(
-                onPressed: () => ref.invalidate(addressProvider),
-                child: const Text('Tentar novamente'),
-              ),
-            ],
-          ),
+        error: (_, __) => ErrorState(
+          icon: Icons.location_off_rounded,
+          message: 'Erro ao carregar endereços.',
+          onRetry: () => ref.invalidate(addressProvider),
         ),
         data: (addresses) {
           if (addresses.isEmpty) {
@@ -63,7 +57,10 @@ class AddressesScreen extends ConsumerWidget {
                   onSetDefault: address.isDefault
                       ? null
                       : () => _setAsDefault(context, ref, address),
-                );
+                )
+                    .animate()
+                    .fadeIn(delay: Duration(milliseconds: index * 80), duration: 300.ms)
+                    .slideX(begin: 0.05, duration: 300.ms, curve: Curves.easeOut);
               },
             ),
           );

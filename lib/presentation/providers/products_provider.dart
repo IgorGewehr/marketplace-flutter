@@ -500,6 +500,8 @@ final favoriteProductIdsProvider = StateNotifierProvider<FavoritesNotifier, Set<
 
 class FavoritesNotifier extends StateNotifier<Set<String>> {
   final Ref _ref;
+  bool _initialLoadComplete = false;
+  final Set<String> _pendingToggles = {};
 
   FavoritesNotifier(this._ref) : super({}) {
     _loadFavorites();
@@ -522,15 +524,38 @@ class FavoritesNotifier extends StateNotifier<Set<String>> {
         loaded = {};
       }
 
-      // A6: Merge with current state to preserve any toggles that happened
+      // Merge with current state to preserve any toggles that happened
       // while this async load was in flight.
       state = state.union(loaded);
     } catch (_) {
       // Silent fail, start with empty favorites
     }
+
+    _initialLoadComplete = true;
+
+    // Apply any toggles that were queued while loading
+    if (_pendingToggles.isNotEmpty) {
+      final pending = Set<String>.from(_pendingToggles);
+      _pendingToggles.clear();
+      for (final id in pending) {
+        await toggleFavorite(id);
+      }
+    }
   }
 
   Future<void> toggleFavorite(String productId) async {
+    // If initial load hasn't completed, queue the toggle to avoid
+    // operating on incomplete state (race condition).
+    if (!_initialLoadComplete) {
+      // If already pending, remove it (double-toggle = cancel)
+      if (_pendingToggles.contains(productId)) {
+        _pendingToggles.remove(productId);
+      } else {
+        _pendingToggles.add(productId);
+      }
+      return;
+    }
+
     final previousState = {...state};
     final newState = {...state};
 
@@ -558,6 +583,8 @@ class FavoritesNotifier extends StateNotifier<Set<String>> {
   bool isFavorite(String productId) => state.contains(productId);
 
   void clearFavorites() {
+    _initialLoadComplete = true;
+    _pendingToggles.clear();
     state = {};
     _ref.read(localStorageProvider).saveFavoriteIds({});
   }

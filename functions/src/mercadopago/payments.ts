@@ -549,6 +549,13 @@ router.post("/orders", async (req: Request, res: Response): Promise<void> => {
           timestamp: now,
           note: "Pagamento aprovado via cartão",
         });
+      } else if (mpPayment.status_detail === "pending_challenge" || mpPayment.status === "authorized") {
+        // 3DS challenge required — surface the authentication URL to the client
+        orderData.paymentStatus = "pending_challenge";
+        const threeDsUrl = mpPayment.three_ds_info?.external_resource_url ?? null;
+        if (threeDsUrl) {
+          orderData.threeDsUrl = threeDsUrl;
+        }
       }
 
       functions.logger.info("Card payment created", {
@@ -658,7 +665,9 @@ router.post("/orders", async (req: Request, res: Response): Promise<void> => {
       }
     };
     // Don't await - send notifications in background
-    notifyUsers();
+    notifyUsers().catch((err) => {
+      functions.logger.error("Background notification failed", { error: String(err) });
+    });
 
     // Convert Timestamps to ISO strings for JSON response
     const responseOrder = {
@@ -1194,7 +1203,9 @@ router.patch("/orders/:id/status", async (req: Request, res: Response): Promise<
       orderId,
       newStatus,
       (data.orderNumber as string) || orderId.substring(0, 8)
-    );
+    ).catch((err) => {
+      functions.logger.error("Background order status notification failed", { error: String(err), orderId });
+    });
 
     res.json(serializeOrder(updatedDoc.data()!));
   } catch (error) {

@@ -74,6 +74,17 @@ export async function handleWebhook(req: Request, res: Response): Promise<void> 
     }
   }
 
+  // Second deduplication: check by event type + payment ID
+  // MP can send multiple webhooks for the same payment with different request IDs
+  const eventKey = `${type}-${dataId}`;
+  const eventDedupRef = db.collection("webhook_processed").doc(eventKey);
+  const eventDedupDoc = await eventDedupRef.get();
+  if (eventDedupDoc.exists) {
+    functions.logger.info("Webhook already processed (event dedup), skipping", { eventKey });
+    res.status(200).json({ received: true, deduplicated: true });
+    return;
+  }
+
   // Process webhook then respond
   try {
     if (type === "payment") {
@@ -96,6 +107,13 @@ export async function handleWebhook(req: Request, res: Response): Promise<void> 
         type: req.body?.type || "unknown",
       });
     }
+
+    // Also mark the event-level dedup key
+    await eventDedupRef.set({
+      processedAt: admin.firestore.Timestamp.now(),
+      type,
+      dataId,
+    });
 
     res.status(200).send("OK");
   } catch (error) {
@@ -248,7 +266,14 @@ async function processPaymentNotification(paymentId: string): Promise<void> {
         const tenantId = orderData.tenantId;
         if (tenantId) {
           // Use the stored payment split values from order creation (not current config)
-          const sellerAmount = orderData.paymentSplit?.sellerAmount || 0;
+          const sellerAmount = orderData.paymentSplit?.sellerAmount;
+
+          if (typeof sellerAmount !== "number" || sellerAmount <= 0) {
+            functions.logger.error("Invalid sellerAmount in order, skipping wallet update", {
+              orderId,
+              sellerAmount,
+            });
+          } else {
 
           const walletRef = db.collection("wallets").doc(tenantId);
           const walletSnap = await transaction.get(walletRef);
@@ -275,6 +300,7 @@ async function processPaymentNotification(paymentId: string): Promise<void> {
               updatedAt: now,
             });
           }
+          } // end else (valid sellerAmount)
         }
 
         notificationEvent = "approved";
