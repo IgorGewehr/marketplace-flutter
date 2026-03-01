@@ -76,6 +76,7 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
     tags, images, price, compareAtPrice, costPrice, sku, barcode,
     quantity, trackInventory, hasVariants, variants,
     visibility, ncm, cfop, location,
+    weight, dimensions, isPerishable, shippingCategory, shippingPolicy,
   } = req.body;
 
   if (!name || price === undefined || price === null) {
@@ -118,6 +119,11 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
       ncm: ncm || null,
       cfop: cfop || null,
       location: location || null,
+      weight: weight !== undefined && weight !== null ? parseFloat(weight) : null,
+      dimensions: dimensions || null,
+      isPerishable: isPerishable ?? false,
+      shippingCategory: shippingCategory || null,
+      shippingPolicy: shippingPolicy || "delivery",
       marketplaceStats: {
         views: 0,
         favorites: 0,
@@ -184,6 +190,7 @@ router.patch("/:id", async (req: Request, res: Response): Promise<void> => {
       "tags", "images", "price", "compareAtPrice", "costPrice", "sku", "barcode",
       "quantity", "trackInventory", "hasVariants", "variants",
       "visibility", "status", "ncm", "cfop", "location",
+      "weight", "dimensions", "isPerishable", "shippingCategory", "shippingPolicy",
     ];
 
     for (const field of allowedFields) {

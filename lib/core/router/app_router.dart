@@ -45,6 +45,7 @@ import '../../presentation/screens/settings/notification_settings_screen.dart';
 import '../../presentation/screens/favorites/favorites_screen.dart';
 import '../../presentation/screens/services/services_screen.dart';
 import '../../presentation/screens/services/service_details_screen.dart';
+import '../../presentation/screens/shipping/delivery_zones_screen.dart';
 
 /// Returns a [CustomTransitionPage] with a smooth slide-from-right + fade transition.
 /// Wraps [child] with [_PopSafeWrapper] so the Android system back button never
@@ -146,6 +147,7 @@ class AppRouter {
   static const serviceDetails = '/service/:id';
   static const sellerProfile = '/seller-profile/:id';
   static const sellerEditProfile = '/seller/edit-profile';
+  static const deliveryZones = '/delivery-zones';
   static const forceUpdate = '/force-update';
 }
 
@@ -528,6 +530,16 @@ final routerProvider = Provider<GoRouter>((ref) {
           context: context,
           state: state,
           child: const MpConnectScreen(),
+        ),
+      ),
+
+      GoRoute(
+        parentNavigatorKey: _rootNavigatorKey,
+        path: AppRouter.deliveryZones,
+        pageBuilder: (context, state) => _slidePage(
+          context: context,
+          state: state,
+          child: const DeliveryZonesScreen(),
         ),
       ),
     ],

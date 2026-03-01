@@ -2,16 +2,24 @@ import 'package:flutter/material.dart';
 
 import '../../../core/utils/formatters.dart';
 
-/// Cart summary widget - SIMPLIFIED (no shipping, no coupons)
+/// Cart summary widget with optional delivery fee display
 class CartSummary extends StatelessWidget {
   final double total;
   final int itemCount;
+  final double? deliveryFee;
+  final String? deliveryTierLabel;
+  final String? deliveryTier;
 
   const CartSummary({
     super.key,
     required this.total,
     required this.itemCount,
+    this.deliveryFee,
+    this.deliveryTierLabel,
+    this.deliveryTier,
   });
+
+  double get _grandTotal => total + (deliveryFee ?? 0);
 
   @override
   Widget build(BuildContext context) {
@@ -32,18 +40,79 @@ class CartSummary extends StatelessWidget {
       ),
       child: Column(
         children: [
-          // Item count
+          // Subtotal row
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                itemCount == 1 ? '1 item' : '$itemCount itens',
+                'Subtotal (${itemCount == 1 ? '1 item' : '$itemCount itens'})',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              Text(
+                Formatters.currency(total),
                 style: theme.textTheme.bodyMedium?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
               ),
             ],
           ),
+          const SizedBox(height: 8),
+
+          // Delivery fee row
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                deliveryTierLabel != null
+                    ? 'Frete ($deliveryTierLabel)'
+                    : 'Frete',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              if (deliveryTier == 'seller_arranges')
+                Text(
+                  'A combinar com vendedor',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.tertiary,
+                    fontWeight: FontWeight.w500,
+                  ),
+                )
+              else if (deliveryFee != null && deliveryFee! > 0)
+                Text(
+                  Formatters.currency(deliveryFee!),
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                )
+              else if (deliveryFee != null && deliveryFee == 0)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primary.withAlpha(25),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    'GRÁTIS',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: theme.colorScheme.primary,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                )
+              else
+                Text(
+                  'Calcular no próximo passo',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant.withAlpha(150),
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+            ],
+          ),
+
           const SizedBox(height: 12),
           const Divider(thickness: 0.5),
           const SizedBox(height: 12),
@@ -59,42 +128,13 @@ class CartSummary extends StatelessWidget {
                 ),
               ),
               Text(
-                Formatters.currency(total),
+                Formatters.currency(_grandTotal),
                 style: theme.textTheme.titleLarge?.copyWith(
                   fontWeight: FontWeight.bold,
                   color: theme.colorScheme.primary,
                 ),
               ),
             ],
-          ),
-
-          const SizedBox(height: 12),
-
-          // Info about logistics
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.primaryContainer.withAlpha(100),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.info_outline,
-                  size: 16,
-                  color: theme.colorScheme.primary,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Combinar entrega e pagamento diretamente com o vendedor',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onPrimaryContainer,
-                    ),
-                  ),
-                ),
-              ],
-            ),
           ),
         ],
       ),

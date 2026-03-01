@@ -4,8 +4,10 @@ import '../../core/config/app_config.dart';
 import '../../core/errors/app_exception.dart';
 import '../../data/datasources/mp_card_tokenizer.dart';
 import '../../data/models/address_model.dart';
+import '../../data/models/freight_option_model.dart';
 import '../../data/models/order_model.dart';
 import '../../domain/repositories/order_repository.dart';
+import '../../domain/repositories/shipping_repository.dart';
 import 'address_provider.dart';
 import 'auth_providers.dart';
 import 'cart_provider.dart';
@@ -16,6 +18,7 @@ import 'orders_provider.dart';
 /// Checkout step enum
 enum CheckoutStep {
   address,
+  delivery,
   payment,
   cardDetails,
   review,
@@ -50,11 +53,17 @@ class CheckoutState {
   // Customer notes for the order
   final String? customerNotes;
 
-  // 3DS challenge URL — when non-null the checkout screen should open this
-  // URL in a WebView/browser so the user can complete the 3DS challenge.
-  // Check `state.threeDsUrl != null` and `currentStep == processing` to show
-  // the challenge flow instead of the normal loading indicator.
+  // 3DS challenge URL
   final String? threeDsUrl;
+
+  // Delivery / freight fields
+  final List<FreightOptionModel>? freightOptions;
+  final FreightOptionModel? selectedFreightOption;
+  final bool isCalculatingFreight;
+  final String? freightError;
+  final String? freeDeliveryMessage;
+  final bool hasMixedCart;
+  final int pickupOnlyCount;
 
   const CheckoutState({
     this.currentStep = CheckoutStep.address,
@@ -72,6 +81,13 @@ class CheckoutState {
     this.installments = 1,
     this.customerNotes,
     this.threeDsUrl,
+    this.freightOptions,
+    this.selectedFreightOption,
+    this.isCalculatingFreight = false,
+    this.freightError,
+    this.freeDeliveryMessage,
+    this.hasMixedCart = false,
+    this.pickupOnlyCount = 0,
   });
 
   static const _sentinel = Object();
@@ -92,6 +108,13 @@ class CheckoutState {
     int? installments,
     Object? customerNotes = _sentinel,
     Object? threeDsUrl = _sentinel,
+    Object? freightOptions = _sentinel,
+    Object? selectedFreightOption = _sentinel,
+    bool? isCalculatingFreight,
+    Object? freightError = _sentinel,
+    Object? freeDeliveryMessage = _sentinel,
+    bool? hasMixedCart,
+    int? pickupOnlyCount,
   }) {
     return CheckoutState(
       currentStep: currentStep ?? this.currentStep,
@@ -109,6 +132,13 @@ class CheckoutState {
       installments: installments ?? this.installments,
       customerNotes: customerNotes == _sentinel ? this.customerNotes : customerNotes as String?,
       threeDsUrl: threeDsUrl == _sentinel ? this.threeDsUrl : threeDsUrl as String?,
+      freightOptions: freightOptions == _sentinel ? this.freightOptions : freightOptions as List<FreightOptionModel>?,
+      selectedFreightOption: selectedFreightOption == _sentinel ? this.selectedFreightOption : selectedFreightOption as FreightOptionModel?,
+      isCalculatingFreight: isCalculatingFreight ?? this.isCalculatingFreight,
+      freightError: freightError == _sentinel ? this.freightError : freightError as String?,
+      freeDeliveryMessage: freeDeliveryMessage == _sentinel ? this.freeDeliveryMessage : freeDeliveryMessage as String?,
+      hasMixedCart: hasMixedCart ?? this.hasMixedCart,
+      pickupOnlyCount: pickupOnlyCount ?? this.pickupOnlyCount,
     );
   }
 
@@ -116,6 +146,8 @@ class CheckoutState {
     switch (currentStep) {
       case CheckoutStep.address:
         return selectedAddress != null;
+      case CheckoutStep.delivery:
+        return selectedFreightOption != null;
       case CheckoutStep.payment:
         return paymentMethod != null;
       case CheckoutStep.cardDetails:
@@ -152,7 +184,14 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
   }
 
   void setAddress(AddressModel address) {
-    state = state.copyWith(selectedAddress: address);
+    // Reset freight options when address changes
+    state = state.copyWith(
+      selectedAddress: address,
+      freightOptions: null,
+      selectedFreightOption: null,
+      freightError: null,
+      freeDeliveryMessage: null,
+    );
   }
 
   void setPaymentMethod(PaymentMethod method) {
@@ -190,16 +229,88 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
     state = state.copyWith(currentStep: step);
   }
 
+  /// Select a freight option
+  void selectFreightOption(FreightOptionModel option) {
+    state = state.copyWith(selectedFreightOption: option);
+  }
+
+  /// Calculate freight options for the current address
+  Future<void> calculateFreight() async {
+    if (state.selectedAddress == null) return;
+
+    state = state.copyWith(
+      isCalculatingFreight: true,
+      freightError: null,
+      freightOptions: null,
+      selectedFreightOption: null,
+    );
+
+    try {
+      final shippingRepo = ref.read(shippingRepositoryProvider);
+      final cart = ref.read(cartProvider);
+
+      // Extract tenantId from cart
+      final tenantId = cart.items.isNotEmpty ? cart.items.first.tenantId : '';
+
+      // Build freight items from cart
+      final freightItems = cart.items.map((item) => FreightItemRequest(
+        quantity: item.quantity,
+      )).toList();
+
+      final result = await shippingRepo.calculateFreight(
+        zipCode: state.selectedAddress!.zipCode,
+        city: state.selectedAddress!.city,
+        subtotal: cart.subtotal,
+        items: freightItems,
+        tenantId: tenantId,
+      );
+
+      // Auto-select the cheapest available option
+      FreightOptionModel? autoSelected;
+      final availableOptions = result.options.where((o) => o.available).toList();
+      if (availableOptions.isNotEmpty) {
+        availableOptions.sort((a, b) => a.price.compareTo(b.price));
+        autoSelected = availableOptions.first;
+      }
+
+      state = state.copyWith(
+        isCalculatingFreight: false,
+        freightOptions: result.options,
+        selectedFreightOption: autoSelected,
+        freeDeliveryMessage: result.freeDeliveryMessage,
+        hasMixedCart: result.hasMixedCart,
+        pickupOnlyCount: result.pickupOnlyCount,
+      );
+    } catch (e) {
+      state = state.copyWith(
+        isCalculatingFreight: false,
+        freightError: 'Erro ao calcular frete. Tente novamente.',
+      );
+    }
+  }
+
   void nextStep() {
-    final currentIndex = CheckoutStep.values.indexOf(state.currentStep);
+    final current = state.currentStep;
+
+    if (current == CheckoutStep.address) {
+      // After address → always go to delivery step (calculate freight)
+      state = state.copyWith(currentStep: CheckoutStep.delivery);
+      calculateFreight();
+      return;
+    }
+
+    if (current == CheckoutStep.delivery) {
+      state = state.copyWith(currentStep: CheckoutStep.payment);
+      return;
+    }
 
     // Skip cardDetails step if payment method doesn't require it
-    if (state.currentStep == CheckoutStep.payment &&
-        !state.requiresCardDetails) {
+    if (current == CheckoutStep.payment && !state.requiresCardDetails) {
       state = state.copyWith(currentStep: CheckoutStep.review);
       return;
     }
 
+    final currentIndex = CheckoutStep.values.indexOf(current);
     if (currentIndex < CheckoutStep.values.length - 1) {
       state = state.copyWith(
           currentStep: CheckoutStep.values[currentIndex + 1]);
@@ -207,15 +318,21 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
   }
 
   void previousStep() {
-    final currentIndex = CheckoutStep.values.indexOf(state.currentStep);
+    final current = state.currentStep;
+
+    if (current == CheckoutStep.payment) {
+      // Always go back to delivery step
+      state = state.copyWith(currentStep: CheckoutStep.delivery);
+      return;
+    }
 
     // Skip cardDetails step going back if payment method doesn't require it
-    if (state.currentStep == CheckoutStep.review &&
-        !state.requiresCardDetails) {
+    if (current == CheckoutStep.review && !state.requiresCardDetails) {
       state = state.copyWith(currentStep: CheckoutStep.payment);
       return;
     }
 
+    final currentIndex = CheckoutStep.values.indexOf(current);
     if (currentIndex > 0) {
       state = state.copyWith(
           currentStep: CheckoutStep.values[currentIndex - 1]);
@@ -252,8 +369,6 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
     final previousStep = state.currentStep;
 
     // Pre-validate CPF for PIX payments.
-    // Use .future to await the current/refreshing fetch — avoids checking stale
-    // cached data that may be missing a CPF the user just saved in their profile.
     if (state.paymentMethod == PaymentMethod.pix) {
       try {
         final user = await ref.read(currentUserProvider.future);
@@ -276,9 +391,6 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
 
     try {
       // Force-sync the local cart with Firestore before placing the order.
-      // The backend reads cart items from Firestore (not from the request body),
-      // so stale remote items (from failed previous syncs) would cause the
-      // backend to validate stock for products the buyer no longer has in cart.
       final synced = await ref.read(cartProvider.notifier).ensureSynced();
       if (!synced) {
         state = state.copyWith(
@@ -291,23 +403,34 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
 
       final orderRepo = ref.read(orderRepositoryProvider);
 
+      // Determine delivery type based on selected freight option
+      final freightOption = state.selectedFreightOption;
+      final String deliveryType;
+      if (freightOption?.tier == 'pickup_point') {
+        deliveryType = 'pickup';
+      } else if (freightOption?.tier == 'seller_arranges') {
+        deliveryType = 'seller_arranges';
+      } else {
+        deliveryType = 'delivery';
+      }
+
       // Create order via API using CreateOrderRequest
       final request = CreateOrderRequest(
-        deliveryType: 'delivery',
+        deliveryType: deliveryType,
         deliveryAddress: state.selectedAddress,
         paymentMethod: state.paymentMethod!.name,
         cardTokenId: state.cardTokenId,
         installments: state.installments,
         customerNotes: state.customerNotes,
+        deliveryTier: freightOption?.tier,
+        deliveryZoneId: freightOption?.zoneId,
+        pickupPointId: freightOption?.pickupPointId,
+        deliveryFeeFromClient: freightOption?.price,
       );
 
       final order = await orderRepo.create(request);
 
-      // Handle 3DS challenge — backend returns pending_challenge when a card
-      // payment requires a 3DS verification step. The checkout screen must
-      // check `state.threeDsUrl != null` and open the challenge URL in a
-      // WebView/browser. Once the user completes the challenge the payment
-      // status will update via webhook and the order will transition normally.
+      // Handle 3DS challenge
       if (order.paymentStatus == 'pending_challenge') {
         state = state.copyWith(
           createdOrder: order,
@@ -411,9 +534,7 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
   }
 
   /// Fire-and-forget: auto-sends a chat message to the seller when the
-  /// checkout fails due to seller-side configuration issues (PIX not enabled,
-  /// MercadoPago not connected). Never blocks or affects the buyer error flow.
-  /// Each tenant+error combination is notified only once (persisted via Hive).
+  /// checkout fails due to seller-side configuration issues.
   void _notifySellerViaChat(Object error) {
     try {
       // Detect error code from ApiException.responseData or fallback to string matching
@@ -492,6 +613,12 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
         msg.contains('habilitou o recebimento via pix')) {
       return 'O vendedor ainda não habilitou o recebimento via PIX no Mercado Pago. Tente pagar com cartão de crédito.';
     }
+    if (msg.contains('out_of_delivery_area')) {
+      return 'Endereço fora da área de entrega. Escolha outro endereço ou selecione retirada.';
+    }
+    if (msg.contains('invalid_delivery_option') || msg.contains('delivery_unavailable')) {
+      return 'Opção de entrega não disponível. Selecione outra opção.';
+    }
     if (msg.contains('produto não encontrado') || msg.contains('produto nao encontrado')) {
       return 'Um dos produtos do carrinho não está mais disponível. Atualize seu carrinho.';
     }
@@ -499,7 +626,6 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
       return 'Seu carrinho está vazio.';
     }
     if (msg.contains('estoque') || msg.contains('stock')) {
-      // Return the original server message as it includes the product name
       final original = e.toString();
       final colonIdx = original.indexOf(': ');
       if (colonIdx >= 0) {

@@ -49,6 +49,78 @@ class DeliveryTypes {
   static const String thirdParty = 'third_party';
 }
 
+/// Delivery tiers for logistics
+class DeliveryTiers {
+  static const String sameDay = 'same_day';
+  static const String nextDay = 'next_day';
+  static const String scheduled = 'scheduled';
+  static const String pickupPoint = 'pickup_point';
+  static const String sellerArranges = 'seller_arranges';
+
+  static const Map<String, String> labels = {
+    sameDay: 'Mesmo dia',
+    nextDay: 'Dia seguinte',
+    scheduled: 'Agendado',
+    pickupPoint: 'Ponto de retirada',
+    sellerArranges: 'Combinar com vendedor',
+  };
+
+  static String label(String tier) => labels[tier] ?? tier;
+}
+
+/// Delivery statuses (from driver app webhooks)
+class DeliveryStatuses {
+  static const String sellerReady = 'seller_ready';
+  static const String collected = 'collected';
+  static const String inTransit = 'in_transit';
+  static const String delivered = 'delivered';
+
+  static const Map<String, String> labels = {
+    sellerReady: 'Pronto para coleta',
+    collected: 'Coletado pelo entregador',
+    inTransit: 'Em trânsito',
+    delivered: 'Entregue',
+  };
+
+  static String label(String status) => labels[status] ?? status;
+}
+
+/// Zone distance delivery estimates
+class ZoneDistanceInfo {
+  static const Map<int, String> deliveryEstimates = {
+    0: 'Até 3 dias úteis',
+    1: '3-5 dias úteis',
+    2: '5-7 dias úteis',
+    3: '5-7 dias úteis',
+  };
+
+  static String estimate(int distance) =>
+      deliveryEstimates[distance] ?? '5-7 dias úteis';
+}
+
+/// Shipping policies for products
+class ShippingPolicies {
+  static const String delivery = 'delivery';
+  static const String pickupOnly = 'pickup_only';
+  static const String sellerArranges = 'seller_arranges';
+
+  static const Map<String, String> labels = {
+    delivery: 'Entrega',
+    pickupOnly: 'Somente retirada',
+    sellerArranges: 'Combinar',
+  };
+
+  static String label(String policy) => labels[policy] ?? policy;
+}
+
+/// Shipping categories
+class ShippingCategories {
+  static const String standard = 'standard';
+  static const String fragile = 'fragile';
+  static const String heavy = 'heavy';
+  static const String perishable = 'perishable';
+}
+
 /// Order payment split status
 class PaymentSplitStatus {
   static const String pending = 'pending';

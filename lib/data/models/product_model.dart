@@ -29,6 +29,12 @@ class ProductModel {
   final String? cfop;
   final ProductLocation? location; // Geolocation for filtering
   final ProductMarketplaceStats? marketplaceStats;
+  // Shipping fields
+  final double? weight; // kg
+  final ProductDimensions? dimensions; // cm
+  final bool isPerishable;
+  final String? shippingCategory; // standard, fragile, heavy, perishable
+  final String shippingPolicy; // delivery, pickup_only, seller_arranges
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -57,9 +63,19 @@ class ProductModel {
     this.cfop,
     this.location,
     this.marketplaceStats,
+    this.weight,
+    this.dimensions,
+    this.isPerishable = false,
+    this.shippingCategory,
+    this.shippingPolicy = 'delivery',
     required this.createdAt,
     required this.updatedAt,
   });
+
+  /// Check if product is oversized (any dimension > 40x30x30 cm)
+  bool get isOversized =>
+      dimensions != null &&
+      (dimensions!.width > 40 || dimensions!.height > 30 || dimensions!.length > 30);
 
   /// Get the main image URL
   String? get mainImageUrl => images.isNotEmpty ? images.first.url : null;
@@ -123,6 +139,13 @@ class ProductModel {
       marketplaceStats: json['marketplaceStats'] is Map<String, dynamic>
           ? ProductMarketplaceStats.fromJson(json['marketplaceStats'] as Map<String, dynamic>)
           : null,
+      weight: (json['weight'] as num?)?.toDouble(),
+      dimensions: json['dimensions'] is Map<String, dynamic>
+          ? ProductDimensions.fromJson(json['dimensions'] as Map<String, dynamic>)
+          : null,
+      isPerishable: json['isPerishable'] as bool? ?? false,
+      shippingCategory: json['shippingCategory'] as String?,
+      shippingPolicy: json['shippingPolicy'] as String? ?? 'delivery',
       createdAt: parseFirestoreDate(json['createdAt']) ?? DateTime.now(),
       updatedAt: parseFirestoreDate(json['updatedAt']) ?? DateTime.now(),
     );
@@ -154,6 +177,11 @@ class ProductModel {
       if (cfop != null) 'cfop': cfop,
       if (location != null) 'location': location!.toJson(),
       if (marketplaceStats != null) 'marketplaceStats': marketplaceStats!.toJson(),
+      if (weight != null) 'weight': weight,
+      if (dimensions != null) 'dimensions': dimensions!.toJson(),
+      'isPerishable': isPerishable,
+      if (shippingCategory != null) 'shippingCategory': shippingCategory,
+      'shippingPolicy': shippingPolicy,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
     };
@@ -184,6 +212,11 @@ class ProductModel {
     String? cfop,
     ProductLocation? location,
     ProductMarketplaceStats? marketplaceStats,
+    double? weight,
+    ProductDimensions? dimensions,
+    bool? isPerishable,
+    String? shippingCategory,
+    String? shippingPolicy,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -212,6 +245,11 @@ class ProductModel {
       cfop: cfop ?? this.cfop,
       location: location ?? this.location,
       marketplaceStats: marketplaceStats ?? this.marketplaceStats,
+      weight: weight ?? this.weight,
+      dimensions: dimensions ?? this.dimensions,
+      isPerishable: isPerishable ?? this.isPerishable,
+      shippingCategory: shippingCategory ?? this.shippingCategory,
+      shippingPolicy: shippingPolicy ?? this.shippingPolicy,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
@@ -345,6 +383,47 @@ class ProductMarketplaceStats {
       'rating': rating,
       'reviewCount': reviewCount,
     };
+  }
+}
+
+/// Product dimensions in centimeters
+class ProductDimensions {
+  final double width;
+  final double height;
+  final double length;
+
+  const ProductDimensions({
+    required this.width,
+    required this.height,
+    required this.length,
+  });
+
+  factory ProductDimensions.fromJson(Map<String, dynamic> json) {
+    return ProductDimensions(
+      width: (json['width'] as num?)?.toDouble() ?? 0,
+      height: (json['height'] as num?)?.toDouble() ?? 0,
+      length: (json['length'] as num?)?.toDouble() ?? 0,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'width': width,
+      'height': height,
+      'length': length,
+    };
+  }
+
+  ProductDimensions copyWith({
+    double? width,
+    double? height,
+    double? length,
+  }) {
+    return ProductDimensions(
+      width: width ?? this.width,
+      height: height ?? this.height,
+      length: length ?? this.length,
+    );
   }
 }
 

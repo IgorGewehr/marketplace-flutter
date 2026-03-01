@@ -5,7 +5,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../data/models/order_model.dart';
 
-/// Order timeline widget showing status history
+/// Order timeline widget showing status history with delivery tracking
 class OrderTimeline extends StatelessWidget {
   final OrderModel order;
 
@@ -32,22 +32,48 @@ class OrderTimeline extends StatelessWidget {
     );
   }
 
-  // Gap #16: Handle all status values including out_for_delivery and pending_payment
   int _getCurrentStepIndex() {
-    if (order.isDeliveryConfirmed) return 5;
+    final isDelivery = order.deliveryType == 'delivery' &&
+        order.deliveryType != 'seller_arranges';
+
+    // Cancelled / refunded → highlight nothing
+    if (order.status == 'cancelled' || order.status == 'refunded') return -1;
+
+    // Delivery confirmed (final step)
+    if (order.isDeliveryConfirmed) {
+      return isDelivery ? 7 : 5;
+    }
+
+    // Delivered
+    if (order.status == 'delivered') {
+      return isDelivery ? 6 : 4;
+    }
+
+    // Delivery-specific statuses
+    if (isDelivery) {
+      if (order.deliveryStatus == 'in_transit') return 5;
+      if (order.deliveryStatus == 'collected' || order.status == 'shipped') {
+        return 4;
+      }
+      if (order.status == 'ready' || order.sellerReadyAt != null) return 3;
+    } else {
+      // Pickup: shipped/ready → "Pronto para retirada"
+      if (order.status == 'shipped' ||
+          order.status == 'ready' ||
+          order.status == 'out_for_delivery') {
+        return 3;
+      }
+    }
+
     return switch (order.status) {
-      'pending' || 'pending_payment' => 0,
-      'confirmed' => 1,
       'preparing' || 'processing' => 2,
-      'shipped' || 'ready' || 'out_for_delivery' => 3,
-      'delivered' => 4,
-      'cancelled' || 'refunded' => -1,
+      'confirmed' => 1,
+      'pending' || 'pending_payment' => 0,
       _ => 0,
     };
   }
 
   DateTime? _getDateForStatus(String status) {
-    // Look through statusHistory for this status
     try {
       final found = order.statusHistory.firstWhere(
         (h) => h.status == status,
@@ -59,49 +85,104 @@ class OrderTimeline extends StatelessWidget {
   }
 
   List<_TimelineStepData> _buildTimelineSteps() {
-    return [
+    final isDelivery = order.deliveryType == 'delivery' &&
+        order.deliveryType != 'seller_arranges';
+
+    final steps = <_TimelineStepData>[
+      // 1. Pedido realizado
       _TimelineStepData(
         icon: Icons.receipt_long_outlined,
         title: 'Pedido realizado',
         date: order.createdAt,
         description: 'Aguardando confirmação',
       ),
+
+      // 2. Confirmado
       _TimelineStepData(
         icon: Icons.check_circle_outline,
         title: 'Confirmado',
         date: _getDateForStatus('confirmed'),
         description: 'Pagamento aprovado',
       ),
+
+      // 3. Em preparação
       _TimelineStepData(
         icon: Icons.inventory_2_outlined,
         title: 'Em preparação',
-        date: _getDateForStatus('preparing') ?? _getDateForStatus('processing'),
+        date: _getDateForStatus('preparing') ??
+            _getDateForStatus('processing'),
         description: 'Preparando seu pedido',
       ),
-      _TimelineStepData(
+    ];
+
+    if (isDelivery) {
+      // 4. Pronto para coleta (seller ready)
+      steps.add(_TimelineStepData(
+        icon: Icons.check_circle_outline,
+        title: 'Pronto para coleta',
+        date: order.sellerReadyAt ?? _getDateForStatus('ready'),
+        description: 'Aguardando entregador',
+      ));
+
+      // 5. Coletado pelo entregador
+      steps.add(_TimelineStepData(
+        icon: Icons.delivery_dining_outlined,
+        title: 'Coletado pelo entregador',
+        date: order.collectedAt,
+        description: order.driverName != null
+            ? 'Entregador: ${order.driverName}'
+            : 'Retirado para entrega',
+      ));
+
+      // 6. Em trânsito
+      steps.add(_TimelineStepData(
         icon: Icons.local_shipping_outlined,
-        title: 'Enviado',
-        date: _getDateForStatus('shipped') ?? _getDateForStatus('ready'),
-        description: 'A caminho',
-      ),
-      _TimelineStepData(
+        title: 'Em trânsito',
+        date: order.deliveryStatus == 'in_transit'
+            ? _getDateForStatus('shipped')
+            : null,
+        description: 'A caminho do destino',
+      ));
+
+      // 7. Entregue
+      steps.add(_TimelineStepData(
         icon: Icons.home_outlined,
         title: 'Entregue',
         date: _getDateForStatus('delivered'),
-        description: 'Pedido finalizado',
-      ),
+        description: 'Pedido entregue',
+      ));
+    } else {
+      // Pickup flow: simpler
+      // 4. Pronto para retirada
+      steps.add(_TimelineStepData(
+        icon: Icons.storefront_outlined,
+        title: 'Pronto para retirada',
+        date: _getDateForStatus('ready') ?? _getDateForStatus('shipped'),
+        description: 'Retire na loja do vendedor',
+      ));
 
-      // D5: Conditional delivery confirmation step
-      if (order.status == 'delivered' || order.isDeliveryConfirmed)
-        _TimelineStepData(
-          icon: Icons.verified_outlined,
-          title: 'Recebimento confirmado',
-          date: order.deliveryConfirmedAt,
-          description: order.isDeliveryConfirmed
-              ? 'Pagamento será liberado em até 24h'
-              : 'Aguardando confirmação do comprador',
-        ),
-    ];
+      // 5. Entregue / Retirado
+      steps.add(_TimelineStepData(
+        icon: Icons.shopping_bag_outlined,
+        title: 'Retirado',
+        date: _getDateForStatus('delivered'),
+        description: 'Pedido retirado com sucesso',
+      ));
+    }
+
+    // Last step: Recebimento confirmado (both flows)
+    if (order.status == 'delivered' || order.isDeliveryConfirmed) {
+      steps.add(_TimelineStepData(
+        icon: Icons.verified_outlined,
+        title: 'Recebimento confirmado',
+        date: order.deliveryConfirmedAt,
+        description: order.isDeliveryConfirmed
+            ? 'Pagamento será liberado em até 24h'
+            : 'Aguardando confirmação do comprador',
+      ));
+    }
+
+    return steps;
   }
 }
 

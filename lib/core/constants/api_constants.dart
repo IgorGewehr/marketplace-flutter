@@ -105,6 +105,11 @@ class ApiConstants {
   static const String reviewsCheck = '/api/reviews/check';
   static const String marketplaceReviews = '/api/marketplace/reviews';
 
+  // === Shipping Endpoints ===
+  static const String shippingCalculate = '/api/shipping/calculate';
+  static const String shippingZones = '/api/shipping/zones';
+  static const String shippingPickupPoints = '/api/shipping/pickup-points';
+
   // === Mercado Pago Endpoints ===
   static const String mpOAuthUrl = '/api/mercadopago/oauth';
   static const String mpOAuthCallback = '/api/mercadopago/oauth';

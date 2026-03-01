@@ -15,6 +15,7 @@ class CheckoutStepper extends StatelessWidget {
     // Build steps dynamically - include cardDetails only when active
     final steps = [
       _StepData(CheckoutStep.address, 'Endereço', Icons.location_on_outlined),
+      _StepData(CheckoutStep.delivery, 'Entrega', Icons.local_shipping_outlined),
       _StepData(CheckoutStep.payment, 'Pagamento', Icons.credit_card_outlined),
       if (currentStep == CheckoutStep.cardDetails)
         _StepData(CheckoutStep.cardDetails, 'Cartão', Icons.credit_score_outlined),

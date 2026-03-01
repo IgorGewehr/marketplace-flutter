@@ -22,6 +22,8 @@ import notificationsRouter from "./routes/notifications";
 import cartRouter from "./routes/cart";
 import sellerRouter from "./routes/seller";
 import reviewsRouter from "./routes/reviews";
+import shippingRouter from "./routes/shipping";
+import deliveryWebhookRouter from "./routes/delivery-webhook";
 import { releaseHeldPayments } from "./scheduled/release-payments";
 
 // Initialize Firebase Admin
@@ -102,6 +104,13 @@ app.get("/api/mp-oauth-callback", handleOAuthCallback);
 // Marketplace browsing (public - no auth required so anyone can browse)
 app.use("/api/marketplace", marketplaceRouter);
 
+// Shipping zones & pickup points (public - no auth required for browsing)
+app.get("/api/shipping/zones", shippingRouter);
+app.get("/api/shipping/pickup-points", shippingRouter);
+
+// Delivery webhook (inbound from driver app — uses API key auth, not Firebase Auth)
+app.use("/api/delivery-webhook", deliveryWebhookRouter);
+
 // Public user profile endpoint (no auth — returns only safe public fields)
 app.get("/api/users/:userId/public", async (req: express.Request, res: express.Response) => {
   try {
@@ -179,6 +188,9 @@ app.use("/api/seller", sellerRouter);
 
 // Reviews (create + check)
 app.use("/api/reviews", reviewsRouter);
+
+// Shipping freight calculation (authenticated)
+app.use("/api/shipping", shippingRouter);
 
 // ============================================================================
 // Error handler

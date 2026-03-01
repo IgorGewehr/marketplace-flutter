@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/constants/app_constants.dart';
+import '../../../core/constants/marketplace_constants.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/theme/app_colors.dart';
@@ -176,6 +177,22 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
                     .animate()
                     .fadeIn(delay: 100.ms, duration: 400.ms)
                     .slideY(begin: 0.05, duration: 400.ms),
+
+                // Delivery tracking section — only for delivery orders with active delivery
+                if (order.deliveryType == 'delivery' &&
+                    order.status != 'cancelled' &&
+                    order.status != 'refunded' &&
+                    order.status != 'pending' &&
+                    order.status != 'pending_payment' &&
+                    (order.sellerReadyAt != null ||
+                        order.deliveryStatus != null ||
+                        order.status == 'ready' ||
+                        order.status == 'shipped' ||
+                        order.status == 'delivered'))
+                  Padding(
+                    padding: const EdgeInsets.only(top: 16),
+                    child: _DeliveryTrackingSection(order: order),
+                  ),
 
                 const SizedBox(height: 16),
 
@@ -510,7 +527,7 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
                     .slideY(begin: 0.05, duration: 400.ms),
 
                 // Buyer actions: Confirm delivery or Report problem
-                if ((order.status == 'shipped' || order.status == 'out_for_delivery') &&
+                if ((order.status == 'shipped' || order.status == 'out_for_delivery' || order.status == 'delivered') &&
                     !order.isDeliveryConfirmed &&
                     order.paymentStatus == 'paid')
                   Padding(
@@ -779,6 +796,209 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
         },
       ),
     );
+  }
+}
+
+// ============================================================================
+// Delivery Tracking Section
+// ============================================================================
+
+class _DeliveryTrackingSection extends StatelessWidget {
+  final OrderModel order;
+
+  const _DeliveryTrackingSection({required this.order});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final currentStatus = _resolveDeliveryStatus();
+    final statusLabel = _statusLabel(currentStatus);
+    final statusIcon = _statusIcon(currentStatus);
+    final statusColor = _statusColor(currentStatus);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Acompanhar entrega',
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surface,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Column(
+            children: [
+              // Current status
+              Row(
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: statusColor.withAlpha(25),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(statusIcon, color: statusColor, size: 24),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          statusLabel,
+                          style: theme.textTheme.bodyLarge?.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: statusColor,
+                          ),
+                        ),
+                        if (_statusSubtitle(currentStatus) != null)
+                          Text(
+                            _statusSubtitle(currentStatus)!,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+
+              // Estimated delivery
+              if (order.zoneDistance != null) ...[
+                const SizedBox(height: 12),
+                const Divider(height: 1),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Icon(Icons.schedule_outlined, size: 18,
+                        color: theme.colorScheme.onSurfaceVariant),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Prazo estimado: ',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    Text(
+                      ZoneDistanceInfo.deliveryEstimates[order.zoneDistance!] ?? '5-7 dias',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+
+              // Driver info
+              if (order.driverName != null) ...[
+                const SizedBox(height: 12),
+                const Divider(height: 1),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Icon(Icons.person_outline, size: 18,
+                        color: theme.colorScheme.onSurfaceVariant),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Entregador: ${order.driverName}',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                    if (order.driverPhone != null)
+                      IconButton(
+                        icon: const Icon(Icons.phone_outlined, size: 18),
+                        onPressed: () {
+                          final uri = Uri.parse('tel:${order.driverPhone}');
+                          launchUrl(uri);
+                        },
+                        tooltip: 'Ligar para entregador',
+                        visualDensity: VisualDensity.compact,
+                        color: AppColors.primary,
+                      ),
+                  ],
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    ).animate()
+        .fadeIn(delay: 150.ms, duration: 400.ms)
+        .slideY(begin: 0.05, duration: 400.ms);
+  }
+
+  String _resolveDeliveryStatus() {
+    if (order.isDeliveryConfirmed) return 'confirmed_delivery';
+    if (order.status == 'delivered') return 'delivered';
+    if (order.deliveryStatus == 'in_transit') return 'in_transit';
+    if (order.deliveryStatus == 'collected' || order.status == 'shipped') {
+      return 'collected';
+    }
+    if (order.status == 'ready' || order.sellerReadyAt != null) {
+      return 'seller_ready';
+    }
+    return 'preparing';
+  }
+
+  String _statusLabel(String status) {
+    return switch (status) {
+      'preparing' => 'Em preparação',
+      'seller_ready' => 'Pronto para coleta',
+      'collected' => 'Coletado pelo entregador',
+      'in_transit' => 'Em trânsito',
+      'delivered' => 'Entregue',
+      'confirmed_delivery' => 'Recebimento confirmado',
+      _ => 'Em andamento',
+    };
+  }
+
+  IconData _statusIcon(String status) {
+    return switch (status) {
+      'preparing' => Icons.inventory_2_outlined,
+      'seller_ready' => Icons.check_circle_outline,
+      'collected' => Icons.delivery_dining_outlined,
+      'in_transit' => Icons.local_shipping_outlined,
+      'delivered' => Icons.home_outlined,
+      'confirmed_delivery' => Icons.verified_outlined,
+      _ => Icons.pending_outlined,
+    };
+  }
+
+  Color _statusColor(String status) {
+    return switch (status) {
+      'preparing' => Colors.orange,
+      'seller_ready' => AppColors.statusReady,
+      'collected' => Colors.blue,
+      'in_transit' => AppColors.statusShipped,
+      'delivered' => AppColors.primary,
+      'confirmed_delivery' => AppColors.secondary,
+      _ => Colors.grey,
+    };
+  }
+
+  String? _statusSubtitle(String status) {
+    return switch (status) {
+      'preparing' => 'O vendedor está preparando seu pedido',
+      'seller_ready' => 'Aguardando um entregador coletar o pedido',
+      'collected' => order.driverName != null
+          ? '${order.driverName} retirou seu pedido'
+          : 'Pedido retirado para entrega',
+      'in_transit' => 'Seu pedido está a caminho',
+      'delivered' => 'Confirme o recebimento do pedido',
+      'confirmed_delivery' => 'Pagamento será liberado ao vendedor',
+      _ => null,
+    };
   }
 }
 

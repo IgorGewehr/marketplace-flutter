@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../core/router/app_router.dart';
+import '../../../core/constants/marketplace_constants.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../data/models/product_model.dart';
 import '../../../data/services/image_upload_service.dart';
@@ -53,6 +54,14 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
   bool _isOnDemand = false;
   bool _hasUnsavedChanges = false;
   bool _isPopulating = false;
+
+  // Shipping fields
+  String _shippingPolicy = ShippingPolicies.delivery;
+  final _weightController = TextEditingController();
+  final _widthController = TextEditingController();
+  final _heightController = TextEditingController();
+  final _lengthController = TextEditingController();
+  bool _isPerishable = false;
 
   // Scroll + validation highlight
   final _scrollController = ScrollController();
@@ -136,6 +145,14 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     _originalImageUrls = List.from(_existingImageUrls);
     _variants = List.from(product.variants);
     _hasVariants = product.hasVariants;
+    _shippingPolicy = product.shippingPolicy;
+    if (product.weight != null) _weightController.text = product.weight!.toString();
+    if (product.dimensions != null) {
+      _widthController.text = product.dimensions!.width.toString();
+      _heightController.text = product.dimensions!.height.toString();
+      _lengthController.text = product.dimensions!.length.toString();
+    }
+    _isPerishable = product.isPerishable;
     _isPopulating = false;
 
     // Validate category after frame so categoriesProvider is loaded
@@ -163,6 +180,10 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     _priceController.dispose();
     _quantityController.dispose();
     _tagController.dispose();
+    _weightController.dispose();
+    _widthController.dispose();
+    _heightController.dispose();
+    _lengthController.dispose();
     _scrollController.dispose();
     super.dispose();
   }
@@ -279,6 +300,12 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
         );
       }).toList();
 
+      // Parse shipping dimensions
+      final hasWeight = _weightController.text.isNotEmpty;
+      final hasDimensions = _widthController.text.isNotEmpty ||
+          _heightController.text.isNotEmpty ||
+          _lengthController.text.isNotEmpty;
+
       final product = ProductModel(
         id: productId,
         tenantId: ref.read(currentUserProvider).valueOrNull?.tenantId ?? '',
@@ -298,6 +325,16 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
         tags: _tags,
         hasVariants: _hasVariants,
         variants: _variants,
+        weight: hasWeight ? double.tryParse(_weightController.text) : null,
+        dimensions: hasDimensions
+            ? ProductDimensions(
+                width: double.tryParse(_widthController.text) ?? 0,
+                height: double.tryParse(_heightController.text) ?? 0,
+                length: double.tryParse(_lengthController.text) ?? 0,
+              )
+            : null,
+        isPerishable: _isPerishable,
+        shippingPolicy: _shippingPolicy,
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
       );
@@ -717,6 +754,158 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                           return 'Quantidade inválida';
                         }
                         return null;
+                      },
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Section: Shipping
+            _SectionCard(
+              icon: Icons.local_shipping_outlined,
+              title: 'Envio',
+              subtitle: 'Configure a política de entrega do produto',
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Shipping policy
+                  Text(
+                    'Política de frete',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  SegmentedButton<String>(
+                    segments: [
+                      ButtonSegment(
+                        value: ShippingPolicies.delivery,
+                        label: Text(ShippingPolicies.labels[ShippingPolicies.delivery]!),
+                        icon: const Icon(Icons.local_shipping_outlined, size: 18),
+                      ),
+                      ButtonSegment(
+                        value: ShippingPolicies.pickupOnly,
+                        label: Text(ShippingPolicies.labels[ShippingPolicies.pickupOnly]!),
+                        icon: const Icon(Icons.store_outlined, size: 18),
+                      ),
+                      ButtonSegment(
+                        value: ShippingPolicies.sellerArranges,
+                        label: Text(ShippingPolicies.labels[ShippingPolicies.sellerArranges]!),
+                        icon: const Icon(Icons.handshake_outlined, size: 18),
+                      ),
+                    ],
+                    selected: {_shippingPolicy},
+                    onSelectionChanged: (value) {
+                      setState(() {
+                        _shippingPolicy = value.first;
+                        _hasUnsavedChanges = true;
+                      });
+                    },
+                    style: SegmentedButton.styleFrom(
+                      textStyle: const TextStyle(fontSize: 12),
+                    ),
+                  ),
+                  // Weight, dimensions, perishable — only shown for delivery policy
+                  if (_shippingPolicy == ShippingPolicies.delivery) ...[
+                    const SizedBox(height: 16),
+
+                    // Weight
+                    TextFormField(
+                      controller: _weightController,
+                      decoration: const InputDecoration(
+                        labelText: 'Peso (opcional)',
+                        suffixText: 'kg',
+                        prefixIcon: Icon(Icons.scale_outlined),
+                      ),
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(RegExp(r'[\d.,]')),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Dimensions
+                    Text(
+                      'Dimensões (opcional)',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: AppColors.textHint,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            controller: _widthController,
+                            decoration: const InputDecoration(
+                              labelText: 'Larg.',
+                              suffixText: 'cm',
+                            ),
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            inputFormatters: [
+                              FilteringTextInputFormatter.allow(RegExp(r'[\d.,]')),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: TextFormField(
+                            controller: _heightController,
+                            decoration: const InputDecoration(
+                              labelText: 'Alt.',
+                              suffixText: 'cm',
+                            ),
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            inputFormatters: [
+                              FilteringTextInputFormatter.allow(RegExp(r'[\d.,]')),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: TextFormField(
+                            controller: _lengthController,
+                            decoration: const InputDecoration(
+                              labelText: 'Comp.',
+                              suffixText: 'cm',
+                            ),
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            inputFormatters: [
+                              FilteringTextInputFormatter.allow(RegExp(r'[\d.,]')),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Perishable toggle
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text(
+                        'Produto perecível',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      subtitle: const Text(
+                        'Requer entrega rápida e cuidados especiais',
+                        style: TextStyle(fontSize: 12, color: AppColors.textHint),
+                      ),
+                      value: _isPerishable,
+                      activeColor: AppColors.sellerAccent,
+                      onChanged: (value) {
+                        setState(() {
+                          _isPerishable = value;
+                          _hasUnsavedChanges = true;
+                        });
                       },
                     ),
                   ],

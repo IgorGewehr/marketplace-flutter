@@ -6,6 +6,7 @@ import { config } from "../config";
 import { AuthenticatedRequest, getTenantForUser } from "../middleware/auth";
 import { createPayment, getPayment, refundPayment, mpRequest, MpPaymentRequest } from "./client";
 import { getValidSellerToken } from "./oauth";
+import { calculateFreightForItems } from "../routes/shipping";
 
 const router = Router();
 
@@ -38,6 +39,10 @@ router.post("/orders", async (req: Request, res: Response): Promise<void> => {
     cardTokenId,
     installments = 1,
     customerNotes,
+    deliveryTier,
+    deliveryZoneId,
+    pickupPointId,
+    deliveryFeeFromClient,
   } = req.body;
 
   const db = admin.firestore();
@@ -171,13 +176,123 @@ router.post("/orders", async (req: Request, res: Response): Promise<void> => {
       });
     }
 
-    // Calculate fees
-    const deliveryFee = 0; // No delivery fee on this platform
-    const discount = 0; // No discounts/coupons on this platform
+    // Calculate delivery fee server-side
+    let deliveryFee = 0;
+    let deliveryZoneName = "";
+    let pickupPointName = "";
+    let estimatedDeliveryDate: string | null = null;
+    let deliveryFeeBreakdown: Record<string, unknown> | null = null;
+    let freightSellerZoneId: string | null = null;
+    let freightBuyerZoneId: string | null = null;
+    let freightZoneDistance: number | null = null;
+
+    // Check if ALL items are pickup_only (skip freight calculation)
+    const allPickupOnly = items.every((item) => {
+      const productId = item.productId as string;
+      const product = productPriceMap.get(productId);
+      // Fetch shippingPolicy from product doc (already fetched above)
+      return false; // Will be resolved below
+    });
+
+    // Re-check shipping policies from Firestore
+    let hasPickupOnlyItems = false;
+    let allItemsPickupOnly = true;
+    for (const item of items) {
+      const productDoc = await db.collection("products").doc(item.productId as string).get();
+      const shippingPolicy = productDoc.data()?.shippingPolicy || "delivery";
+      if (shippingPolicy === "pickup_only") {
+        hasPickupOnlyItems = true;
+      } else {
+        allItemsPickupOnly = false;
+      }
+    }
+
+    if (allItemsPickupOnly) {
+      // All items are pickup-only: no delivery fee
+      deliveryFee = 0;
+    } else if (deliveryTier === "seller_arranges") {
+      // Buyer is out of delivery area — seller arranges delivery
+      deliveryFee = 0;
+    } else if (deliveryTier && deliveryZoneId) {
+      // Calculate freight server-side and validate against client
+      const freightItems = [];
+      for (const item of items) {
+        const productDoc = await db.collection("products").doc(item.productId as string).get();
+        const pData = productDoc.data() || {};
+        freightItems.push({
+          weight: pData.weight || undefined,
+          dimensions: pData.dimensions || undefined,
+          quantity: (item.quantity as number) || 1,
+          shippingPolicy: pData.shippingPolicy || "delivery",
+        });
+      }
+
+      const addressCity = deliveryAddress?.city || "";
+      const addressZip = deliveryAddress?.zipCode || "";
+
+      const freightResult = await calculateFreightForItems({
+        zipCode: addressZip,
+        city: addressCity,
+        subtotal,
+        items: freightItems,
+        tenantId,
+      });
+
+      // Find the option matching the selected tier
+      let matchedOption = freightResult.options.find((o) =>
+        o.tier === deliveryTier && o.zoneId === deliveryZoneId &&
+        (!pickupPointId || o.pickupPointId === pickupPointId)
+      );
+
+      if (!matchedOption) {
+        // Try matching just by tier
+        matchedOption = freightResult.options.find((o) => o.tier === deliveryTier);
+      }
+
+      if (!matchedOption) {
+        res.status(400).json({ error: "Opção de entrega não disponível para este endereço", code: "INVALID_DELIVERY_OPTION" });
+        return;
+      }
+
+      if (!matchedOption.available) {
+        res.status(400).json({ error: matchedOption.unavailableReason || "Opção de entrega não disponível", code: "DELIVERY_UNAVAILABLE" });
+        return;
+      }
+
+      deliveryFee = matchedOption.price;
+      deliveryZoneName = matchedOption.zoneName;
+      estimatedDeliveryDate = matchedOption.estimatedDeliveryDate;
+      deliveryFeeBreakdown = matchedOption.breakdown;
+
+      // Save zone distance info (will be written into orderData below)
+      freightSellerZoneId = matchedOption.sellerZoneId || null;
+      freightBuyerZoneId = matchedOption.zoneId || null;
+      freightZoneDistance = matchedOption.zoneDistance ?? null;
+
+      if (matchedOption.pickupPointName) {
+        pickupPointName = matchedOption.pickupPointName;
+      }
+
+      // Validate client fee matches server calculation (tolerance: R$0.01)
+      if (deliveryFeeFromClient !== undefined && deliveryFeeFromClient !== null) {
+        const diff = Math.abs(deliveryFee - deliveryFeeFromClient);
+        if (diff > 0.01) {
+          functions.logger.warn("Delivery fee mismatch", {
+            serverFee: deliveryFee,
+            clientFee: deliveryFeeFromClient,
+            diff,
+          });
+          // Use server-calculated fee (authoritative)
+        }
+      }
+    }
+
+    // Calculate fees (platform fee does NOT include deliveryFee)
+    const discount = 0;
     const total = subtotal - discount + deliveryFee;
     const platformFeePercentage = config.platform.feePercentage;
-    const platformFeeAmount = Math.round(total * (platformFeePercentage / 100) * 100) / 100;
-    const sellerAmount = Math.round((total - platformFeeAmount) * 100) / 100;
+    const platformFeeAmount = Math.round((subtotal - discount) * (platformFeePercentage / 100) * 100) / 100;
+    const sellerAmount = Math.round((subtotal - discount - platformFeeAmount) * 100) / 100;
 
     // Generate order number
     const orderNumber = `RDB-${Date.now().toString(36).toUpperCase()}`;
@@ -208,6 +323,22 @@ router.post("/orders", async (req: Request, res: Response): Promise<void> => {
         },
       ],
       customerNotes: customerNotes || null,
+      deliveryTier: deliveryTier || null,
+      deliveryZoneId: deliveryZoneId || null,
+      deliveryZoneName: deliveryZoneName || null,
+      pickupPointId: pickupPointId || null,
+      pickupPointName: pickupPointName || null,
+      estimatedDeliveryDate: estimatedDeliveryDate || null,
+      deliveryFeeBreakdown: deliveryFeeBreakdown || null,
+      sellerReadyAt: null,
+      collectedAt: null,
+      deliveryStatus: null,
+      driverName: null,
+      driverPhone: null,
+      deliveryDispatchedAt: null,
+      sellerZoneId: freightSellerZoneId,
+      buyerZoneId: freightBuyerZoneId,
+      zoneDistance: freightZoneDistance,
       paymentSplit: {
         platformFeeAmount,
         platformFeePercentage,
@@ -1120,7 +1251,7 @@ router.patch("/orders/:id/status", async (req: Request, res: Response): Promise<
     pending: ["confirmed", "cancelled"],
     confirmed: ["preparing", "cancelled"],
     preparing: ["ready", "cancelled"],
-    ready: ["shipped"],
+    ready: ["cancelled"],
     shipped: ["delivered"],
   };
 
@@ -1163,6 +1294,21 @@ router.patch("/orders/:id/status", async (req: Request, res: Response): Promise<
       }),
       updatedAt: now,
     };
+
+    // Handle 'ready' status — mark sellerReadyAt and dispatch delivery
+    if (newStatus === "ready") {
+      updateData.sellerReadyAt = now;
+
+      // Dispatch delivery job (fire-and-forget — imported lazily)
+      import("../services/delivery-dispatcher").then(({ dispatchDeliveryJob }) => {
+        const orderWithUpdates = { ...data, sellerReadyAt: now };
+        dispatchDeliveryJob(db, orderId, orderWithUpdates).catch((err: unknown) => {
+          functions.logger.error("Failed to dispatch delivery job", { orderId, error: String(err) });
+        });
+      }).catch(() => {
+        functions.logger.warn("delivery-dispatcher module not available yet", { orderId });
+      });
+    }
 
     // Handle cancellation with refund
     if (newStatus === "cancelled" && data.paymentStatus === "paid" && data.paymentGatewayId) {

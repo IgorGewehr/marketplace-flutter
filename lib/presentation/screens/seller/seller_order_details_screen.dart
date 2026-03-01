@@ -24,13 +24,6 @@ class SellerOrderDetailsScreen extends ConsumerStatefulWidget {
 
 class _SellerOrderDetailsScreenState extends ConsumerState<SellerOrderDetailsScreen> {
   bool _isLoading = false;
-  final _trackingController = TextEditingController();
-
-  @override
-  void dispose() {
-    _trackingController.dispose();
-    super.dispose();
-  }
 
   Future<void> _updateStatus(String newStatus, {String? note}) async {
     setState(() => _isLoading = true);
@@ -50,47 +43,6 @@ class _SellerOrderDetailsScreenState extends ConsumerState<SellerOrderDetailsScr
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
-  }
-
-  void _showTrackingDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Código de rastreio'),
-        content: TextField(
-          controller: _trackingController,
-          decoration: const InputDecoration(
-            hintText: 'Ex: BR123456789XX',
-            labelText: 'Código de rastreio (opcional)',
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancelar'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              final trackingCode = _trackingController.text.trim();
-              if (trackingCode.isNotEmpty) {
-                await ref.read(sellerOrdersProvider.notifier).addTrackingCode(
-                  widget.orderId,
-                  trackingCode,
-                );
-                await _updateStatus('shipped', note: 'Rastreio: $trackingCode');
-              } else {
-                await _updateStatus('shipped');
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.sellerAccent,
-            ),
-            child: const Text('Confirmar envio'),
-          ),
-        ],
-      ),
-    );
   }
 
   @override
@@ -355,6 +307,28 @@ class _SellerOrderDetailsScreenState extends ConsumerState<SellerOrderDetailsScr
                     style: const TextStyle(color: AppColors.textHint),
                   ),
                 ],
+                // Simplified delivery info for seller
+                const Divider(height: 24),
+                _DeliveryInfoRow(
+                  label: 'Tipo',
+                  value: order.deliveryType == 'pickup' || order.deliveryType == 'pickup_in_person'
+                      ? 'Retirada na loja'
+                      : order.deliveryType == 'seller_arranges'
+                          ? 'Combinar com comprador'
+                          : 'Entrega pela plataforma',
+                ),
+                if (order.deliveryAddress != null)
+                  _DeliveryInfoRow(
+                    label: 'Destino',
+                    value: '${order.deliveryAddress!.city}/${order.deliveryAddress!.state}',
+                  ),
+                // Delivery status visual
+                const SizedBox(height: 12),
+                _SellerDeliveryStatus(order: order),
+                if (order.sellerReadyAt != null)
+                  _DeliveryInfoRow(label: 'Pronto para coleta', value: _formatDateTime(order.sellerReadyAt!)),
+                if (order.collectedAt != null)
+                  _DeliveryInfoRow(label: 'Coletado', value: _formatDateTime(order.collectedAt!)),
               ],
             ),
           ).animate().fadeIn(delay: 200.ms, duration: 300.ms).slideY(begin: 0.05, curve: Curves.easeOut),
@@ -425,7 +399,7 @@ class _SellerOrderDetailsScreenState extends ConsumerState<SellerOrderDetailsScr
               ],
             ),
           ).animate().fadeIn(delay: 300.ms, duration: 300.ms).slideY(begin: 0.05, curve: Curves.easeOut),
-          // D4: Payment split info
+          // Seller amount only
           if (order.paymentSplit != null) ...[
             const SizedBox(height: 16),
             Container(
@@ -435,55 +409,23 @@ class _SellerOrderDetailsScreenState extends ConsumerState<SellerOrderDetailsScr
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(color: AppColors.border),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Row(
                     children: [
                       Icon(Icons.payments_outlined, color: AppColors.sellerAccent),
                       const SizedBox(width: 8),
-                      Text(
-                        'Pagamento',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: theme.colorScheme.onSurface,
-                        ),
-                      ),
+                      const Text('Seu valor', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
                     ],
                   ),
-                  const SizedBox(height: 12),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text('Valor do vendedor', style: TextStyle(color: AppColors.textSecondary)),
-                      Text(
-                        _formatPrice(order.paymentSplit!.sellerAmount),
-                        style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.secondary),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Taxa plataforma (${order.paymentSplit!.platformFeePercentage.toStringAsFixed(0)}%)',
-                        style: const TextStyle(color: AppColors.textSecondary),
-                      ),
-                      Text(
-                        '- ${_formatPrice(order.paymentSplit!.platformFeeAmount)}',
-                        style: const TextStyle(color: AppColors.error),
-                      ),
-                    ],
-                  ),
-                  const Divider(height: 24),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text('Status', style: TextStyle(fontWeight: FontWeight.w600)),
-                      _PaymentSplitStatusChip(status: order.paymentSplit!.status, heldUntil: order.paymentSplit!.heldUntil),
-                    ],
+                  Text(
+                    _formatPrice(order.paymentSplit!.sellerAmount),
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.secondary,
+                    ),
                   ),
                 ],
               ),
@@ -499,7 +441,6 @@ class _SellerOrderDetailsScreenState extends ConsumerState<SellerOrderDetailsScr
             onAccept: () => _updateStatus('confirmed'),
             onStartPreparing: () => _updateStatus('preparing'),
             onMarkReady: () => _updateStatus('ready'),
-            onShip: _showTrackingDialog,
             onChat: () async {
               final chat = await ref.read(chatsProvider.notifier).getOrCreateChat(
                 order.tenantId,
@@ -637,60 +578,119 @@ class _StatusBadge extends StatelessWidget {
   }
 }
 
-class _PaymentSplitStatusChip extends StatelessWidget {
-  final String status;
-  final DateTime? heldUntil;
+class _DeliveryInfoRow extends StatelessWidget {
+  final String label;
+  final String value;
 
-  const _PaymentSplitStatusChip({required this.status, this.heldUntil});
+  const _DeliveryInfoRow({required this.label, required this.value});
 
   @override
   Widget build(BuildContext context) {
-    Color color;
-    String label;
-
-    switch (status) {
-      case 'pending':
-        color = AppColors.warning;
-        label = 'Pendente';
-        break;
-      case 'held':
-        color = Colors.orange;
-        final until = heldUntil != null
-            ? '${heldUntil!.day.toString().padLeft(2, '0')}/${heldUntil!.month.toString().padLeft(2, '0')}'
-            : '';
-        label = until.isNotEmpty ? 'Retido até $until' : 'Retido';
-        break;
-      case 'released':
-        color = AppColors.secondary;
-        label = 'Liberado';
-        break;
-      case 'refunded':
-        color = Colors.red;
-        label = 'Reembolsado';
-        break;
-      case 'disputed':
-        color = Colors.orange;
-        label = 'Em disputa';
-        break;
-      default:
-        color = AppColors.textHint;
-        label = status;
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withAlpha(20),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: color,
-          fontWeight: FontWeight.w600,
-          fontSize: 12,
-        ),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(fontSize: 13, color: AppColors.textHint),
+          ),
+          Text(
+            value,
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+          ),
+        ],
       ),
     );
   }
+}
+
+/// Delivery status visual for seller
+class _SellerDeliveryStatus extends StatelessWidget {
+  final OrderModel order;
+
+  const _SellerDeliveryStatus({required this.order});
+
+  @override
+  Widget build(BuildContext context) {
+    final steps = <_DeliveryStep>[
+      _DeliveryStep('Aguardando preparo', _isStepDone(0), _isStepActive(0)),
+      _DeliveryStep('Pronto', _isStepDone(1), _isStepActive(1)),
+      _DeliveryStep('Coletado', _isStepDone(2), _isStepActive(2)),
+      _DeliveryStep('Em trânsito', _isStepDone(3), _isStepActive(3)),
+      _DeliveryStep('Entregue', _isStepDone(4), _isStepActive(4)),
+    ];
+
+    return Row(
+      children: steps.asMap().entries.expand((entry) {
+        final i = entry.key;
+        final step = entry.value;
+        final widgets = <Widget>[
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 24,
+                height: 24,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: step.done
+                      ? AppColors.primary
+                      : step.active
+                          ? AppColors.sellerAccent
+                          : AppColors.border,
+                ),
+                child: step.done
+                    ? const Icon(Icons.check, size: 14, color: Colors.white)
+                    : null,
+              ),
+              const SizedBox(height: 4),
+              SizedBox(
+                width: 50,
+                child: Text(
+                  step.label,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 9,
+                    fontWeight: step.active ? FontWeight.bold : FontWeight.normal,
+                    color: step.done || step.active ? AppColors.textPrimary : AppColors.textHint,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ];
+        if (i < steps.length - 1) {
+          widgets.add(Expanded(
+            child: Container(
+              height: 2,
+              margin: const EdgeInsets.only(bottom: 16),
+              color: step.done ? AppColors.primary : AppColors.border,
+            ),
+          ));
+        }
+        return widgets;
+      }).toList(),
+    );
+  }
+
+  int get _currentStep {
+    if (order.status == 'delivered') return 4;
+    if (order.deliveryStatus == 'in_transit') return 3;
+    if (order.deliveryStatus == 'collected' || order.status == 'shipped') return 2;
+    if (order.status == 'ready') return 1;
+    if (order.status == 'preparing') return 0;
+    return -1;
+  }
+
+  bool _isStepDone(int step) => step <= _currentStep;
+  bool _isStepActive(int step) => step == _currentStep;
+}
+
+class _DeliveryStep {
+  final String label;
+  final bool done;
+  final bool active;
+
+  _DeliveryStep(this.label, this.done, this.active);
 }

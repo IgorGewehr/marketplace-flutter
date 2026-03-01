@@ -416,6 +416,24 @@ service cloud.firestore {
     }
 
     // ===========================================================================
+    // Delivery Zones Collection (managed by admin/seed scripts only)
+    // ===========================================================================
+
+    match /delivery_zones/{zoneId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // ===========================================================================
+    // Pickup Points Collection (managed by admin/seed scripts only)
+    // ===========================================================================
+
+    match /pickup_points/{pointId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // ===========================================================================
     // System Collections (Cloud Functions only - no client access)
     // ===========================================================================
 

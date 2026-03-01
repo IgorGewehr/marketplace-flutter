@@ -82,6 +82,11 @@ class CreateOrderRequest {
   final String? couponCode;
   final String? cardTokenId; // Mercado Pago card token
   final int? installments; // Parcelas
+  // Logistics fields
+  final String? deliveryTier;
+  final String? deliveryZoneId;
+  final String? pickupPointId;
+  final double? deliveryFeeFromClient;
 
   const CreateOrderRequest({
     required this.deliveryType,
@@ -91,6 +96,10 @@ class CreateOrderRequest {
     this.couponCode,
     this.cardTokenId,
     this.installments,
+    this.deliveryTier,
+    this.deliveryZoneId,
+    this.pickupPointId,
+    this.deliveryFeeFromClient,
   });
 
   Map<String, dynamic> toJson() {
@@ -102,6 +111,10 @@ class CreateOrderRequest {
       if (couponCode != null) 'couponCode': couponCode,
       if (cardTokenId != null) 'cardTokenId': cardTokenId,
       if (installments != null) 'installments': installments,
+      if (deliveryTier != null) 'deliveryTier': deliveryTier,
+      if (deliveryZoneId != null) 'deliveryZoneId': deliveryZoneId,
+      if (pickupPointId != null) 'pickupPointId': pickupPointId,
+      if (deliveryFeeFromClient != null) 'deliveryFeeFromClient': deliveryFeeFromClient,
     };
   }
 }

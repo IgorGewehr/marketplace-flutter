@@ -18,6 +18,10 @@ export const config = {
     feePercentage: parseFloat(process.env.PLATFORM_FEE_PERCENTAGE || "5.0"),
     paymentHoldHours: parseInt(process.env.PAYMENT_HOLD_HOURS || "24", 10),
   },
+  delivery: {
+    outboundWebhookUrl: process.env.DELIVERY_OUTBOUND_WEBHOOK_URL || "",
+    webhookApiKey: process.env.DELIVERY_WEBHOOK_API_KEY || "",
+  },
 };
 
 // Validate required config on startup

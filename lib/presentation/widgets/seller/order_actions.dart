@@ -10,7 +10,6 @@ class OrderActions extends StatelessWidget {
   final VoidCallback? onAccept;
   final VoidCallback? onStartPreparing;
   final VoidCallback? onMarkReady;
-  final VoidCallback? onShip;
   final VoidCallback? onChat;
 
   const OrderActions({
@@ -20,7 +19,6 @@ class OrderActions extends StatelessWidget {
     this.onAccept,
     this.onStartPreparing,
     this.onMarkReady,
-    this.onShip,
     this.onChat,
   });
 
@@ -88,12 +86,27 @@ class OrderActions extends StatelessWidget {
         ];
       case 'ready':
         return [
-          _ActionButton(
-            label: 'Enviar Pedido',
-            icon: Icons.local_shipping_outlined,
-            color: AppColors.statusShipped,
-            onPressed: isLoading ? null : onShip,
-            isLoading: isLoading,
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppColors.statusReady.withAlpha(20),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.check_circle_outline, color: AppColors.statusReady),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Text(
+                    'Pronto para coleta. Aguardando entregador.',
+                    style: TextStyle(
+                      color: AppColors.textSecondary,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ];
       case 'shipped':

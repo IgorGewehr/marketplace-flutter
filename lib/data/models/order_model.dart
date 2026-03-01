@@ -2,6 +2,7 @@
 library;
 
 import 'address_model.dart';
+import 'freight_option_model.dart';
 import '../../core/utils/firestore_utils.dart';
 
 class OrderModel {
@@ -37,6 +38,24 @@ class OrderModel {
   final String? pixQrCodeUrl; // PIX QR code image URL
   final DateTime? pixExpiration; // PIX payment expiration
   final String? threeDsUrl; // 3DS challenge URL for card payments requiring verification
+  // Logistics fields
+  final String? deliveryTier; // same_day, next_day, scheduled, seller_arranges
+  final String? deliveryZoneId;
+  final String? deliveryZoneName;
+  final String? pickupPointId;
+  final String? pickupPointName;
+  final DateTime? sellerReadyAt;
+  final DateTime? collectedAt;
+  final DateTime? estimatedDeliveryDate;
+  final DeliveryFeeBreakdown? deliveryFeeBreakdown;
+  // Delivery tracking fields
+  final String? deliveryStatus; // collected, in_transit, delivered
+  final String? driverName;
+  final String? driverPhone;
+  final DateTime? deliveryDispatchedAt;
+  final String? sellerZoneId;
+  final String? buyerZoneId;
+  final int? zoneDistance;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -73,6 +92,22 @@ class OrderModel {
     this.pixQrCodeUrl,
     this.pixExpiration,
     this.threeDsUrl,
+    this.deliveryTier,
+    this.deliveryZoneId,
+    this.deliveryZoneName,
+    this.pickupPointId,
+    this.pickupPointName,
+    this.sellerReadyAt,
+    this.collectedAt,
+    this.estimatedDeliveryDate,
+    this.deliveryFeeBreakdown,
+    this.deliveryStatus,
+    this.driverName,
+    this.driverPhone,
+    this.deliveryDispatchedAt,
+    this.sellerZoneId,
+    this.buyerZoneId,
+    this.zoneDistance,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -151,6 +186,24 @@ class OrderModel {
       pixQrCodeUrl: json['pixQrCodeUrl'] as String?,
       pixExpiration: parseFirestoreDate(json['pixExpiration']),
       threeDsUrl: json['threeDsUrl'] as String?,
+      deliveryTier: json['deliveryTier'] as String?,
+      deliveryZoneId: json['deliveryZoneId'] as String?,
+      deliveryZoneName: json['deliveryZoneName'] as String?,
+      pickupPointId: json['pickupPointId'] as String?,
+      pickupPointName: json['pickupPointName'] as String?,
+      sellerReadyAt: parseFirestoreDate(json['sellerReadyAt']),
+      collectedAt: parseFirestoreDate(json['collectedAt']),
+      estimatedDeliveryDate: parseFirestoreDate(json['estimatedDeliveryDate']),
+      deliveryFeeBreakdown: json['deliveryFeeBreakdown'] is Map<String, dynamic>
+          ? DeliveryFeeBreakdown.fromJson(json['deliveryFeeBreakdown'] as Map<String, dynamic>)
+          : null,
+      deliveryStatus: json['deliveryStatus'] as String?,
+      driverName: json['driverName'] as String?,
+      driverPhone: json['driverPhone'] as String?,
+      deliveryDispatchedAt: parseFirestoreDate(json['deliveryDispatchedAt']),
+      sellerZoneId: json['sellerZoneId'] as String?,
+      buyerZoneId: json['buyerZoneId'] as String?,
+      zoneDistance: json['zoneDistance'] as int?,
       createdAt: parseFirestoreDate(json['createdAt']) ?? DateTime.now(),
       updatedAt: parseFirestoreDate(json['updatedAt']) ?? DateTime.now(),
     );
@@ -190,6 +243,22 @@ class OrderModel {
       if (pixQrCodeUrl != null) 'pixQrCodeUrl': pixQrCodeUrl,
       if (pixExpiration != null) 'pixExpiration': pixExpiration!.toIso8601String(),
       if (threeDsUrl != null) 'threeDsUrl': threeDsUrl,
+      if (deliveryTier != null) 'deliveryTier': deliveryTier,
+      if (deliveryZoneId != null) 'deliveryZoneId': deliveryZoneId,
+      if (deliveryZoneName != null) 'deliveryZoneName': deliveryZoneName,
+      if (pickupPointId != null) 'pickupPointId': pickupPointId,
+      if (pickupPointName != null) 'pickupPointName': pickupPointName,
+      if (sellerReadyAt != null) 'sellerReadyAt': sellerReadyAt!.toIso8601String(),
+      if (collectedAt != null) 'collectedAt': collectedAt!.toIso8601String(),
+      if (estimatedDeliveryDate != null) 'estimatedDeliveryDate': estimatedDeliveryDate!.toIso8601String(),
+      if (deliveryFeeBreakdown != null) 'deliveryFeeBreakdown': deliveryFeeBreakdown!.toJson(),
+      if (deliveryStatus != null) 'deliveryStatus': deliveryStatus,
+      if (driverName != null) 'driverName': driverName,
+      if (driverPhone != null) 'driverPhone': driverPhone,
+      if (deliveryDispatchedAt != null) 'deliveryDispatchedAt': deliveryDispatchedAt!.toIso8601String(),
+      if (sellerZoneId != null) 'sellerZoneId': sellerZoneId,
+      if (buyerZoneId != null) 'buyerZoneId': buyerZoneId,
+      if (zoneDistance != null) 'zoneDistance': zoneDistance,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
     };
@@ -228,6 +297,22 @@ class OrderModel {
     String? pixQrCodeUrl,
     DateTime? pixExpiration,
     String? threeDsUrl,
+    String? deliveryTier,
+    String? deliveryZoneId,
+    String? deliveryZoneName,
+    String? pickupPointId,
+    String? pickupPointName,
+    DateTime? sellerReadyAt,
+    DateTime? collectedAt,
+    DateTime? estimatedDeliveryDate,
+    DeliveryFeeBreakdown? deliveryFeeBreakdown,
+    String? deliveryStatus,
+    String? driverName,
+    String? driverPhone,
+    DateTime? deliveryDispatchedAt,
+    String? sellerZoneId,
+    String? buyerZoneId,
+    int? zoneDistance,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -264,6 +349,22 @@ class OrderModel {
       pixQrCodeUrl: pixQrCodeUrl ?? this.pixQrCodeUrl,
       pixExpiration: pixExpiration ?? this.pixExpiration,
       threeDsUrl: threeDsUrl ?? this.threeDsUrl,
+      deliveryTier: deliveryTier ?? this.deliveryTier,
+      deliveryZoneId: deliveryZoneId ?? this.deliveryZoneId,
+      deliveryZoneName: deliveryZoneName ?? this.deliveryZoneName,
+      pickupPointId: pickupPointId ?? this.pickupPointId,
+      pickupPointName: pickupPointName ?? this.pickupPointName,
+      sellerReadyAt: sellerReadyAt ?? this.sellerReadyAt,
+      collectedAt: collectedAt ?? this.collectedAt,
+      estimatedDeliveryDate: estimatedDeliveryDate ?? this.estimatedDeliveryDate,
+      deliveryFeeBreakdown: deliveryFeeBreakdown ?? this.deliveryFeeBreakdown,
+      deliveryStatus: deliveryStatus ?? this.deliveryStatus,
+      driverName: driverName ?? this.driverName,
+      driverPhone: driverPhone ?? this.driverPhone,
+      deliveryDispatchedAt: deliveryDispatchedAt ?? this.deliveryDispatchedAt,
+      sellerZoneId: sellerZoneId ?? this.sellerZoneId,
+      buyerZoneId: buyerZoneId ?? this.buyerZoneId,
+      zoneDistance: zoneDistance ?? this.zoneDistance,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );

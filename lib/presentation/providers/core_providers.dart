@@ -17,8 +17,10 @@ import '../../data/repositories/tenant_repository_impl.dart';
 import '../../data/repositories/wallet_repository_impl.dart';
 import '../../data/repositories/mercadopago_repository_impl.dart';
 import '../../data/repositories/review_repository_impl.dart';
+import '../../data/repositories/shipping_repository_impl.dart';
 import '../../domain/repositories/address_repository.dart';
 import '../../domain/repositories/review_repository.dart';
+import '../../domain/repositories/shipping_repository.dart';
 import '../../domain/repositories/auth_repository.dart';
 import '../../domain/repositories/cart_repository.dart';
 import '../../domain/repositories/chat_repository.dart';
@@ -138,6 +140,13 @@ final mercadoPagoRepositoryProvider = Provider<MercadoPagoRepository>((ref) {
 /// Review Repository Provider
 final reviewRepositoryProvider = Provider<ReviewRepository>((ref) {
   return ReviewRepositoryImpl(
+    apiClient: ref.watch(apiClientProvider),
+  );
+});
+
+/// Shipping Repository Provider
+final shippingRepositoryProvider = Provider<ShippingRepository>((ref) {
+  return ShippingRepositoryImpl(
     apiClient: ref.watch(apiClientProvider),
   );
 });
