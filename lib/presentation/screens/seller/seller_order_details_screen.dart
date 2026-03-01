@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shimmer/shimmer.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../data/models/order_model.dart';
@@ -59,7 +61,7 @@ class _SellerOrderDetailsScreenState extends ConsumerState<SellerOrderDetailsScr
           controller: _trackingController,
           decoration: const InputDecoration(
             hintText: 'Ex: BR123456789XX',
-            labelText: 'Código de rastreio',
+            labelText: 'Código de rastreio (opcional)',
           ),
         ),
         actions: [
@@ -70,18 +72,21 @@ class _SellerOrderDetailsScreenState extends ConsumerState<SellerOrderDetailsScr
           ElevatedButton(
             onPressed: () async {
               Navigator.pop(context);
-              if (_trackingController.text.isNotEmpty) {
+              final trackingCode = _trackingController.text.trim();
+              if (trackingCode.isNotEmpty) {
                 await ref.read(sellerOrdersProvider.notifier).addTrackingCode(
                   widget.orderId,
-                  _trackingController.text,
+                  trackingCode,
                 );
-                await _updateStatus('shipped', note: 'Rastreio: ${_trackingController.text}');
+                await _updateStatus('shipped', note: 'Rastreio: $trackingCode');
+              } else {
+                await _updateStatus('shipped');
               }
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.sellerAccent,
             ),
-            child: const Text('Confirmar'),
+            child: const Text('Confirmar envio'),
           ),
         ],
       ),
@@ -117,10 +122,30 @@ class _SellerOrderDetailsScreenState extends ConsumerState<SellerOrderDetailsScr
           }
           return _buildContent(order);
         },
-        loading: () => const Center(
-          child: CircularProgressIndicator(color: AppColors.sellerAccent),
+        loading: () => _buildShimmer(context),
+        error: (_, __) => Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.error.withAlpha(15),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.error_outline_rounded, size: 40, color: AppColors.error),
+              ),
+              const SizedBox(height: 16),
+              const Text('Erro ao carregar pedido', style: TextStyle(fontWeight: FontWeight.w600)),
+              const SizedBox(height: 8),
+              TextButton.icon(
+                onPressed: () => ref.invalidate(sellerOrdersProvider),
+                icon: const Icon(Icons.refresh),
+                label: const Text('Tentar novamente'),
+              ),
+            ],
+          ),
         ),
-        error: (_, __) => const Center(child: Text('Erro ao carregar')),
       ),
     );
   }
@@ -165,7 +190,7 @@ class _SellerOrderDetailsScreenState extends ConsumerState<SellerOrderDetailsScr
                 ),
               ],
             ),
-          ),
+          ).animate().fadeIn(duration: 300.ms).slideY(begin: 0.05, curve: Curves.easeOut),
           const SizedBox(height: 16),
 
           // Items
@@ -280,7 +305,7 @@ class _SellerOrderDetailsScreenState extends ConsumerState<SellerOrderDetailsScr
                 ),
               ],
             ),
-          ),
+          ).animate().fadeIn(delay: 100.ms, duration: 300.ms).slideY(begin: 0.05, curve: Curves.easeOut),
           const SizedBox(height: 16),
 
           // Delivery info
@@ -332,7 +357,7 @@ class _SellerOrderDetailsScreenState extends ConsumerState<SellerOrderDetailsScr
                 ],
               ],
             ),
-          ),
+          ).animate().fadeIn(delay: 200.ms, duration: 300.ms).slideY(begin: 0.05, curve: Curves.easeOut),
           const SizedBox(height: 16),
 
           // Status history
@@ -399,7 +424,7 @@ class _SellerOrderDetailsScreenState extends ConsumerState<SellerOrderDetailsScr
                 )),
               ],
             ),
-          ),
+          ).animate().fadeIn(delay: 300.ms, duration: 300.ms).slideY(begin: 0.05, curve: Curves.easeOut),
           // D4: Payment split info
           if (order.paymentSplit != null) ...[
             const SizedBox(height: 16),
@@ -501,6 +526,39 @@ class _SellerOrderDetailsScreenState extends ConsumerState<SellerOrderDetailsScr
 
   String _formatDateTime(DateTime date) {
     return '${_formatDate(date)} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+  }
+
+  Widget _buildShimmer(BuildContext context) {
+    final theme = Theme.of(context);
+    return Shimmer.fromColors(
+      baseColor: theme.colorScheme.surfaceContainerHighest,
+      highlightColor: theme.colorScheme.surface,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            _shimmerCard(height: 90),
+            const SizedBox(height: 16),
+            _shimmerCard(height: 200),
+            const SizedBox(height: 16),
+            _shimmerCard(height: 120),
+            const SizedBox(height: 16),
+            _shimmerCard(height: 150),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _shimmerCard({required double height}) {
+    return Container(
+      width: double.infinity,
+      height: height,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+      ),
+    );
   }
 
   String _getStatusLabel(String status) {

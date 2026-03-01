@@ -106,8 +106,8 @@ class CreateProductRequest {
   final List<Map<String, dynamic>>? variants;
   final List<ProductImage>? images;
   final List<String>? tags;
-  final int? quantity;
-  final bool? trackInventory;
+  final int quantity;
+  final bool trackInventory;
   final bool? hasVariants;
 
   const CreateProductRequest({
@@ -122,8 +122,8 @@ class CreateProductRequest {
     this.variants,
     this.images,
     this.tags,
-    this.quantity,
-    this.trackInventory,
+    this.quantity = 0,
+    this.trackInventory = true,
     this.hasVariants,
   });
 
@@ -140,8 +140,8 @@ class CreateProductRequest {
       if (variants != null) 'variants': variants,
       if (images != null) 'images': images!.map((i) => i.toJson()).toList(),
       if (tags != null && tags!.isNotEmpty) 'tags': tags,
-      if (quantity != null) 'quantity': quantity,
-      if (trackInventory != null) 'trackInventory': trackInventory,
+      'quantity': quantity,
+      'trackInventory': trackInventory,
       if (hasVariants != null) 'hasVariants': hasVariants,
     };
   }

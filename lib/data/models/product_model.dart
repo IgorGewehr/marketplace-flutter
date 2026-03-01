@@ -19,7 +19,7 @@ class ProductModel {
   final double? costPrice;
   final String? sku;
   final String? barcode;
-  final int? quantity;
+  final int quantity;
   final bool trackInventory;
   final bool hasVariants;
   final List<ProductVariant> variants;
@@ -47,7 +47,7 @@ class ProductModel {
     this.costPrice,
     this.sku,
     this.barcode,
-    this.quantity,
+    this.quantity = 0,
     this.trackInventory = true,
     this.hasVariants = false,
     this.variants = const [],
@@ -105,7 +105,7 @@ class ProductModel {
       costPrice: (json['costPrice'] as num?)?.toDouble(),
       sku: json['sku'] as String?,
       barcode: json['barcode'] as String?,
-      quantity: json['quantity'] as int?,
+      quantity: (json['quantity'] as int?) ?? 0,
       trackInventory: json['trackInventory'] as bool? ?? true,
       hasVariants: json['hasVariants'] as bool? ?? false,
       variants: (json['variants'] as List<dynamic>?)
@@ -144,7 +144,7 @@ class ProductModel {
       if (costPrice != null) 'costPrice': costPrice,
       if (sku != null) 'sku': sku,
       if (barcode != null) 'barcode': barcode,
-      if (quantity != null) 'quantity': quantity,
+      'quantity': quantity,
       'trackInventory': trackInventory,
       'hasVariants': hasVariants,
       'variants': variants.map((v) => v.toJson()).toList(),

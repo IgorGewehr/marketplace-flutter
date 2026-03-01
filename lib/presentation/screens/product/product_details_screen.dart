@@ -61,8 +61,10 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
     return p.compareAtPrice;
   }
 
-  /// Effective stock quantity: variant quantity if selected, otherwise product quantity
+  /// Effective stock quantity: null if on-demand (no limit),
+  /// variant quantity if selected, otherwise product quantity.
   int? _effectiveQuantity(ProductModel p) {
+    if (!p.trackInventory) return null;
     final v = _selectedVariant;
     if (v != null && v.quantity != null) return v.quantity;
     return p.quantity;
@@ -866,7 +868,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                       Expanded(
                         flex: 3,
                         child: FilledButton.icon(
-                          onPressed: (product.quantity != null && product.quantity! <= 0) || _isAddingToCart
+                          onPressed: (product.trackInventory && product.quantity <= 0) || _isAddingToCart
                               ? null
                               : _addToCart,
                           icon: _isAddingToCart
@@ -880,7 +882,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                                 )
                               : const Icon(Icons.shopping_bag_outlined, size: 20),
                           label: Text(
-                            product.quantity != null && product.quantity! <= 0
+                            product.trackInventory && product.quantity <= 0
                                 ? 'Sem estoque'
                                 : 'Comprar',
                             style: const TextStyle(
@@ -993,7 +995,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                     ],
                   ),
 
-                if (!isHighValue && product.quantity != null && product.quantity! <= 0)
+                if (!isHighValue && product.trackInventory && product.quantity <= 0)
                   Padding(
                     padding: const EdgeInsets.only(top: 4),
                     child: Text(

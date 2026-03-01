@@ -163,6 +163,48 @@ class SellerDashboardScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 16),
 
+                  // My Products quick-access card
+                  Material(
+                    borderRadius: BorderRadius.circular(12),
+                    color: AppColors.sellerAccent.withAlpha(18),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(12),
+                      onTap: () => context.go('/seller/products'),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.inventory_2_rounded,
+                              size: 20,
+                              color: AppColors.sellerAccent,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                'Meus Produtos',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.sellerAccent,
+                                ),
+                              ),
+                            ),
+                            Icon(
+                              Icons.arrow_forward_rounded,
+                              size: 18,
+                              color: AppColors.sellerAccent,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ).animate().fadeIn(delay: 280.ms, duration: 400.ms).slideY(begin: 0.06, curve: Curves.easeOut),
+                  const SizedBox(height: 10),
+
                   // Back to shopping shortcut
                   Material(
                     borderRadius: BorderRadius.circular(12),
@@ -275,7 +317,10 @@ class SellerDashboardScreen extends ConsumerWidget {
                       return SellerOrderTile(
                         order: order,
                         onTap: () => context.push('/seller/orders/${order.id}'),
-                      );
+                      ).animate().fadeIn(
+                        delay: Duration(milliseconds: (index + 4) * 80),
+                        duration: 400.ms,
+                      ).slideY(begin: 0.06, curve: Curves.easeOut);
                     },
                     childCount: recentOrders.length,
                   ),

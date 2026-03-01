@@ -104,6 +104,7 @@ router.post("/orders", async (req: Request, res: Response): Promise<void> => {
       promoPrice?: number;
       name: string;
       variants?: Record<string, unknown>[];
+      trackInventory: boolean;
     }>();
 
     for (const productId of productIds) {
@@ -118,6 +119,7 @@ router.post("/orders", async (req: Request, res: Response): Promise<void> => {
         promoPrice: productData.promoPrice || undefined,
         name: productData.name || "Produto",
         variants: Array.isArray(productData.variants) ? productData.variants as Record<string, unknown>[] : undefined,
+        trackInventory: productData.trackInventory !== false,
       });
     }
 
@@ -165,6 +167,7 @@ router.post("/orders", async (req: Request, res: Response): Promise<void> => {
         unitPrice: serverPrice,
         discount: item.discount || 0,
         total: itemTotal,
+        trackInventory: product.trackInventory,
       });
     }
 
@@ -324,25 +327,28 @@ router.post("/orders", async (req: Request, res: Response): Promise<void> => {
           const product = productDoc.data()!;
           const requestedQty = item.quantity as number;
 
-          // Check root-level quantity
-          if ((product.quantity ?? 0) < requestedQty) {
-            throw new Error(
-              `STOCK_ERROR:Produto '${product.name}' sem estoque suficiente. Disponível: ${product.quantity ?? 0}`
-            );
-          }
+          // On-demand products (trackInventory === false) skip stock validation
+          if (product.trackInventory !== false) {
+            // Check root-level quantity
+            if ((product.quantity ?? 0) < requestedQty) {
+              throw new Error(
+                `STOCK_ERROR:Produto '${product.name}' sem estoque suficiente. Disponível: ${product.quantity ?? 0}`
+              );
+            }
 
-          // If item has a variantId, also validate the variant's quantity
-          if (item.variantId) {
-            const variants: Record<string, unknown>[] = Array.isArray(product.variants)
-              ? (product.variants as Record<string, unknown>[])
-              : [];
-            const variant = variants.find((v) => v.id === item.variantId || v.variantId === item.variantId);
-            if (variant) {
-              const variantQty = (variant.quantity as number) ?? 0;
-              if (variantQty < requestedQty) {
-                throw new Error(
-                  `STOCK_ERROR:Produto '${product.name}' (variante) sem estoque suficiente. Disponível: ${variantQty}`
-                );
+            // If item has a variantId, also validate the variant's quantity
+            if (item.variantId) {
+              const variants: Record<string, unknown>[] = Array.isArray(product.variants)
+                ? (product.variants as Record<string, unknown>[])
+                : [];
+              const variant = variants.find((v) => v.id === item.variantId || v.variantId === item.variantId);
+              if (variant) {
+                const variantQty = (variant.quantity as number) ?? 0;
+                if (variantQty < requestedQty) {
+                  throw new Error(
+                    `STOCK_ERROR:Produto '${product.name}' (variante) sem estoque suficiente. Disponível: ${variantQty}`
+                  );
+                }
               }
             }
           }
@@ -358,13 +364,16 @@ router.post("/orders", async (req: Request, res: Response): Promise<void> => {
           }
         }
 
-        // All validations passed — decrement stock
+        // All validations passed — decrement stock (skip on-demand products)
         for (let i = 0; i < items.length; i++) {
           const item = items[i];
           const productRef = productRefs[i];
           const productDoc = productDocs[i];
           const product = productDoc.data()!;
           const requestedQty = item.quantity as number;
+
+          // On-demand products don't track inventory — skip decrement
+          if (product.trackInventory === false) continue;
 
           const updatePayload: Record<string, unknown> = {
             quantity: admin.firestore.FieldValue.increment(-requestedQty),
@@ -412,6 +421,8 @@ router.post("/orders", async (req: Request, res: Response): Promise<void> => {
       try {
         const restoreBatch = db.batch();
         for (const item of items) {
+          // On-demand products were never decremented — skip restore
+          if (item.trackInventory === false) continue;
           const productRef = db
             .collection("products")
             .doc(item.productId as string);
@@ -702,6 +713,8 @@ router.post("/orders", async (req: Request, res: Response): Promise<void> => {
       try {
         const restoreBatch = db.batch();
         for (const item of items) {
+          // On-demand products were never decremented — skip restore
+          if (item.trackInventory === false) continue;
           const productRef = db
             .collection("products")
             .doc(item.productId as string);
@@ -1818,6 +1831,10 @@ export async function restoreOrderStock(
       if (!snap || !snap.exists) continue;
 
       const productData = snap.data()!;
+
+      // On-demand products don't track inventory — skip restore
+      if (productData.trackInventory === false) continue;
+
       const totalQtyRestore = restoreItems.reduce((sum, ri) => sum + ri.qty, 0);
 
       const updatePayload: Record<string, unknown> = {

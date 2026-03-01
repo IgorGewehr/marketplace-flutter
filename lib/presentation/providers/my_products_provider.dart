@@ -76,7 +76,7 @@ bool _isOutOfStock(ProductModel product) {
   if (product.hasVariants) {
     return product.variants.every((v) => (v.quantity ?? 0) <= 0);
   }
-  return (product.quantity ?? 0) <= 0;
+  return product.quantity <= 0;
 }
 
 class MyProductsNotifier extends AsyncNotifier<List<ProductModel>> {

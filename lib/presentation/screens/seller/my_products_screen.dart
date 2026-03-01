@@ -1,8 +1,11 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shimmer/shimmer.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../data/models/product_model.dart';
@@ -77,7 +80,10 @@ class MyProductsScreen extends ConsumerWidget {
                 Padding(
                   padding: const EdgeInsets.only(right: 12),
                   child: FilledButton.icon(
-                    onPressed: () => context.push('/seller/products/new'),
+                    onPressed: () {
+                      HapticFeedback.lightImpact();
+                      context.push('/seller/products/new');
+                    },
                     icon: const Icon(Icons.add_rounded, size: 18),
                     label: const Text('Novo'),
                     style: FilledButton.styleFrom(
@@ -122,9 +128,12 @@ class MyProductsScreen extends ConsumerWidget {
                             count: allProducts.length,
                             isSelected:
                                 currentFilter == MyProductsFilter.all,
-                            onTap: () => ref
-                                .read(myProductsFilterProvider.notifier)
-                                .state = MyProductsFilter.all,
+                            onTap: () {
+                              HapticFeedback.lightImpact();
+                              ref
+                                  .read(myProductsFilterProvider.notifier)
+                                  .state = MyProductsFilter.all;
+                            },
                           ),
                           const SizedBox(width: 8),
                           _FilterChip(
@@ -133,9 +142,12 @@ class MyProductsScreen extends ConsumerWidget {
                             isSelected:
                                 currentFilter == MyProductsFilter.active,
                             activeColor: AppColors.secondary,
-                            onTap: () => ref
-                                .read(myProductsFilterProvider.notifier)
-                                .state = MyProductsFilter.active,
+                            onTap: () {
+                              HapticFeedback.lightImpact();
+                              ref
+                                  .read(myProductsFilterProvider.notifier)
+                                  .state = MyProductsFilter.active;
+                            },
                           ),
                           const SizedBox(width: 8),
                           _FilterChip(
@@ -144,9 +156,12 @@ class MyProductsScreen extends ConsumerWidget {
                             isSelected:
                                 currentFilter == MyProductsFilter.paused,
                             activeColor: AppColors.textSecondary,
-                            onTap: () => ref
-                                .read(myProductsFilterProvider.notifier)
-                                .state = MyProductsFilter.paused,
+                            onTap: () {
+                              HapticFeedback.lightImpact();
+                              ref
+                                  .read(myProductsFilterProvider.notifier)
+                                  .state = MyProductsFilter.paused;
+                            },
                           ),
                           const SizedBox(width: 8),
                           _FilterChip(
@@ -155,9 +170,12 @@ class MyProductsScreen extends ConsumerWidget {
                             isSelected:
                                 currentFilter == MyProductsFilter.outOfStock,
                             activeColor: AppColors.warning,
-                            onTap: () => ref
-                                .read(myProductsFilterProvider.notifier)
-                                .state = MyProductsFilter.outOfStock,
+                            onTap: () {
+                              HapticFeedback.lightImpact();
+                              ref
+                                  .read(myProductsFilterProvider.notifier)
+                                  .state = MyProductsFilter.outOfStock;
+                            },
                           ),
                         ],
                       ),
@@ -222,7 +240,16 @@ class MyProductsScreen extends ConsumerWidget {
                             onDuplicate: () =>
                                 _duplicateProduct(context, product),
                           ),
-                        );
+                        )
+                            .animate()
+                            .fadeIn(
+                              delay: Duration(milliseconds: index % 8 * 50),
+                              duration: 300.ms,
+                            )
+                            .slideY(
+                              begin: 0.05,
+                              curve: Curves.easeOut,
+                            );
                       },
                       childCount: products.length,
                     ),
@@ -591,47 +618,51 @@ class _SkeletonCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 160,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 4,
-            decoration: BoxDecoration(
-              color: AppColors.borderLight,
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(15),
-                bottomLeft: Radius.circular(15),
+    return Shimmer.fromColors(
+      baseColor: AppColors.surfaceVariant,
+      highlightColor: Colors.white,
+      child: Container(
+        height: 160,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 4,
+              decoration: BoxDecoration(
+                color: AppColors.surfaceVariant,
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(15),
+                  bottomLeft: Radius.circular(15),
+                ),
               ),
             ),
-          ),
-          Container(
-            width: 110,
-            color: AppColors.surfaceVariant,
-          ),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 12, 16, 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _shimmerBox(height: 14, width: double.infinity),
-                  const SizedBox(height: 6),
-                  _shimmerBox(height: 14, width: 120),
-                  const Spacer(),
-                  _shimmerBox(height: 18, width: 90),
-                  const Spacer(),
-                  _shimmerBox(height: 10, width: 140),
-                ],
+            Container(
+              width: 110,
+              color: AppColors.surfaceVariant,
+            ),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 12, 16, 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _shimmerBox(height: 14, width: double.infinity),
+                    const SizedBox(height: 6),
+                    _shimmerBox(height: 14, width: 120),
+                    const Spacer(),
+                    _shimmerBox(height: 18, width: 90),
+                    const Spacer(),
+                    _shimmerBox(height: 10, width: 140),
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

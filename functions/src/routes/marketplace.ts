@@ -67,6 +67,12 @@ router.get("/products", async (req: Request, res: Response): Promise<void> => {
 
     let products = productsSnap.docs.map((doc) => ({ id: doc.id, ...serializeTimestamps(doc.data()) }) as Record<string, unknown>);
 
+    // Hide out-of-stock products (trackInventory=false → on-demand, always visible)
+    products = products.filter((p) => {
+      if (p.trackInventory === false) return true;
+      return ((p.quantity as number) ?? 0) > 0;
+    });
+
     // Client-side text search filter (Firestore doesn't support full-text search)
     if (search) {
       products = products.filter((p) => {
@@ -119,6 +125,12 @@ router.get("/products/featured", async (req: Request, res: Response): Promise<vo
       products = fallbackSnap.docs.map((doc) => ({ id: doc.id, ...serializeTimestamps(doc.data()) }) as Record<string, unknown>);
     }
 
+    // Hide out-of-stock products (trackInventory=false → on-demand, always visible)
+    products = products.filter((p) => {
+      if (p.trackInventory === false) return true;
+      return ((p.quantity as number) ?? 0) > 0;
+    });
+
     res.json({ products });
   } catch (error) {
     functions.logger.error("Error fetching featured products", error);
@@ -142,7 +154,13 @@ router.get("/products/recent", async (req: Request, res: Response): Promise<void
       .limit(limit)
       .get();
 
-    const products = productsSnap.docs.map((doc) => ({ id: doc.id, ...serializeTimestamps(doc.data()) }) as Record<string, unknown>);
+    // Hide out-of-stock products (trackInventory=false → on-demand, always visible)
+    const products = productsSnap.docs
+      .map((doc) => ({ id: doc.id, ...serializeTimestamps(doc.data()) }) as Record<string, unknown>)
+      .filter((p) => {
+        if (p.trackInventory === false) return true;
+        return ((p.quantity as number) ?? 0) > 0;
+      });
 
     res.json({ products });
   } catch (error) {
@@ -233,6 +251,9 @@ router.get("/search", async (req: Request, res: Response): Promise<void> => {
     let results = allSnap.docs
       .map((doc) => ({ id: doc.id, ...serializeTimestamps(doc.data()) }) as Record<string, unknown>)
       .filter((p) => {
+        // Hide out-of-stock products (trackInventory=false → on-demand, always visible)
+        if (p.trackInventory !== false && ((p.quantity as number) ?? 0) <= 0) return false;
+
         const name = String(p.name || "").toLowerCase();
         const desc = String(p.description || "").toLowerCase();
         const tags = Array.isArray(p.tags) ? p.tags.join(" ").toLowerCase() : "";

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:shimmer/shimmer.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/formatters.dart';
@@ -8,7 +10,7 @@ import '../../../data/models/product_model.dart';
 /// Modern, compact product card for seller's product list.
 /// Primary tap → edit. Bottom action row for quick status toggle.
 /// ⋮ popup for duplicate / delete.
-class MyProductCard extends StatelessWidget {
+class MyProductCard extends StatefulWidget {
   final ProductModel product;
   final VoidCallback? onTap;
   final VoidCallback? onToggleStatus;
@@ -27,7 +29,15 @@ class MyProductCard extends StatelessWidget {
   });
 
   @override
+  State<MyProductCard> createState() => _MyProductCardState();
+}
+
+class _MyProductCardState extends State<MyProductCard> {
+  bool _isPressed = false;
+
+  @override
   Widget build(BuildContext context) {
+    final product = widget.product;
     final isActive = product.status == 'active';
     final isPaused = product.status == 'draft';
 
@@ -44,216 +54,249 @@ class MyProductCard extends StatelessWidget {
       statusLabel = 'Sem estoque';
     }
 
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border, width: 1),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withAlpha(8),
-            blurRadius: 12,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(16),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // ── Main content row ──────────────────────────────────
-              // IntrinsicHeight is required because this Row uses
-              // CrossAxisAlignment.stretch (for the status accent bar)
-              // inside a SliverList child whose maxHeight is unbounded.
-              // Without it, stretch forces infinite height on children,
-              // which silently breaks layout in release mode.
-              IntrinsicHeight(
-                child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Status accent bar
-                  Container(
-                    width: 4,
-                    constraints: const BoxConstraints(minHeight: 110),
-                    decoration: BoxDecoration(
-                      color: statusColor,
-                      borderRadius: const BorderRadius.only(
-                        topLeft: Radius.circular(15),
+    return AnimatedScale(
+      scale: _isPressed ? 0.97 : 1.0,
+      duration: const Duration(milliseconds: 120),
+      curve: Curves.easeInOut,
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.border, width: 1),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withAlpha(8),
+              blurRadius: 12,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(16),
+          clipBehavior: Clip.antiAlias,
+          child: GestureDetector(
+            onTapDown: (_) => setState(() => _isPressed = true),
+            onTapUp: (_) {
+              setState(() => _isPressed = false);
+              HapticFeedback.lightImpact();
+              widget.onTap?.call();
+            },
+            onTapCancel: () => setState(() => _isPressed = false),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // ── Main content row ──────────────────────────────────
+                // IntrinsicHeight is required because this Row uses
+                // CrossAxisAlignment.stretch (for the status accent bar)
+                // inside a SliverList child whose maxHeight is unbounded.
+                // Without it, stretch forces infinite height on children,
+                // which silently breaks layout in release mode.
+                IntrinsicHeight(
+                  child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Status accent bar
+                    Container(
+                      width: 4,
+                      constraints: const BoxConstraints(minHeight: 110),
+                      decoration: BoxDecoration(
+                        color: statusColor,
+                        borderRadius: const BorderRadius.only(
+                          topLeft: Radius.circular(15),
+                        ),
                       ),
                     ),
-                  ),
 
-                  // Product image
-                  SizedBox(
-                    width: 110,
-                    height: 110,
-                    child: _ProductImage(url: product.mainImageUrl),
-                  ),
+                    // Product image
+                    SizedBox(
+                      width: 110,
+                      height: 110,
+                      child: _ProductImage(url: product.mainImageUrl),
+                    ),
 
-                  // Info
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(12, 10, 6, 10),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          // Name + more menu
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  product.name,
-                                  style: const TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                    color: AppColors.textPrimary,
-                                    height: 1.35,
-                                  ),
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                              _MoreMenu(
-                                onDuplicate: onDuplicate,
-                                onDelete: onDelete,
-                              ),
-                            ],
-                          ),
-
-                          // Price
-                          Text(
-                            Formatters.currency(product.price),
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.sellerAccent,
-                            ),
-                          ),
-
-                          // Status + stats
-                          Row(
-                            children: [
-                              Container(
-                                width: 7,
-                                height: 7,
-                                decoration: BoxDecoration(
-                                  color: statusColor,
-                                  shape: BoxShape.circle,
-                                ),
-                              ),
-                              const SizedBox(width: 5),
-                              Text(
-                                statusLabel,
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                  color: statusColor,
-                                ),
-                              ),
-                              if (product.marketplaceStats != null) ...[
-                                const SizedBox(width: 10),
-                                const Icon(
-                                  Icons.visibility_outlined,
-                                  size: 12,
-                                  color: AppColors.textHint,
-                                ),
-                                const SizedBox(width: 3),
-                                Text(
-                                  '${product.marketplaceStats!.views}',
-                                  style: const TextStyle(
-                                    fontSize: 11,
-                                    color: AppColors.textHint,
+                    // Info
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 10, 6, 10),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            // Name + more menu
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    product.name,
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColors.textPrimary,
+                                      height: 1.35,
+                                    ),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
-                                const SizedBox(width: 8),
-                                const Icon(
-                                  Icons.shopping_bag_outlined,
-                                  size: 12,
-                                  color: AppColors.textHint,
-                                ),
-                                const SizedBox(width: 3),
-                                Text(
-                                  '${product.marketplaceStats!.sales}',
-                                  style: const TextStyle(
-                                    fontSize: 11,
-                                    color: AppColors.textHint,
-                                  ),
+                                _MoreMenu(
+                                  onDuplicate: widget.onDuplicate,
+                                  onDelete: widget.onDelete,
                                 ),
                               ],
-                              if (product.quantity != null) ...[
-                                const SizedBox(width: 8),
-                                Icon(
-                                  Icons.inventory_2_outlined,
-                                  size: 12,
-                                  color: product.quantity! <= 3
-                                      ? AppColors.error
-                                      : AppColors.textHint,
+                            ),
+
+                            // Price
+                            Text(
+                              Formatters.currency(product.price),
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.sellerAccent,
+                              ),
+                            ),
+
+                            // Status + stats
+                            Row(
+                              children: [
+                                Container(
+                                  width: 7,
+                                  height: 7,
+                                  decoration: BoxDecoration(
+                                    color: statusColor,
+                                    shape: BoxShape.circle,
+                                  ),
                                 ),
-                                const SizedBox(width: 3),
+                                const SizedBox(width: 5),
                                 Text(
-                                  '${product.quantity}',
+                                  statusLabel,
                                   style: TextStyle(
                                     fontSize: 11,
-                                    color: product.quantity! <= 3
-                                        ? AppColors.error
-                                        : AppColors.textHint,
-                                    fontWeight: product.quantity! <= 3
-                                        ? FontWeight.w600
-                                        : FontWeight.normal,
+                                    fontWeight: FontWeight.w600,
+                                    color: statusColor,
                                   ),
                                 ),
+                                if (product.marketplaceStats != null) ...[
+                                  const SizedBox(width: 10),
+                                  const Icon(
+                                    Icons.visibility_outlined,
+                                    size: 12,
+                                    color: AppColors.textHint,
+                                  ),
+                                  const SizedBox(width: 3),
+                                  Text(
+                                    '${product.marketplaceStats!.views}',
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      color: AppColors.textHint,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  const Icon(
+                                    Icons.shopping_bag_outlined,
+                                    size: 12,
+                                    color: AppColors.textHint,
+                                  ),
+                                  const SizedBox(width: 3),
+                                  Text(
+                                    '${product.marketplaceStats!.sales}',
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      color: AppColors.textHint,
+                                    ),
+                                  ),
+                                ],
+                                if (!product.trackInventory) ...[
+                                  const SizedBox(width: 8),
+                                  const Icon(
+                                    Icons.all_inclusive,
+                                    size: 12,
+                                    color: AppColors.sellerAccent,
+                                  ),
+                                  const SizedBox(width: 3),
+                                  const Text(
+                                    'Sob demanda',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: AppColors.sellerAccent,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ] else ...[
+                                  const SizedBox(width: 8),
+                                  Icon(
+                                    Icons.inventory_2_outlined,
+                                    size: 12,
+                                    color: product.quantity <= 3
+                                        ? AppColors.error
+                                        : AppColors.textHint,
+                                  ),
+                                  const SizedBox(width: 3),
+                                  Text(
+                                    '${product.quantity}',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: product.quantity <= 3
+                                          ? AppColors.error
+                                          : AppColors.textHint,
+                                      fontWeight: product.quantity <= 3
+                                          ? FontWeight.w600
+                                          : FontWeight.normal,
+                                    ),
+                                  ),
+                                ],
                               ],
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              ),
-
-              // ── Divider ─────────────────────────────────────────
-              const Divider(height: 1, thickness: 1, color: AppColors.borderLight),
-
-              // ── Action row ───────────────────────────────────────
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: _ActionButton(
-                        icon: Icons.edit_rounded,
-                        label: 'Editar',
-                        color: AppColors.sellerAccent,
-                        onTap: onEdit,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: _ActionButton(
-                        icon: isActive
-                            ? Icons.pause_rounded
-                            : Icons.play_arrow_rounded,
-                        label: isActive ? 'Pausar' : 'Ativar',
-                        color: isActive
-                            ? AppColors.textSecondary
-                            : AppColors.secondary,
-                        outlined: true,
-                        onTap: onToggleStatus,
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ],
                 ),
-              ),
-            ],
+                ),
+
+                // ── Divider ─────────────────────────────────────────
+                const Divider(height: 1, thickness: 1, color: AppColors.borderLight),
+
+                // ── Action row ───────────────────────────────────────
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: _ActionButton(
+                          icon: Icons.edit_rounded,
+                          label: 'Editar',
+                          color: AppColors.sellerAccent,
+                          onTap: () {
+                            HapticFeedback.lightImpact();
+                            widget.onEdit?.call();
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _ActionButton(
+                          icon: isActive
+                              ? Icons.pause_rounded
+                              : Icons.play_arrow_rounded,
+                          label: isActive ? 'Pausar' : 'Ativar',
+                          color: isActive
+                              ? AppColors.textSecondary
+                              : AppColors.secondary,
+                          outlined: true,
+                          onTap: () {
+                            HapticFeedback.lightImpact();
+                            widget.onToggleStatus?.call();
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -274,7 +317,13 @@ class _ProductImage extends StatelessWidget {
         imageUrl: url!,
         fit: BoxFit.cover,
         memCacheWidth: 220,
-        placeholder: (context, url) => Container(color: AppColors.surfaceVariant),
+        fadeInDuration: const Duration(milliseconds: 300),
+        fadeOutDuration: const Duration(milliseconds: 150),
+        placeholder: (context, url) => Shimmer.fromColors(
+          baseColor: AppColors.surfaceVariant,
+          highlightColor: Colors.white,
+          child: Container(color: AppColors.surfaceVariant),
+        ),
         errorWidget: (context, url, error) => _placeholder(),
       );
     }

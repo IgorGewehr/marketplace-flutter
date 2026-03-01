@@ -31,6 +31,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
+    // Refresh product data when the home screen mounts (e.g. after
+    // switching from seller mode) so the buyer always sees fresh stock.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _onRefresh();
+    });
   }
 
   @override

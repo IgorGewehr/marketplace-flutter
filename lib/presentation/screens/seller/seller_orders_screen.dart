@@ -1,4 +1,8 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -107,38 +111,66 @@ class SellerOrdersScreen extends ConsumerWidget {
             ordersAsync.when(
               data: (orders) {
                 if (orders.isEmpty) {
-                  return SliverFillRemaining(
-                    hasScrollBody: false,
-                    child: Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.inbox_outlined,
-                            size: 72,
-                            color: AppColors.textHint,
+                  return SliverLayoutBuilder(
+                    builder: (context, constraints) {
+                      return SliverToBoxAdapter(
+                        child: SizedBox(
+                          height: math.max(
+                            300.0,
+                            constraints.remainingPaintExtent - 60,
                           ),
-                          const SizedBox(height: 16),
-                          const Text(
-                            'Nenhum pedido encontrado',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.textSecondary,
+                          child: Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(40),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(24),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.sellerAccent.withAlpha(12),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Icon(
+                                      currentFilter != SellerOrdersFilter.all
+                                          ? Icons.filter_list_off_rounded
+                                          : Icons.inbox_outlined,
+                                      size: 52,
+                                      color: AppColors.sellerAccent.withAlpha(150),
+                                    ),
+                                  ).animate().scale(
+                                    begin: const Offset(0.8, 0.8),
+                                    end: const Offset(1.0, 1.0),
+                                    duration: 500.ms,
+                                    curve: Curves.elasticOut,
+                                  ),
+                                  const SizedBox(height: 20),
+                                  Text(
+                                    'Nenhum pedido encontrado',
+                                    style: const TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.textPrimary,
+                                    ),
+                                  ).animate().fadeIn(delay: 200.ms, duration: 400.ms).slideY(begin: 0.1, curve: Curves.easeOut),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    currentFilter != SellerOrdersFilter.all
+                                        ? 'Tente outro filtro'
+                                        : 'Seus pedidos aparecerão aqui',
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      color: AppColors.textHint,
+                                      height: 1.5,
+                                    ),
+                                  ).animate().fadeIn(delay: 350.ms, duration: 400.ms).slideY(begin: 0.1, curve: Curves.easeOut),
+                                ],
+                              ),
                             ),
                           ),
-                          const SizedBox(height: 8),
-                          Text(
-                            currentFilter != SellerOrdersFilter.all
-                                ? 'Tente outro filtro'
-                                : 'Seus pedidos aparecerão aqui',
-                            style: const TextStyle(
-                              color: AppColors.textHint,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                        ),
+                      );
+                    },
                   );
                 }
 
@@ -157,7 +189,10 @@ class SellerOrdersScreen extends ConsumerWidget {
                       return SellerOrderTile(
                         order: order,
                         onTap: () => context.push('/seller/orders/${order.id}'),
-                      );
+                      ).animate().fadeIn(
+                        delay: Duration(milliseconds: index % 10 * 60),
+                        duration: 350.ms,
+                      ).slideY(begin: 0.05, curve: Curves.easeOut);
                     },
                     childCount: orders.length + (hasMore ? 1 : 0),
                   ),
@@ -198,7 +233,10 @@ class _FilterChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: () {
+        HapticFeedback.lightImpact();
+        onTap();
+      },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),

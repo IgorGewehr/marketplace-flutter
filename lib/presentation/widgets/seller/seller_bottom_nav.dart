@@ -1,6 +1,7 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_colors.dart';
@@ -110,7 +111,10 @@ class _SellerNavItem extends StatelessWidget {
         : AppColors.textSecondary;
 
     return InkWell(
-      onTap: onTap,
+      onTap: () {
+        HapticFeedback.lightImpact();
+        onTap();
+      },
       borderRadius: BorderRadius.circular(16),
       child: SizedBox(
         width: 60,
@@ -120,10 +124,15 @@ class _SellerNavItem extends StatelessWidget {
             Stack(
               clipBehavior: Clip.none,
               children: [
-                Icon(
-                  icon,
-                  color: color,
-                  size: 26,
+                AnimatedScale(
+                  scale: isSelected ? 1.12 : 1.0,
+                  duration: const Duration(milliseconds: 200),
+                  curve: Curves.easeOut,
+                  child: Icon(
+                    icon,
+                    color: color,
+                    size: 26,
+                  ),
                 ),
                 if (badgeCount > 0)
                   Positioned(
@@ -168,33 +177,51 @@ class _SellerNavItem extends StatelessWidget {
   }
 }
 
-class _SellerCenterFab extends StatelessWidget {
+class _SellerCenterFab extends StatefulWidget {
   final VoidCallback? onPressed;
 
   const _SellerCenterFab({this.onPressed});
 
   @override
+  State<_SellerCenterFab> createState() => _SellerCenterFabState();
+}
+
+class _SellerCenterFabState extends State<_SellerCenterFab> {
+  bool _isPressed = false;
+
+  @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onPressed,
-      child: Container(
-        width: 56,
-        height: 56,
-        decoration: BoxDecoration(
-          gradient: AppColors.sellerGradient,
-          shape: BoxShape.circle,
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.sellerAccent.withAlpha(80),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: const Icon(
-          Icons.add_rounded,
-          color: Colors.white,
-          size: 32,
+      onTapDown: (_) => setState(() => _isPressed = true),
+      onTapUp: (_) {
+        setState(() => _isPressed = false);
+        HapticFeedback.mediumImpact();
+        widget.onPressed?.call();
+      },
+      onTapCancel: () => setState(() => _isPressed = false),
+      child: AnimatedScale(
+        scale: _isPressed ? 0.88 : 1.0,
+        duration: const Duration(milliseconds: 120),
+        curve: Curves.easeInOut,
+        child: Container(
+          width: 56,
+          height: 56,
+          decoration: BoxDecoration(
+            gradient: AppColors.sellerGradient,
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.sellerAccent.withAlpha(_isPressed ? 40 : 80),
+                blurRadius: _isPressed ? 6 : 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: const Icon(
+            Icons.add_rounded,
+            color: Colors.white,
+            size: 32,
+          ),
         ),
       ),
     );

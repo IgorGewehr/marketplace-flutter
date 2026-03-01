@@ -16,6 +16,8 @@ import '../../providers/my_products_provider.dart';
 import '../../providers/products_provider.dart';
 import '../../widgets/seller/photo_picker_grid.dart';
 import '../../widgets/seller/variant_manager.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+
 import '../../widgets/shared/app_feedback.dart';
 
 /// Product form screen for creating/editing products - Simplified for marketplace
@@ -48,8 +50,17 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
   List<File> _newImageFiles = [];
   List<ProductVariant> _variants = [];
   bool _hasVariants = false;
+  bool _isOnDemand = false;
   bool _hasUnsavedChanges = false;
   bool _isPopulating = false;
+
+  // Scroll + validation highlight
+  final _scrollController = ScrollController();
+  final _photosKey = GlobalKey();
+  final _infoKey = GlobalKey();
+  final _priceKey = GlobalKey();
+  final _categoryKey = GlobalKey();
+  int? _highlightedSection;
 
   // Upload progress
   bool _isUploadingImages = false;
@@ -93,6 +104,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     if (_isPopulating) return;
     setState(() {
       _hasUnsavedChanges = true;
+      if (_highlightedSection != null) _highlightedSection = null;
     });
   }
 
@@ -115,7 +127,8 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     _nameController.text = product.name;
     _descriptionController.text = product.description;
     _priceController.text = _BrlCurrencyFormatter.format(product.price);
-    _quantityController.text = product.quantity?.toString() ?? '';
+    _isOnDemand = !product.trackInventory;
+    _quantityController.text = _isOnDemand ? '' : (product.quantity > 0 ? product.quantity.toString() : '');
     _isActive = product.status == 'active';
     _selectedCategory = product.categoryId;
     _tags = List.from(product.tags);
@@ -150,17 +163,71 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     _priceController.dispose();
     _quantityController.dispose();
     _tagController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
+  int? _findFirstInvalidSection() {
+    if (_existingImageUrls.isEmpty && _newImageFiles.isEmpty) return 0;
+    final name = _nameController.text.trim();
+    final desc = _descriptionController.text.trim();
+    if (name.isEmpty || name.length < 3 || desc.isEmpty || desc.length < 10) {
+      return 1;
+    }
+    final priceText = _priceController.text;
+    if (priceText.isEmpty) return 2;
+    final price =
+        double.tryParse(priceText.replaceAll('.', '').replaceAll(',', '.'));
+    if (price == null || price <= 0) return 2;
+    if (_selectedCategory == null || _selectedCategory!.isEmpty) return 3;
+    return null;
+  }
+
+  GlobalKey? _keyForSection(int index) {
+    return switch (index) {
+      0 => _photosKey,
+      1 => _infoKey,
+      2 => _priceKey,
+      3 => _categoryKey,
+      _ => null,
+    };
+  }
+
+  void _scrollToSection(GlobalKey key) {
+    final ctx = key.currentContext;
+    if (ctx != null) {
+      Scrollable.ensureVisible(
+        ctx,
+        duration: const Duration(milliseconds: 400),
+        curve: Curves.easeInOut,
+        alignment: 0.1,
+      );
+    }
+  }
+
+  void _highlightError(int sectionIndex) {
+    setState(() => _highlightedSection = sectionIndex);
+    final key = _keyForSection(sectionIndex);
+    if (key != null) _scrollToSection(key);
+    HapticFeedback.heavyImpact();
+    Future.delayed(const Duration(seconds: 3), () {
+      if (mounted) setState(() => _highlightedSection = null);
+    });
+  }
+
   Future<void> _saveProduct() async {
-    if (!_formKey.currentState!.validate()) {
+    // Validate at least one photo first (top of form)
+    if (_existingImageUrls.isEmpty && _newImageFiles.isEmpty) {
+      _highlightError(0);
+      AppFeedback.showWarning(context, 'Adicione pelo menos 1 foto do produto');
       return;
     }
 
-    // Validate at least one photo
-    if (_existingImageUrls.isEmpty && _newImageFiles.isEmpty) {
-      AppFeedback.showWarning(context, 'Adicione pelo menos 1 foto do produto');
+    if (!_formKey.currentState!.validate()) {
+      final sectionIndex = _findFirstInvalidSection();
+      if (sectionIndex != null) {
+        _highlightError(sectionIndex);
+      }
       return;
     }
 
@@ -223,10 +290,8 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
         price: double.parse(_priceController.text.replaceAll('.', '').replaceAll(',', '.')),
         costPrice: null,
         compareAtPrice: null,
-        quantity: _quantityController.text.isNotEmpty
-            ? int.parse(_quantityController.text)
-            : null,
-        trackInventory: true,
+        quantity: _isOnDemand ? 0 : (_quantityController.text.isNotEmpty ? int.parse(_quantityController.text) : 0),
+        trackInventory: !_isOnDemand,
         status: _isActive ? 'active' : 'draft',
         visibility: 'marketplace',
         images: images,
@@ -256,7 +321,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
       if (mounted) {
         _hasUnsavedChanges = false;
         AppFeedback.showSuccess(context, _isEditing ? 'Produto atualizado!' : 'Produto criado!');
-        context.pop();
+        context.go(AppRouter.sellerProducts);
       }
     } catch (e) {
       if (mounted) {
@@ -490,13 +555,16 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
       body: Form(
         key: _formKey,
         child: ListView(
+          controller: _scrollController,
           padding: const EdgeInsets.all(16),
           children: [
             // Section 1: Photos
             _SectionCard(
+              key: _photosKey,
               icon: Icons.camera_alt_outlined,
               title: 'Fotos',
               subtitle: 'Adicione até 5 fotos do produto',
+              hasError: _highlightedSection == 0,
               child: PhotoPickerGrid(
                 initialUrls: _existingImageUrls,
                 newFiles: _newImageFiles,
@@ -516,9 +584,11 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
 
             // Section 2: Product info
             _SectionCard(
+              key: _infoKey,
               icon: Icons.info_outline,
               title: 'Informações',
               subtitle: 'Nome e descrição do produto',
+              hasError: _highlightedSection == 1,
               child: Column(
                 children: [
                   TextFormField(
@@ -568,9 +638,11 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
 
             // Section 3: Price & quantity
             _SectionCard(
+              key: _priceKey,
               icon: Icons.attach_money,
               title: 'Preço e Estoque',
               subtitle: 'Defina o valor e a quantidade disponível',
+              hasError: _highlightedSection == 2,
               child: Column(
                 children: [
                   TextFormField(
@@ -598,18 +670,56 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                     },
                   ),
                   const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _quantityController,
-                    decoration: const InputDecoration(
-                      labelText: 'Quantidade em estoque',
-                      suffixText: 'unidades',
-                      prefixIcon: Icon(Icons.inventory_2_outlined),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text(
+                      'Sob demanda',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
+                      ),
                     ),
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [
-                      FilteringTextInputFormatter.digitsOnly
-                    ],
+                    subtitle: const Text(
+                      'Sem limite de estoque — o comprador pode encomendar',
+                      style: TextStyle(fontSize: 12, color: AppColors.textHint),
+                    ),
+                    value: _isOnDemand,
+                    activeColor: AppColors.sellerAccent,
+                    onChanged: (value) {
+                      setState(() {
+                        _isOnDemand = value;
+                        if (value) _quantityController.clear();
+                        _hasUnsavedChanges = true;
+                      });
+                    },
                   ),
+                  if (!_isOnDemand) ...[
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _quantityController,
+                      decoration: const InputDecoration(
+                        labelText: 'Quantidade em estoque *',
+                        suffixText: 'unidades',
+                        prefixIcon: Icon(Icons.inventory_2_outlined),
+                      ),
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly
+                      ],
+                      validator: (value) {
+                        if (_isOnDemand) return null;
+                        if (value == null || value.isEmpty) {
+                          return 'Informe a quantidade em estoque';
+                        }
+                        final qty = int.tryParse(value);
+                        if (qty == null || qty < 0) {
+                          return 'Quantidade inválida';
+                        }
+                        return null;
+                      },
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -617,9 +727,11 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
 
             // Section 4: Category
             _SectionCard(
+              key: _categoryKey,
               icon: Icons.category_outlined,
               title: 'Categoria',
               subtitle: 'Escolha a categoria do produto',
+              hasError: _highlightedSection == 3,
               child: categoriesAsync.when(
                 loading: () => const LinearProgressIndicator(),
                 error: (_, __) =>
@@ -894,21 +1006,40 @@ class _SectionCard extends StatelessWidget {
   final String title;
   final String subtitle;
   final Widget child;
+  final bool hasError;
 
   const _SectionCard({
+    super.key,
     required this.icon,
     required this.title,
     required this.subtitle,
     required this.child,
+    this.hasError = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    final accentColor = hasError ? AppColors.error : AppColors.sellerAccent;
+
+    Widget card = AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(
+          color: hasError ? AppColors.error.withAlpha(180) : AppColors.border,
+          width: hasError ? 1.5 : 1,
+        ),
+        boxShadow: hasError
+            ? [
+                BoxShadow(
+                  color: AppColors.error.withAlpha(25),
+                  blurRadius: 12,
+                  spreadRadius: 2,
+                ),
+              ]
+            : null,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -918,15 +1049,16 @@ class _SectionCard extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
             child: Row(
               children: [
-                Container(
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 300),
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: AppColors.sellerAccent.withAlpha(20),
+                    color: accentColor.withAlpha(20),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Icon(
                     icon,
-                    color: AppColors.sellerAccent,
+                    color: accentColor,
                     size: 20,
                   ),
                 ),
@@ -946,9 +1078,9 @@ class _SectionCard extends StatelessWidget {
                       const SizedBox(height: 2),
                       Text(
                         subtitle,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 12,
-                          color: AppColors.textHint,
+                          color: hasError ? AppColors.error : AppColors.textHint,
                         ),
                       ),
                     ],
@@ -966,5 +1098,13 @@ class _SectionCard extends StatelessWidget {
         ],
       ),
     );
+
+    if (hasError) {
+      card = card
+          .animate(autoPlay: true)
+          .shakeX(amount: 4, duration: 400.ms, curve: Curves.easeInOut);
+    }
+
+    return card;
   }
 }

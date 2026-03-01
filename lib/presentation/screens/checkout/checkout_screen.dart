@@ -84,12 +84,29 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         ? 'Gerando seu PIX...'
         : 'Processando pagamento...';
 
-    return Scaffold(
+    return PopScope(
+      canPop: checkoutState.currentStep == CheckoutStep.address,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) {
+          ref.read(checkoutProvider.notifier).previousStep();
+        }
+      },
+      child: Scaffold(
       backgroundColor: theme.colorScheme.surface,
       appBar: AppBar(
         title: const Text('Finalizar Compra'),
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            if (checkoutState.currentStep == CheckoutStep.address) {
+              context.pop();
+            } else {
+              ref.read(checkoutProvider.notifier).previousStep();
+            }
+          },
+        ),
       ),
       body: checkoutState.isLoading
           ? Center(
@@ -146,6 +163,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                   ),
               ],
             ),
+    ),
     );
   }
 

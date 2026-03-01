@@ -109,7 +109,7 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
       costPrice: costPrice ? parseFloat(costPrice) : null,
       sku: sku || null,
       barcode: barcode || null,
-      quantity: quantity !== undefined ? parseInt(quantity) : null,
+      quantity: quantity !== undefined && quantity !== null ? parseInt(quantity) : 0,
       trackInventory: trackInventory ?? true,
       hasVariants: hasVariants ?? false,
       variants: variants || [],
@@ -193,7 +193,7 @@ router.patch("/:id", async (req: Request, res: Response): Promise<void> => {
           value = value !== null ? parseFloat(value) : null;
         }
         if (field === "quantity") {
-          value = value !== null ? parseInt(value) : null;
+          value = value !== null && value !== undefined ? parseInt(value) : 0;
         }
         updateData[field] = value;
       }

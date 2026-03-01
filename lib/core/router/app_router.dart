@@ -47,6 +47,8 @@ import '../../presentation/screens/services/services_screen.dart';
 import '../../presentation/screens/services/service_details_screen.dart';
 
 /// Returns a [CustomTransitionPage] with a smooth slide-from-right + fade transition.
+/// Wraps [child] with [_PopSafeWrapper] so the Android system back button never
+/// closes the app — it either pops normally or falls back to home.
 CustomTransitionPage<T> _slidePage<T>({
   required BuildContext context,
   required GoRouterState state,
@@ -54,7 +56,7 @@ CustomTransitionPage<T> _slidePage<T>({
 }) {
   return CustomTransitionPage<T>(
     key: state.pageKey,
-    child: child,
+    child: _PopSafeWrapper(child: child),
     transitionDuration: const Duration(milliseconds: 280),
     reverseTransitionDuration: const Duration(milliseconds: 250),
     transitionsBuilder: (context, animation, secondaryAnimation, child) {
@@ -73,6 +75,33 @@ CustomTransitionPage<T> _slidePage<T>({
       );
     },
   );
+}
+
+/// Safety wrapper for root-navigator routes.
+///
+/// If go_router can pop (screen was pushed), the system back button pops normally.
+/// If it can't (screen was reached via `context.go()`, replacing the stack),
+/// the back button navigates to [AppRouter.home] instead of closing the app.
+///
+/// Screens that define their own [PopScope] (e.g. [OrderSuccessScreen]) take
+/// precedence because the inner-most PopScope wins.
+class _PopSafeWrapper extends StatelessWidget {
+  final Widget child;
+  const _PopSafeWrapper({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    final canPop = GoRouter.of(context).canPop();
+    return PopScope(
+      canPop: canPop,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) {
+          context.go(AppRouter.home);
+        }
+      },
+      child: child,
+    );
+  }
 }
 
 /// App Router configuration with GoRouter
@@ -271,12 +300,12 @@ final routerProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 parentNavigatorKey: _rootNavigatorKey,
                 path: 'edit',
-                builder: (context, state) => const EditProfileScreen(),
+                builder: (context, state) => const _PopSafeWrapper(child: EditProfileScreen()),
               ),
               GoRoute(
                 parentNavigatorKey: _rootNavigatorKey,
                 path: 'addresses',
-                builder: (context, state) => const AddressesScreen(),
+                builder: (context, state) => const _PopSafeWrapper(child: AddressesScreen()),
               ),
             ],
           ),
@@ -289,7 +318,7 @@ final routerProvider = Provider<GoRouter>((ref) {
                 path: ':id',
                 builder: (context, state) {
                   final id = state.pathParameters['id']!;
-                  return ConversationScreen(chatId: id);
+                  return _PopSafeWrapper(child: ConversationScreen(chatId: id));
                 },
               ),
             ],
@@ -438,7 +467,7 @@ final routerProvider = Provider<GoRouter>((ref) {
                 path: 'new',
                 builder: (context, state) {
                   final initialProduct = state.extra as ProductModel?;
-                  return ProductFormScreen(initialProduct: initialProduct);
+                  return _PopSafeWrapper(child: ProductFormScreen(initialProduct: initialProduct));
                 },
               ),
               GoRoute(
@@ -446,7 +475,7 @@ final routerProvider = Provider<GoRouter>((ref) {
                 path: ':id/edit',
                 builder: (context, state) {
                   final id = state.pathParameters['id']!;
-                  return ProductFormScreen(productId: id);
+                  return _PopSafeWrapper(child: ProductFormScreen(productId: id));
                 },
               ),
             ],
@@ -460,7 +489,7 @@ final routerProvider = Provider<GoRouter>((ref) {
                 path: ':id',
                 builder: (context, state) {
                   final id = state.pathParameters['id']!;
-                  return SellerOrderDetailsScreen(orderId: id);
+                  return _PopSafeWrapper(child: SellerOrderDetailsScreen(orderId: id));
                 },
               ),
             ],

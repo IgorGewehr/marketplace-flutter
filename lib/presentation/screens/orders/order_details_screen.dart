@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/constants/app_constants.dart';
+import '../../../core/router/app_router.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../data/models/order_model.dart';
@@ -41,6 +43,16 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
         title: const Text('Detalhes do Pedido'),
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            if (Navigator.of(context).canPop()) {
+              Navigator.of(context).pop();
+            } else {
+              context.go(AppRouter.orders);
+            }
+          },
+        ),
       ),
       body: orderAsync.when(
         loading: () => const _OrderDetailShimmer(),
