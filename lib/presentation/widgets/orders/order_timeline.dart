@@ -6,6 +6,7 @@ import '../../../core/utils/formatters.dart';
 import '../../../data/models/order_model.dart';
 
 /// Order timeline widget showing status history with delivery tracking
+/// Features staggered entrance animations and progressive line fill
 class OrderTimeline extends StatelessWidget {
   final OrderModel order;
 
@@ -27,7 +28,10 @@ class OrderTimeline extends StatelessWidget {
           isCompleted: index <= currentIndex,
           isCurrent: index == currentIndex,
           stepNumber: index + 1,
-        ),
+        )
+            .animate(delay: Duration(milliseconds: 80 * index))
+            .fadeIn(duration: 350.ms, curve: Curves.easeOut)
+            .slideX(begin: -0.06, end: 0, duration: 350.ms, curve: Curves.easeOut),
       ),
     );
   }
@@ -222,15 +226,16 @@ class _TimelineStep extends StatelessWidget {
     final theme = Theme.of(context);
 
     // Connector line colours
-    final lineColor = (isCompleted && !isCurrent)
+    final bool isLineCompleted = isCompleted && !isCurrent;
+    final lineColor = isLineCompleted
         ? AppColors.primary
-        : theme.colorScheme.outline.withAlpha(100);
+        : theme.colorScheme.outline.withAlpha(80);
 
     // Build the step indicator circle
     Widget stepCircle;
 
     if (isCompleted && !isCurrent) {
-      // Completed steps: filled primary circle with a check mark
+      // Completed steps: filled primary circle with animated check mark
       stepCircle = AnimatedContainer(
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
@@ -239,8 +244,15 @@ class _TimelineStep extends StatelessWidget {
         decoration: BoxDecoration(
           color: AppColors.primary,
           shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.primary.withAlpha(30),
+              blurRadius: 6,
+              spreadRadius: 1,
+            ),
+          ],
         ),
-        child: const Icon(Icons.check, color: Colors.white, size: 16),
+        child: const Icon(Icons.check_rounded, color: Colors.white, size: 16),
       );
     } else if (isCurrent) {
       // Active step: filled primary circle with step number + pulse shadow
@@ -361,23 +373,49 @@ class _TimelineStep extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      Icon(
-                        step.icon,
-                        size: 18,
-                        color: isCompleted
-                            ? AppColors.primary
-                            : theme.colorScheme.onSurfaceVariant,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        step.title,
-                        style: theme.textTheme.bodyLarge?.copyWith(
-                          fontWeight: isCurrent ? FontWeight.bold : FontWeight.w500,
+                      AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 300),
+                        transitionBuilder: (child, animation) => ScaleTransition(
+                          scale: animation,
+                          child: child,
+                        ),
+                        child: Icon(
+                          step.icon,
+                          key: ValueKey('${step.title}_$isCompleted'),
+                          size: 18,
                           color: isCompleted
-                              ? theme.colorScheme.onSurface
+                              ? AppColors.primary
                               : theme.colorScheme.onSurfaceVariant,
                         ),
                       ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          step.title,
+                          style: theme.textTheme.bodyLarge?.copyWith(
+                            fontWeight: isCurrent ? FontWeight.bold : FontWeight.w500,
+                            color: isCompleted
+                                ? theme.colorScheme.onSurface
+                                : theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ),
+                      if (isCurrent)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withAlpha(20),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            'Atual',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                        ),
                     ],
                   ),
                   const SizedBox(height: 4),

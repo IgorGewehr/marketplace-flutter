@@ -5,24 +5,24 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../providers/appointment_provider.dart';
 import '../../providers/seller_orders_provider.dart';
 
 /// Floating bottom navigation for seller mode with glass effect
 class SellerBottomNav extends ConsumerWidget {
   final int currentIndex;
   final ValueChanged<int> onTap;
-  final VoidCallback? onFabPressed;
 
   const SellerBottomNav({
     super.key,
     required this.currentIndex,
     required this.onTap,
-    this.onFabPressed,
   });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final newOrdersCount = ref.watch(newOrdersCountProvider);
+    final todayAppointments = ref.watch(todayAppointmentsCountProvider);
     final bottomPadding = MediaQuery.of(context).padding.bottom;
 
     return Positioned(
@@ -65,20 +65,25 @@ class SellerBottomNav extends ConsumerWidget {
                   isSelected: currentIndex == 1,
                   onTap: () => onTap(1),
                 ),
-                // Center FAB
-                _SellerCenterFab(onPressed: onFabPressed),
+                _SellerNavItem(
+                  icon: Icons.calendar_month_rounded,
+                  label: 'Agenda',
+                  isSelected: currentIndex == 2,
+                  onTap: () => onTap(2),
+                  badgeCount: todayAppointments,
+                ),
                 _SellerNavItem(
                   icon: Icons.receipt_long_outlined,
                   label: 'Pedidos',
-                  isSelected: currentIndex == 2,
-                  onTap: () => onTap(2),
+                  isSelected: currentIndex == 3,
+                  onTap: () => onTap(3),
                   badgeCount: newOrdersCount,
                 ),
                 _SellerNavItem(
                   icon: Icons.account_balance_wallet_outlined,
                   label: 'Carteira',
-                  isSelected: currentIndex == 3,
-                  onTap: () => onTap(3),
+                  isSelected: currentIndex == 4,
+                  onTap: () => onTap(4),
                 ),
               ],
             ),
@@ -171,57 +176,6 @@ class _SellerNavItem extends StatelessWidget {
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _SellerCenterFab extends StatefulWidget {
-  final VoidCallback? onPressed;
-
-  const _SellerCenterFab({this.onPressed});
-
-  @override
-  State<_SellerCenterFab> createState() => _SellerCenterFabState();
-}
-
-class _SellerCenterFabState extends State<_SellerCenterFab> {
-  bool _isPressed = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTapDown: (_) => setState(() => _isPressed = true),
-      onTapUp: (_) {
-        setState(() => _isPressed = false);
-        HapticFeedback.mediumImpact();
-        widget.onPressed?.call();
-      },
-      onTapCancel: () => setState(() => _isPressed = false),
-      child: AnimatedScale(
-        scale: _isPressed ? 0.88 : 1.0,
-        duration: const Duration(milliseconds: 120),
-        curve: Curves.easeInOut,
-        child: Container(
-          width: 56,
-          height: 56,
-          decoration: BoxDecoration(
-            gradient: AppColors.sellerGradient,
-            shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.sellerAccent.withAlpha(_isPressed ? 40 : 80),
-                blurRadius: _isPressed ? 6 : 12,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: const Icon(
-            Icons.add_rounded,
-            color: Colors.white,
-            size: 32,
-          ),
         ),
       ),
     );

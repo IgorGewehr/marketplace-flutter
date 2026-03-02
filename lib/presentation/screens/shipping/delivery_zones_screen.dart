@@ -90,9 +90,7 @@ class _ZoneCard extends StatelessWidget {
     final theme = Theme.of(context);
 
     final tiers = <String>[];
-    if (zone.sameDayAvailable) tiers.add('Mesmo dia');
-    if (zone.nextDayAvailable) tiers.add('Dia seguinte');
-    if (zone.scheduledAvailable) tiers.add('Agendado');
+    if (zone.scheduledAvailable) tiers.add('Entrega padrão');
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),

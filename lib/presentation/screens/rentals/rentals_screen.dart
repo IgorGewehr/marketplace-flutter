@@ -5,22 +5,21 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_colors.dart';
-import '../../providers/services_provider.dart';
+import '../../providers/rentals_provider.dart';
 import '../../widgets/home/section_header.dart';
-import '../../widgets/services/service_card.dart';
-import '../../widgets/services/service_grid.dart';
+import '../../widgets/rentals/rental_card.dart';
 import '../../widgets/shared/error_state.dart';
 import '../../widgets/shared/shimmer_loading.dart';
 
-/// Services screen - browse services marketplace
-class ServicesScreen extends ConsumerStatefulWidget {
-  const ServicesScreen({super.key});
+/// Rentals screen - browse rental listings — follows Services screen pattern
+class RentalsScreen extends ConsumerStatefulWidget {
+  const RentalsScreen({super.key});
 
   @override
-  ConsumerState<ServicesScreen> createState() => _ServicesScreenState();
+  ConsumerState<RentalsScreen> createState() => _RentalsScreenState();
 }
 
-class _ServicesScreenState extends ConsumerState<ServicesScreen> {
+class _RentalsScreenState extends ConsumerState<RentalsScreen> {
   final ScrollController _scrollController = ScrollController();
 
   @override
@@ -38,26 +37,26 @@ class _ServicesScreenState extends ConsumerState<ServicesScreen> {
   void _onScroll() {
     if (_scrollController.position.pixels >=
         _scrollController.position.maxScrollExtent - 200) {
-      ref.read(paginatedRecentServicesProvider.notifier).loadMore();
+      ref.read(paginatedRentalsProvider.notifier).loadMore();
     }
   }
 
   Future<void> _onRefresh() async {
-    ref.invalidate(featuredServicesProvider);
-    ref.invalidate(recentServicesProvider);
-    ref.read(paginatedRecentServicesProvider.notifier).refresh();
+    ref.invalidate(featuredRentalsProvider);
+    ref.invalidate(recentRentalsProvider);
+    ref.read(paginatedRentalsProvider.notifier).refresh();
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final featuredAsync = ref.watch(featuredServicesProvider);
-    final recentAsync = ref.watch(recentServicesProvider);
+    final featuredAsync = ref.watch(featuredRentalsProvider);
+    final recentAsync = ref.watch(recentRentalsProvider);
 
     return Scaffold(
       backgroundColor: theme.colorScheme.surface,
       appBar: AppBar(
-        title: const Text('Serviços'),
+        title: const Text('Aluguéis'),
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
         elevation: 0,
@@ -68,9 +67,7 @@ class _ServicesScreenState extends ConsumerState<ServicesScreen> {
           ),
           IconButton(
             icon: const Icon(Icons.filter_list),
-            onPressed: () {
-              _showFilterBottomSheet(context);
-            },
+            onPressed: () => _showFilterBottomSheet(context),
           ),
         ],
       ),
@@ -83,93 +80,131 @@ class _ServicesScreenState extends ConsumerState<ServicesScreen> {
             slivers: [
               // Category chips
               SliverToBoxAdapter(
-                child: _ServiceCategoryChips(),
+                child: _RentalCategoryChips(),
               ),
 
               const SliverToBoxAdapter(child: SizedBox(height: 16)),
 
-              // Featured services section
+              // Featured rentals section
               SliverToBoxAdapter(
                 child: SectionHeader(
-                  title: 'Serviços em Destaque',
+                  title: 'Em Destaque',
                   actionLabel: 'Ver todos',
                   onActionPressed: () {
-                    ref.read(selectedServiceCategoryProvider.notifier).state = 'Todos';
-                    ref.invalidate(filteredServicesProvider);
+                    ref.read(selectedRentalCategoryProvider.notifier).state = 'Todos';
+                    ref.invalidate(featuredRentalsProvider);
                   },
                 ),
               ),
 
               const SliverToBoxAdapter(child: SizedBox(height: 12)),
 
-              // Featured services grid
+              // Featured rentals grid
               featuredAsync.when(
-                loading: () => const SliverServiceGrid(isLoading: true),
+                loading: () => const SliverToBoxAdapter(
+                  child: ShimmerLoading(itemCount: 4, isGrid: true),
+                ),
                 error: (_, __) => SliverToBoxAdapter(
                   child: ErrorState(
                     icon: Icons.cloud_off_rounded,
-                    message: 'Erro ao carregar serviços em destaque.',
-                    onRetry: () => ref.invalidate(featuredServicesProvider),
+                    message: 'Erro ao carregar aluguéis em destaque.',
+                    onRetry: () => ref.invalidate(featuredRentalsProvider),
                   ),
                 ),
-                data: (services) {
-                  if (services.isEmpty) {
+                data: (rentals) {
+                  if (rentals.isEmpty) {
                     return SliverToBoxAdapter(
                       child: _AnimatedEmptySection(
-                        icon: Icons.home_repair_service_outlined,
-                        title: 'Nenhum serviço em destaque',
-                        subtitle: 'Novos serviços aparecerão aqui em breve',
+                        icon: Icons.vpn_key_outlined,
+                        title: 'Nenhum aluguel em destaque',
+                        subtitle: 'Novos aluguéis aparecerão aqui em breve',
                       ),
                     );
                   }
-                  return SliverServiceGrid(services: services);
+                  return SliverPadding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    sliver: SliverGrid(
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 2,
+                        mainAxisSpacing: 12,
+                        crossAxisSpacing: 12,
+                        childAspectRatio: 0.68,
+                      ),
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) => RentalCard(rental: rentals[index])
+                            .animate(delay: Duration(milliseconds: (index % 6) * 60))
+                            .fadeIn(duration: 300.ms, curve: Curves.easeOut)
+                            .slideY(begin: 0.08, end: 0, duration: 300.ms, curve: Curves.easeOut),
+                        childCount: rentals.length,
+                      ),
+                    ),
+                  );
                 },
               ),
 
               const SliverToBoxAdapter(child: SizedBox(height: 32)),
 
-              // Recent services section
+              // Recent rentals section
               SliverToBoxAdapter(
                 child: SectionHeader(
-                  title: 'Serviços Recentes',
+                  title: 'Recentes',
                   actionLabel: 'Ver todos',
                   onActionPressed: () {
-                    ref.read(selectedServiceCategoryProvider.notifier).state = 'Todos';
-                    ref.invalidate(recentServicesProvider);
+                    ref.read(selectedRentalCategoryProvider.notifier).state = 'Todos';
+                    ref.invalidate(recentRentalsProvider);
                   },
                 ),
               ),
 
               const SliverToBoxAdapter(child: SizedBox(height: 12)),
 
-              // Recent services grid
+              // Recent rentals grid
               recentAsync.when(
-                loading: () => const SliverServiceGrid(isLoading: true),
+                loading: () => const SliverToBoxAdapter(
+                  child: ShimmerLoading(itemCount: 4, isGrid: true),
+                ),
                 error: (_, __) => SliverToBoxAdapter(
                   child: ErrorState(
                     icon: Icons.cloud_off_rounded,
-                    message: 'Erro ao carregar serviços recentes.',
-                    onRetry: () => ref.invalidate(recentServicesProvider),
+                    message: 'Erro ao carregar aluguéis recentes.',
+                    onRetry: () => ref.invalidate(recentRentalsProvider),
                   ),
                 ),
-                data: (services) {
-                  if (services.isEmpty) {
+                data: (rentals) {
+                  if (rentals.isEmpty) {
                     return SliverToBoxAdapter(
                       child: _AnimatedEmptySection(
                         icon: Icons.schedule_rounded,
-                        title: 'Nenhum serviço recente',
-                        subtitle: 'Serviços adicionados recentemente aparecerão aqui',
+                        title: 'Nenhum aluguel recente',
+                        subtitle: 'Aluguéis adicionados recentemente aparecerão aqui',
                       ),
                     );
                   }
-                  return SliverServiceGrid(services: services);
+                  return SliverPadding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    sliver: SliverGrid(
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 2,
+                        mainAxisSpacing: 12,
+                        crossAxisSpacing: 12,
+                        childAspectRatio: 0.68,
+                      ),
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) => RentalCard(rental: rentals[index])
+                            .animate(delay: Duration(milliseconds: (index % 6) * 60))
+                            .fadeIn(duration: 300.ms, curve: Curves.easeOut)
+                            .slideY(begin: 0.08, end: 0, duration: 300.ms, curve: Curves.easeOut),
+                        childCount: rentals.length,
+                      ),
+                    ),
+                  );
                 },
               ),
 
               const SliverToBoxAdapter(child: SizedBox(height: 32)),
 
-              // Paginated "Mais serviços" section (infinite scroll)
-              ..._buildPaginatedServices(),
+              // Paginated "Mais Aluguéis" section (infinite scroll)
+              ..._buildPaginatedRentals(),
 
               // Bottom padding for floating nav
               const SliverToBoxAdapter(child: SizedBox(height: 120)),
@@ -180,16 +215,16 @@ class _ServicesScreenState extends ConsumerState<ServicesScreen> {
     );
   }
 
-  List<Widget> _buildPaginatedServices() {
-    final paginatedState = ref.watch(paginatedRecentServicesProvider);
-    if (paginatedState.services.isEmpty && !paginatedState.isLoading) {
+  List<Widget> _buildPaginatedRentals() {
+    final paginatedState = ref.watch(paginatedRentalsProvider);
+    if (paginatedState.rentals.isEmpty && !paginatedState.isLoading) {
       return [];
     }
 
     return [
       SliverToBoxAdapter(
         child: SectionHeader(
-          title: 'Mais serviços',
+          title: 'Mais Aluguéis',
           actionLabel: '',
           onActionPressed: () {},
         ),
@@ -200,19 +235,19 @@ class _ServicesScreenState extends ConsumerState<ServicesScreen> {
         sliver: SliverGrid(
           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: 2,
-            mainAxisSpacing: 16,
-            crossAxisSpacing: 16,
-            childAspectRatio: 0.60,
+            mainAxisSpacing: 12,
+            crossAxisSpacing: 12,
+            childAspectRatio: 0.68,
           ),
           delegate: SliverChildBuilderDelegate(
             (context, index) {
-              if (index >= paginatedState.services.length) return null;
-              return ServiceCard(service: paginatedState.services[index])
+              if (index >= paginatedState.rentals.length) return null;
+              return RentalCard(rental: paginatedState.rentals[index])
                   .animate(delay: Duration(milliseconds: (index % 6) * 60))
                   .fadeIn(duration: 300.ms, curve: Curves.easeOut)
                   .slideY(begin: 0.08, end: 0, duration: 300.ms, curve: Curves.easeOut);
             },
-            childCount: paginatedState.services.length,
+            childCount: paginatedState.rentals.length,
           ),
         ),
       ),
@@ -231,69 +266,64 @@ class _ServicesScreenState extends ConsumerState<ServicesScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => const _ServiceFilterSheet(),
+      builder: (context) => const _RentalFilterSheet(),
     );
   }
 }
 
-class _ServiceCategoryChips extends ConsumerWidget {
+class _RentalCategoryChips extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final categoriesAsync = ref.watch(serviceCategoriesProvider);
-    final selectedCategory = ref.watch(selectedServiceCategoryProvider);
+    final selectedCategory = ref.watch(selectedRentalCategoryProvider);
 
-    return categoriesAsync.when(
-      loading: () => const SizedBox(height: 40),
-      error: (_, __) => const SizedBox.shrink(),
-      data: (categories) {
-        if (categories.length <= 1) return const SizedBox.shrink();
-        return SizedBox(
-          height: 40,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            itemCount: categories.length,
-            itemBuilder: (context, index) {
-              final category = categories[index];
-              final isSelected = category == selectedCategory;
+    // Hide if only "Todos" would show
+    if (rentalCategories.length <= 1) return const SizedBox.shrink();
 
-              return Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: ChoiceChip(
-                  label: Text(category),
-                  selected: isSelected,
-                  showCheckmark: false,
-                  onSelected: (selected) {
-                    if (selected) {
-                      HapticFeedback.selectionClick();
-                      ref.read(selectedServiceCategoryProvider.notifier).state = category;
-                      ref.invalidate(featuredServicesProvider);
-                      ref.invalidate(recentServicesProvider);
-                    }
-                  },
-                  backgroundColor: theme.colorScheme.surface,
-                  selectedColor: theme.colorScheme.primary,
-                  labelStyle: TextStyle(
-                    color: isSelected ? Colors.white : theme.colorScheme.onSurface,
-                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                  ),
-                  side: BorderSide(
-                    color: isSelected
-                        ? theme.colorScheme.primary
-                        : theme.colorScheme.outline.withAlpha(50),
-                  ),
-                ),
-              );
-            },
-          ),
-        );
-      },
+    return SizedBox(
+      height: 48,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.only(left: 16, right: 16, top: 8),
+        itemCount: rentalCategories.length,
+        itemBuilder: (context, index) {
+          final category = rentalCategories[index];
+          final isSelected = category == selectedCategory;
+
+          return Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: ChoiceChip(
+              label: Text(category),
+              selected: isSelected,
+              showCheckmark: false,
+              onSelected: (selected) {
+                if (selected) {
+                  HapticFeedback.selectionClick();
+                  ref.read(selectedRentalCategoryProvider.notifier).state = category;
+                  ref.invalidate(featuredRentalsProvider);
+                  ref.invalidate(recentRentalsProvider);
+                }
+              },
+              backgroundColor: theme.colorScheme.surface,
+              selectedColor: AppColors.primary,
+              labelStyle: TextStyle(
+                color: isSelected ? Colors.white : theme.colorScheme.onSurface,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+              ),
+              side: BorderSide(
+                color: isSelected
+                    ? AppColors.primary
+                    : theme.colorScheme.outline.withAlpha(50),
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 }
 
-/// Animated empty section for when a service category returns no data
+/// Animated empty section for when a rental category returns no data
 class _AnimatedEmptySection extends StatelessWidget {
   final IconData icon;
   final String title;
@@ -343,18 +373,38 @@ class _AnimatedEmptySection extends StatelessWidget {
   }
 }
 
-class _ServiceFilterSheet extends ConsumerStatefulWidget {
-  const _ServiceFilterSheet();
+class _RentalFilterSheet extends ConsumerStatefulWidget {
+  const _RentalFilterSheet();
 
   @override
-  ConsumerState<_ServiceFilterSheet> createState() => _ServiceFilterSheetState();
+  ConsumerState<_RentalFilterSheet> createState() => _RentalFilterSheetState();
 }
 
-class _ServiceFilterSheetState extends ConsumerState<_ServiceFilterSheet> {
-  RangeValues _priceRange = const RangeValues(0, 5000);
-  String _pricingType = 'Todos';
-  bool _remoteOnly = false;
+class _RentalFilterSheetState extends ConsumerState<_RentalFilterSheet> {
+  RangeValues _priceRange = const RangeValues(0, 10000);
+  String _rentalType = 'Todos';
   String _sortBy = 'recent';
+
+  @override
+  void initState() {
+    super.initState();
+    final filters = ref.read(rentalFiltersProvider);
+    if (filters.minPrice != null || filters.maxPrice != null) {
+      _priceRange = RangeValues(
+        filters.minPrice ?? 0,
+        filters.maxPrice ?? 10000,
+      );
+    }
+    if (filters.rentalType != null) {
+      for (final cat in rentalCategories) {
+        if (rentalCategoryToType(cat) == filters.rentalType) {
+          _rentalType = cat;
+          break;
+        }
+      }
+    }
+    _sortBy = filters.sortBy;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -388,9 +438,8 @@ class _ServiceFilterSheetState extends ConsumerState<_ServiceFilterSheet> {
                   TextButton(
                     onPressed: () {
                       setState(() {
-                        _priceRange = const RangeValues(0, 5000);
-                        _pricingType = 'Todos';
-                        _remoteOnly = false;
+                        _priceRange = const RangeValues(0, 10000);
+                        _rentalType = 'Todos';
                         _sortBy = 'recent';
                       });
                     },
@@ -418,8 +467,8 @@ class _ServiceFilterSheetState extends ConsumerState<_ServiceFilterSheet> {
                   RangeSlider(
                     values: _priceRange,
                     min: 0,
-                    max: 5000,
-                    divisions: 50,
+                    max: 10000,
+                    divisions: 100,
                     labels: RangeLabels(
                       'R\$ ${_priceRange.start.round()}',
                       'R\$ ${_priceRange.end.round()}',
@@ -431,9 +480,9 @@ class _ServiceFilterSheetState extends ConsumerState<_ServiceFilterSheet> {
 
                   const SizedBox(height: 24),
 
-                  // Pricing type
+                  // Rental type
                   Text(
-                    'Tipo de Precificação',
+                    'Tipo de Aluguel',
                     style: theme.textTheme.titleSmall?.copyWith(
                       fontWeight: FontWeight.w600,
                     ),
@@ -442,43 +491,28 @@ class _ServiceFilterSheetState extends ConsumerState<_ServiceFilterSheet> {
                   Wrap(
                     spacing: 8,
                     runSpacing: 8,
-                    children: pricingTypeOptions.map((type) {
-                      final isSelected = type == _pricingType;
+                    children: rentalCategories.map((type) {
+                      final isSelected = type == _rentalType;
                       return ChoiceChip(
                         label: Text(type),
                         selected: isSelected,
                         showCheckmark: false,
                         onSelected: (selected) {
-                          if (selected) {
-                            setState(() => _pricingType = type);
-                          }
+                          if (selected) setState(() => _rentalType = type);
                         },
                         backgroundColor: theme.colorScheme.surface,
-                        selectedColor: theme.colorScheme.primary,
+                        selectedColor: AppColors.primary,
                         labelStyle: TextStyle(
                           color: isSelected ? Colors.white : theme.colorScheme.onSurface,
                           fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
                         ),
                         side: BorderSide(
                           color: isSelected
-                              ? theme.colorScheme.primary
+                              ? AppColors.primary
                               : theme.colorScheme.outline.withAlpha(50),
                         ),
                       );
                     }).toList(),
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  // Remote only
-                  CheckboxListTile(
-                    value: _remoteOnly,
-                    onChanged: (value) {
-                      setState(() => _remoteOnly = value ?? false);
-                    },
-                    title: const Text('Apenas serviços remotos'),
-                    contentPadding: EdgeInsets.zero,
-                    controlAffinity: ListTileControlAffinity.leading,
                   ),
 
                   const SizedBox(height: 24),
@@ -496,9 +530,8 @@ class _ServiceFilterSheetState extends ConsumerState<_ServiceFilterSheet> {
                     runSpacing: 8,
                     children: {
                       'recent': 'Mais recentes',
-                      'rating': 'Melhor avaliados',
-                      'popular': 'Mais populares',
                       'price_asc': 'Menor preço',
+                      'popular': 'Mais populares',
                     }.entries.map((e) {
                       final isSelected = _sortBy == e.key;
                       return ChoiceChip(
@@ -509,14 +542,14 @@ class _ServiceFilterSheetState extends ConsumerState<_ServiceFilterSheet> {
                           if (selected) setState(() => _sortBy = e.key);
                         },
                         backgroundColor: theme.colorScheme.surface,
-                        selectedColor: theme.colorScheme.primary,
+                        selectedColor: AppColors.primary,
                         labelStyle: TextStyle(
                           color: isSelected ? Colors.white : theme.colorScheme.onSurface,
                           fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
                         ),
                         side: BorderSide(
                           color: isSelected
-                              ? theme.colorScheme.primary
+                              ? AppColors.primary
                               : theme.colorScheme.outline.withAlpha(50),
                         ),
                       );
@@ -532,17 +565,23 @@ class _ServiceFilterSheetState extends ConsumerState<_ServiceFilterSheet> {
               child: SizedBox(
                 width: double.infinity,
                 child: FilledButton(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                  ),
                   onPressed: () {
-                    // Apply filters
-                    final filters = ref.read(serviceFiltersProvider.notifier);
-                    filters.state = filters.state.copyWith(
-                      minPrice: _priceRange.start,
-                      maxPrice: _priceRange.end,
-                      pricingType: _pricingType != 'Todos' ? pricingTypeToApi(_pricingType) : null,
-                      isRemote: _remoteOnly ? true : null,
+                    final rentalTypeValue = _rentalType != 'Todos' ? rentalCategoryToType(_rentalType) : null;
+                    final hasCustomPrice = _priceRange.start > 0 || _priceRange.end < 10000;
+
+                    ref.read(rentalFiltersProvider.notifier).state = RentalFilters(
+                      rentalType: rentalTypeValue,
+                      minPrice: hasCustomPrice ? _priceRange.start : null,
+                      maxPrice: hasCustomPrice ? _priceRange.end : null,
                       sortBy: _sortBy,
                     );
-                    ref.invalidate(filteredServicesProvider);
+
+                    ref.invalidate(featuredRentalsProvider);
+                    ref.invalidate(recentRentalsProvider);
+                    ref.read(paginatedRentalsProvider.notifier).refresh();
                     Navigator.pop(context);
                   },
                   child: const Text('Aplicar filtros'),

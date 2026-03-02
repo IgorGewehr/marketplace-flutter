@@ -127,19 +127,26 @@ class _ProductCardState extends ConsumerState<ProductCard> {
                             ),
                     ),
 
-                    // Top-left badges column (Novo, Desconto)
+                    // Top-left badges column (Aluguel, Novo, Desconto)
                     Positioned(
                       top: AppSpacing.s,
                       left: AppSpacing.s,
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          if (_isNew && widget.showBadge)
+                          if (product.isRental && widget.showBadge)
+                            _ProductBadge(
+                              label: 'ALUGUEL',
+                              color: AppColors.primary,
+                            ),
+                          if (_isNew && widget.showBadge) ...[
+                            if (product.isRental) const SizedBox(height: AppSpacing.xs),
                             _ProductBadge(
                               label: 'NOVO',
                               color: AppColors.secondary,
                             ),
-                          if (_hasDiscount && widget.showBadge) ...[
+                          ],
+                          if (_hasDiscount && !product.isRental && widget.showBadge) ...[
                             if (_isNew) const SizedBox(height: AppSpacing.xs),
                             _ProductBadge(
                               label: '-$_discountPercent%',
@@ -184,12 +191,26 @@ class _ProductCardState extends ConsumerState<ProductCard> {
                                     ),
                                   ],
                                 ),
-                                child: Icon(
-                                  isFavorite ? Icons.favorite : Icons.favorite_border,
-                                  color: isFavorite
-                                      ? Colors.red
-                                      : theme.colorScheme.onSurfaceVariant,
-                                  size: 20,
+                                child: AnimatedSwitcher(
+                                  duration: const Duration(milliseconds: 300),
+                                  transitionBuilder: (child, animation) {
+                                    return ScaleTransition(
+                                      scale: Tween<double>(begin: 0.5, end: 1.0)
+                                          .animate(CurvedAnimation(
+                                        parent: animation,
+                                        curve: Curves.elasticOut,
+                                      )),
+                                      child: child,
+                                    );
+                                  },
+                                  child: Icon(
+                                    isFavorite ? Icons.favorite : Icons.favorite_border,
+                                    key: ValueKey(isFavorite),
+                                    color: isFavorite
+                                        ? Colors.red
+                                        : theme.colorScheme.onSurfaceVariant,
+                                    size: 20,
+                                  ),
                                 ),
                               ),
                             ),
@@ -244,8 +265,8 @@ class _ProductCardState extends ConsumerState<ProductCard> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Price with discount
-                    if (product.hasDiscount) ...[
+                    // Price with discount / rental period
+                    if (product.hasDiscount && !product.isRental) ...[
                       Text(
                         Formatters.currency(product.compareAtPrice!),
                         style: theme.textTheme.bodySmall?.copyWith(
@@ -255,13 +276,22 @@ class _ProductCardState extends ConsumerState<ProductCard> {
                         ),
                       ),
                     ],
-                    Text(
-                      Formatters.currency(product.price),
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: theme.colorScheme.onSurface,
+                    if (product.isRental && product.rentalInfo != null)
+                      Text(
+                        '${Formatters.currency(product.price)}/${product.rentalInfo!.periodSuffix}',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.primary,
+                        ),
+                      )
+                    else
+                      Text(
+                        Formatters.currency(product.price),
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: theme.colorScheme.onSurface,
+                        ),
                       ),
-                    ),
                     const SizedBox(height: AppSpacing.xs),
 
                     // Product name
@@ -273,6 +303,35 @@ class _ProductCardState extends ConsumerState<ProductCard> {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
+
+                    // Rental property info (bedrooms + area)
+                    if (product.isRental &&
+                        product.rentalInfo?.rentalType == 'imovel' &&
+                        (product.rentalInfo?.bedrooms != null || product.rentalInfo?.area != null)) ...[
+                      const SizedBox(height: 3),
+                      Row(
+                        children: [
+                          if (product.rentalInfo!.bedrooms != null) ...[
+                            Icon(Icons.bed_outlined, size: 12, color: theme.colorScheme.onSurfaceVariant),
+                            const SizedBox(width: 2),
+                            Text(
+                              '${product.rentalInfo!.bedrooms} qts',
+                              style: TextStyle(fontSize: 11, color: theme.colorScheme.onSurfaceVariant),
+                            ),
+                          ],
+                          if (product.rentalInfo!.bedrooms != null && product.rentalInfo!.area != null)
+                            const SizedBox(width: 8),
+                          if (product.rentalInfo!.area != null) ...[
+                            Icon(Icons.square_foot, size: 12, color: theme.colorScheme.onSurfaceVariant),
+                            const SizedBox(width: 2),
+                            Text(
+                              '${product.rentalInfo!.area!.toStringAsFixed(0)} m\u00B2',
+                              style: TextStyle(fontSize: 11, color: theme.colorScheme.onSurfaceVariant),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ],
                     const SizedBox(height: 6),
 
                     // Location
@@ -351,7 +410,7 @@ class _ProductCardState extends ConsumerState<ProductCard> {
   }
 }
 
-/// Product badge widget (NOVO, -X%, etc.)
+/// Product badge widget (NOVO, -X%, etc.) with subtle entrance
 class _ProductBadge extends StatelessWidget {
   final String label;
   final Color color;
@@ -361,15 +420,15 @@ class _ProductBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
       decoration: BoxDecoration(
         color: color,
         borderRadius: BorderRadius.circular(AppSpacing.radiusXS),
         boxShadow: [
           BoxShadow(
-            color: color.withAlpha(60),
-            blurRadius: 4,
-            offset: const Offset(0, 1),
+            color: color.withAlpha(80),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
@@ -382,6 +441,6 @@ class _ProductBadge extends StatelessWidget {
           letterSpacing: 0.5,
         ),
       ),
-    );
+    ).animate().fadeIn(duration: 400.ms).slideX(begin: -0.2, curve: Curves.easeOut);
   }
 }

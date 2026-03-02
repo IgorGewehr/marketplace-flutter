@@ -127,11 +127,28 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
                 const Divider(),
 
-                // Step content
+                // Step content with smooth slide/fade transition
                 Expanded(
                   child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 300),
-                    child: _buildStepContent(checkoutState),
+                    duration: const Duration(milliseconds: 350),
+                    switchInCurve: Curves.easeOutCubic,
+                    switchOutCurve: Curves.easeInCubic,
+                    transitionBuilder: (child, animation) {
+                      return FadeTransition(
+                        opacity: animation,
+                        child: SlideTransition(
+                          position: Tween<Offset>(
+                            begin: const Offset(0.04, 0),
+                            end: Offset.zero,
+                          ).animate(animation),
+                          child: child,
+                        ),
+                      );
+                    },
+                    child: KeyedSubtree(
+                      key: ValueKey(checkoutState.currentStep),
+                      child: _buildStepContent(checkoutState),
+                    ),
                   ),
                 ),
 
@@ -868,9 +885,7 @@ class _DeliveryStep extends ConsumerWidget {
       return _buildError(context, ref, theme);
     }
 
-    final allOptions = state.freightOptions ?? [];
-    // Filter out pickup_point tier (removed from delivery options)
-    final options = allOptions.where((o) => o.tier != 'pickup_point').toList();
+    final options = state.freightOptions ?? [];
 
     if (options.isEmpty && !state.hasMixedCart) {
       return Center(
@@ -987,19 +1002,41 @@ class _DeliveryStep extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Calculando frete...',
-            style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+          Row(
+            children: [
+              Text(
+                'Calculando frete',
+                style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(width: 8),
+              SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: theme.colorScheme.primary,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 6),
+          Text(
+            'Buscando as melhores opções de entrega...',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ).animate(onPlay: (c) => c.repeat(reverse: true)).fadeIn(duration: 800.ms).then().fade(
+            begin: 1.0,
+            end: 0.5,
+            duration: 1000.ms,
+          ),
+          const SizedBox(height: 20),
           ...List.generate(3, (i) => Padding(
             padding: const EdgeInsets.only(bottom: 12),
-            child: ShimmerBox(
-              width: double.infinity,
-              height: 80,
-              borderRadius: BorderRadius.circular(12),
-            ),
-          )),
+            child: _FreightShimmerCard(theme: theme),
+          ).animate(delay: Duration(milliseconds: 100 * i))
+              .fadeIn(duration: 300.ms)
+              .slideY(begin: 0.1, curve: Curves.easeOut)),
         ],
       ),
     );
@@ -1045,6 +1082,22 @@ class _DeliveryStep extends ConsumerWidget {
   }
 }
 
+/// Realistic shimmer skeleton for a freight option card
+class _FreightShimmerCard extends StatelessWidget {
+  final ThemeData theme;
+
+  const _FreightShimmerCard({required this.theme});
+
+  @override
+  Widget build(BuildContext context) {
+    return ShimmerBox(
+      width: double.infinity,
+      height: 82,
+      borderRadius: BorderRadius.circular(12),
+    );
+  }
+}
+
 /// Individual freight option card
 class _FreightOptionCard extends StatelessWidget {
   final FreightOptionModel option;
@@ -1059,9 +1112,7 @@ class _FreightOptionCard extends StatelessWidget {
 
   IconData get _tierIcon {
     return switch (option.tier) {
-      'same_day' => Icons.flash_on,
-      'next_day' => Icons.rocket_launch_outlined,
-      'scheduled' => Icons.calendar_today_outlined,
+      'scheduled' => Icons.local_shipping_outlined,
       'pickup_point' => Icons.store_outlined,
       'seller_arranges' => Icons.handshake_outlined,
       _ => Icons.local_shipping_outlined,
@@ -1540,12 +1591,18 @@ class _BottomActions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isReview = currentStep == CheckoutStep.review;
 
     return SafeArea(
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: theme.colorScheme.surface,
+          border: Border(
+            top: BorderSide(
+              color: theme.colorScheme.outline.withAlpha(20),
+            ),
+          ),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withAlpha(10),
@@ -1562,6 +1619,9 @@ class _BottomActions extends StatelessWidget {
                   onPressed: onBack,
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                   child: const Text('Voltar'),
                 ),
@@ -1569,15 +1629,29 @@ class _BottomActions extends StatelessWidget {
             if (currentStep != CheckoutStep.address) const SizedBox(width: 12),
             Expanded(
               flex: 2,
-              child: FilledButton(
-                onPressed: canProceed ? onNext : null,
-                style: FilledButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                ),
-                child: Text(
-                  currentStep == CheckoutStep.review
-                      ? 'Confirmar ${Formatters.currency(total + deliveryFee)}'
-                      : 'Continuar',
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 250),
+                child: FilledButton.icon(
+                  onPressed: canProceed
+                      ? () {
+                          HapticFeedback.selectionClick();
+                          onNext();
+                        }
+                      : null,
+                  icon: isReview
+                      ? const Icon(Icons.lock_rounded, size: 18)
+                      : const Icon(Icons.arrow_forward_rounded, size: 18),
+                  label: Text(
+                    isReview
+                        ? 'Confirmar ${Formatters.currency(total + deliveryFee)}'
+                        : 'Continuar',
+                  ),
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
                 ),
               ),
             ),

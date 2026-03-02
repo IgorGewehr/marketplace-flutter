@@ -131,13 +131,13 @@ class _NavItem extends StatelessWidget {
           children: [
             // Animated pill indicator + icon
             AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              curve: Curves.easeInOut,
+              duration: const Duration(milliseconds: 250),
+              curve: Curves.easeOutCubic,
               height: 32,
-              width: isSelected ? 48 : 32,
+              width: isSelected ? 52 : 32,
               decoration: BoxDecoration(
                 color: isSelected
-                    ? theme.colorScheme.primary.withAlpha(20)
+                    ? theme.colorScheme.primary.withAlpha(22)
                     : Colors.transparent,
                 borderRadius: BorderRadius.circular(16),
               ),
@@ -146,33 +146,61 @@ class _NavItem extends StatelessWidget {
                 alignment: Alignment.center,
                 children: [
                   AnimatedScale(
-                    scale: isSelected ? 1.12 : 0.92,
-                    duration: const Duration(milliseconds: 200),
+                    scale: isSelected ? 1.15 : 0.92,
+                    duration: const Duration(milliseconds: 250),
                     curve: Curves.easeOutBack,
                     child: Icon(icon, color: color, size: 24),
                   ),
                   if (badgeCount > 0)
                     Positioned(
-                      right: -4,
-                      top: -4,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 5,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: theme.colorScheme.error,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        constraints: const BoxConstraints(minWidth: 18),
-                        child: Text(
-                          badgeCount > 99 ? '99+' : badgeCount.toString(),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
+                      right: isSelected ? -2 : -6,
+                      top: -5,
+                      child: TweenAnimationBuilder<double>(
+                        tween: Tween(begin: 0.0, end: 1.0),
+                        duration: const Duration(milliseconds: 350),
+                        curve: Curves.elasticOut,
+                        builder: (context, value, child) {
+                          return Transform.scale(
+                            scale: value,
+                            child: child,
+                          );
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 5,
+                            vertical: 2,
                           ),
-                          textAlign: TextAlign.center,
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.error,
+                            borderRadius: BorderRadius.circular(10),
+                            boxShadow: [
+                              BoxShadow(
+                                color: theme.colorScheme.error.withAlpha(60),
+                                blurRadius: 4,
+                                offset: const Offset(0, 1),
+                              ),
+                            ],
+                          ),
+                          constraints: const BoxConstraints(minWidth: 18),
+                          child: AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 200),
+                            transitionBuilder: (child, animation) {
+                              return ScaleTransition(
+                                scale: animation,
+                                child: child,
+                              );
+                            },
+                            child: Text(
+                              badgeCount > 99 ? '99+' : badgeCount.toString(),
+                              key: ValueKey(badgeCount),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
                         ),
                       ),
                     ),
@@ -181,10 +209,10 @@ class _NavItem extends StatelessWidget {
             ),
             const SizedBox(height: 2),
             AnimatedDefaultTextStyle(
-              duration: const Duration(milliseconds: 200),
+              duration: const Duration(milliseconds: 250),
               style: TextStyle(
                 color: color,
-                fontSize: 10,
+                fontSize: isSelected ? 10.5 : 10,
                 fontWeight: isSelected ? FontWeight.w700 : FontWeight.normal,
               ),
               child: Text(label),

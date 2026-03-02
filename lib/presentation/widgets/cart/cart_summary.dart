@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/utils/formatters.dart';
 
-/// Cart summary widget with optional delivery fee display
+/// Cart summary widget with optional delivery fee display and animated total
 class CartSummary extends StatelessWidget {
   final double total;
   final int itemCount;
@@ -30,6 +30,7 @@ class CartSummary extends StatelessWidget {
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: theme.colorScheme.outline.withAlpha(20)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withAlpha(8),
@@ -40,18 +41,22 @@ class CartSummary extends StatelessWidget {
       ),
       child: Column(
         children: [
-          // Subtotal row
+          // Subtotal row with animated item count
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'Subtotal (${itemCount == 1 ? '1 item' : '$itemCount itens'})',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 200),
+                child: Text(
+                  'Subtotal (${itemCount == 1 ? '1 item' : '$itemCount itens'})',
+                  key: ValueKey(itemCount),
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
                 ),
               ),
-              Text(
-                Formatters.currency(total),
+              _AnimatedPrice(
+                amount: total,
                 style: theme.textTheme.bodyMedium?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
@@ -81,8 +86,8 @@ class CartSummary extends StatelessWidget {
                   ),
                 )
               else if (deliveryFee != null && deliveryFee! > 0)
-                Text(
-                  Formatters.currency(deliveryFee!),
+                _AnimatedPrice(
+                  amount: deliveryFee!,
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
@@ -117,7 +122,7 @@ class CartSummary extends StatelessWidget {
           const Divider(thickness: 0.5),
           const SizedBox(height: 12),
 
-          // Total row
+          // Total row with animated counter
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -127,8 +132,8 @@ class CartSummary extends StatelessWidget {
                   fontWeight: FontWeight.w600,
                 ),
               ),
-              Text(
-                Formatters.currency(_grandTotal),
+              _AnimatedPrice(
+                amount: _grandTotal,
                 style: theme.textTheme.titleLarge?.copyWith(
                   fontWeight: FontWeight.bold,
                   color: theme.colorScheme.primary,
@@ -138,6 +143,32 @@ class CartSummary extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Animated price widget that smoothly transitions between values
+class _AnimatedPrice extends StatelessWidget {
+  final double amount;
+  final TextStyle? style;
+
+  const _AnimatedPrice({
+    required this.amount,
+    this.style,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(end: amount),
+      duration: const Duration(milliseconds: 400),
+      curve: Curves.easeOutCubic,
+      builder: (context, value, _) {
+        return Text(
+          Formatters.currency(value),
+          style: style,
+        );
+      },
     );
   }
 }

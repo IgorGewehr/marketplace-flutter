@@ -58,6 +58,15 @@ class AppColors {
   static const Color quickPromo = Color(0xFFFB8C00);
   static const Color quickServices = Color(0xFF43A047);
   static const Color quickCategories = Color(0xFF8E24AA);
+  static const Color quickRentals = Color(0xFFFFA726);
+  static const Color quickJobs = Color(0xFF1E88E5);
+
+  // === Job Type Colors ===
+  static const Color jobClt = Color(0xFF2196F3);
+  static const Color jobPj = Color(0xFF9C27B0);
+  static const Color jobFreelance = Color(0xFFFF9800);
+  static const Color jobEstagio = Color(0xFF4CAF50);
+  static const Color jobTemporario = Color(0xFF00BCD4);
 
   // === Feedback Toast Colors ===
   static const Color feedbackSuccessBg = Color(0xFF065F46);

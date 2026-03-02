@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../providers/checkout_provider.dart';
 
-/// Checkout stepper indicator widget
+/// Checkout stepper indicator widget with animated transitions
 class CheckoutStepper extends StatelessWidget {
   final CheckoutStep currentStep;
 
@@ -29,17 +29,36 @@ class CheckoutStepper extends StatelessWidget {
       child: Row(
         children: List.generate(steps.length * 2 - 1, (index) {
           if (index.isOdd) {
-            // Connector line
+            // Animated connector line with fill effect
             final stepIndex = (index - 1) ~/ 2;
             final isCompleted = stepIndex < currentIndex;
             return Expanded(
-              child: Container(
-                height: 2,
-                decoration: BoxDecoration(
-                  color: isCompleted
-                      ? theme.colorScheme.primary
-                      : theme.colorScheme.outline.withAlpha(50),
-                  borderRadius: BorderRadius.circular(1),
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 20),
+                child: Stack(
+                  children: [
+                    // Background track
+                    Container(
+                      height: 3,
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.outline.withAlpha(40),
+                        borderRadius: BorderRadius.circular(1.5),
+                      ),
+                    ),
+                    // Animated fill
+                    AnimatedFractionallySizedBox(
+                      duration: const Duration(milliseconds: 400),
+                      curve: Curves.easeInOut,
+                      widthFactor: isCompleted ? 1.0 : 0.0,
+                      child: Container(
+                        height: 3,
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.primary,
+                          borderRadius: BorderRadius.circular(1.5),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             );
@@ -59,6 +78,47 @@ class CheckoutStepper extends StatelessWidget {
           }
         }),
       ),
+    );
+  }
+}
+
+/// Animated fractionally sized box for progress line fill
+class AnimatedFractionallySizedBox extends ImplicitlyAnimatedWidget {
+  final double widthFactor;
+  final Widget child;
+
+  const AnimatedFractionallySizedBox({
+    super.key,
+    required super.duration,
+    super.curve,
+    required this.widthFactor,
+    required this.child,
+  });
+
+  @override
+  AnimatedFractionallySizedBoxState createState() =>
+      AnimatedFractionallySizedBoxState();
+}
+
+class AnimatedFractionallySizedBoxState
+    extends AnimatedWidgetBaseState<AnimatedFractionallySizedBox> {
+  Tween<double>? _widthFactor;
+
+  @override
+  void forEachTween(TweenVisitor<dynamic> visitor) {
+    _widthFactor = visitor(
+      _widthFactor,
+      widget.widthFactor,
+      (dynamic value) => Tween<double>(begin: value as double),
+    ) as Tween<double>?;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FractionallySizedBox(
+      alignment: Alignment.centerLeft,
+      widthFactor: _widthFactor?.evaluate(animation) ?? 0.0,
+      child: widget.child,
     );
   }
 }
@@ -106,31 +166,61 @@ class _StepIndicator extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          width: 44,
-          height: 44,
+          duration: const Duration(milliseconds: 350),
+          curve: Curves.easeOutCubic,
+          width: isActive ? 48 : 44,
+          height: isActive ? 48 : 44,
           decoration: BoxDecoration(
             color: backgroundColor,
             shape: BoxShape.circle,
             border: isActive
-                ? Border.all(color: theme.colorScheme.primary, width: 2)
+                ? Border.all(color: theme.colorScheme.primary, width: 2.5)
                 : null,
+            boxShadow: isActive
+                ? [
+                    BoxShadow(
+                      color: theme.colorScheme.primary.withAlpha(40),
+                      blurRadius: 12,
+                      spreadRadius: 1,
+                    ),
+                  ]
+                : isCompleted
+                    ? [
+                        BoxShadow(
+                          color: theme.colorScheme.primary.withAlpha(25),
+                          blurRadius: 6,
+                        ),
+                      ]
+                    : null,
           ),
           child: Center(
-            child: isCompleted
-                ? const Icon(Icons.check, color: Colors.white, size: 20)
-                : Icon(stepData.icon, color: iconColor, size: 20),
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 300),
+              switchInCurve: Curves.easeOutBack,
+              switchOutCurve: Curves.easeIn,
+              transitionBuilder: (child, animation) {
+                return ScaleTransition(
+                  scale: animation,
+                  child: FadeTransition(opacity: animation, child: child),
+                );
+              },
+              child: isCompleted
+                  ? const Icon(Icons.check_rounded, color: Colors.white, size: 22, key: ValueKey('check'))
+                  : Icon(stepData.icon, color: iconColor, size: 20, key: ValueKey(stepData.label)),
+            ),
           ),
         ),
         const SizedBox(height: 6),
-        Text(
-          stepData.label,
-          style: theme.textTheme.labelSmall?.copyWith(
+        AnimatedDefaultTextStyle(
+          duration: const Duration(milliseconds: 250),
+          style: theme.textTheme.labelSmall!.copyWith(
             color: isActive || isCompleted
                 ? theme.colorScheme.primary
                 : theme.colorScheme.onSurfaceVariant,
-            fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
+            fontWeight: isActive ? FontWeight.w700 : FontWeight.normal,
+            fontSize: isActive ? 11.5 : 11,
           ),
+          child: Text(stepData.label),
         ),
       ],
     );

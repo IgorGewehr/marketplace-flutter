@@ -379,8 +379,14 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                         ),
                       ),
 
-                      // Variant selector with price, stock, and sold-out state
-                      if (product.hasVariants && product.variants.isNotEmpty) ...[
+                      // Rental info section
+                      if (product.isRental && product.rentalInfo != null) ...[
+                        const SizedBox(height: 16),
+                        _buildRentalInfoSection(product, theme),
+                      ],
+
+                      // Variant selector with price, stock, and sold-out state (hidden for rentals)
+                      if (!product.isRental && product.hasVariants && product.variants.isNotEmpty) ...[
                         const SizedBox(height: 20),
                         Text(
                           'Variante',
@@ -461,9 +467,10 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                         ),
                       ],
 
+                      // Quantity selector (uses variant stock when selected) — hidden for rentals
+                      if (!product.isRental) ...[
                       const SizedBox(height: 24),
 
-                      // Quantity selector (uses variant stock when selected)
                       Builder(
                         builder: (context) {
                           final effectiveQty = _effectiveQuantity(product);
@@ -525,6 +532,8 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                           );
                         },
                       ),
+
+                      ], // end !product.isRental quantity selector
 
                       const SizedBox(height: 24),
                       const Divider(),
@@ -798,14 +807,15 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
         },
       ),
 
-      // Bottom bar: Comprar + Chat (< R$500) or WhatsApp/Chat (>= R$500)
+      // Bottom bar: Rental contact-only, or Comprar + Chat / WhatsApp+Chat
       bottomNavigationBar: productAsync.when(
         loading: () => null,
         error: (_, __) => null,
         data: (product) {
           if (product == null) return null;
 
-          final isHighValue = _effectivePrice(product) >= 500;
+          final isRental = product.isRental;
+          final isHighValue = !isRental && _effectivePrice(product) >= 500;
           final hasWhatsApp = tenant?.whatsapp != null && tenant!.whatsapp!.isNotEmpty;
 
           return Container(
@@ -828,8 +838,41 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Info banner for high-value products
-                if (isHighValue)
+                // Info banner for rental or high-value
+                if (isRental)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withAlpha(20),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: AppColors.primary.withAlpha(60)),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.vpn_key_rounded,
+                            size: 16,
+                            color: AppColors.primary,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Anúncio de aluguel — entre em contato com o anunciante',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: AppColors.primary,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                else if (isHighValue)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 8),
                     child: Container(
@@ -861,7 +904,73 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                     ),
                   ),
 
-                if (!isHighValue)
+                if (isRental || isHighValue)
+                  // Rental or high-value layout: WhatsApp + Chat (or Chat only)
+                  Row(
+                    children: [
+                      if (hasWhatsApp) ...[
+                        Expanded(
+                          flex: 3,
+                          child: FilledButton.icon(
+                            onPressed: () => launchWhatsApp(
+                              phoneNumber: tenant!.whatsapp!,
+                              message: isRental
+                                  ? 'Olá! Tenho interesse no aluguel: ${product.name} - ${product.rentalPriceDisplay ?? Formatters.currency(product.price)}'
+                                  : 'Olá! Tenho interesse no produto: ${product.name} - ${Formatters.currency(_effectivePrice(product))}',
+                              context: context,
+                            ),
+                            icon: const Icon(LucideIcons.messageCircle, size: 20),
+                            label: const Text(
+                              'WhatsApp',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            style: FilledButton.styleFrom(
+                              backgroundColor: const Color(0xFF25D366),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                      ],
+                      Expanded(
+                        flex: hasWhatsApp ? 2 : 1,
+                        child: OutlinedButton.icon(
+                          onPressed: _isOpeningChat ? null : () => _openChat(product.tenantId),
+                          icon: _isOpeningChat
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                )
+                              : const Icon(Icons.chat_bubble_outline, size: 20),
+                          label: Text(
+                            _isOpeningChat ? 'Abrindo...' : 'Chat',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            side: BorderSide(
+                              color: theme.colorScheme.outline.withAlpha(80),
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  )
+                else
                   // Standard layout: Comprar + Chat
                   Row(
                     children: [
@@ -929,73 +1038,9 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                         ),
                       ),
                     ],
-                  )
-                else
-                  // High-value layout: WhatsApp + Chat (or Chat only)
-                  Row(
-                    children: [
-                      if (hasWhatsApp) ...[
-                        Expanded(
-                          flex: 3,
-                          child: FilledButton.icon(
-                            onPressed: () => launchWhatsApp(
-                              phoneNumber: tenant.whatsapp!,
-                              message: 'Olá! Tenho interesse no produto: ${product.name} - ${Formatters.currency(_effectivePrice(product))}',
-                              context: context,
-                            ),
-                            icon: const Icon(LucideIcons.messageCircle, size: 20),
-                            label: const Text(
-                              'WhatsApp',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            style: FilledButton.styleFrom(
-                              backgroundColor: const Color(0xFF25D366),
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                      ],
-                      Expanded(
-                        flex: hasWhatsApp ? 2 : 1,
-                        child: OutlinedButton.icon(
-                          onPressed: _isOpeningChat ? null : () => _openChat(product.tenantId),
-                          icon: _isOpeningChat
-                              ? const SizedBox(
-                                  width: 18,
-                                  height: 18,
-                                  child: CircularProgressIndicator(strokeWidth: 2),
-                                )
-                              : const Icon(Icons.chat_bubble_outline, size: 20),
-                          label: Text(
-                            _isOpeningChat ? 'Abrindo...' : 'Chat',
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            side: BorderSide(
-                              color: theme.colorScheme.outline.withAlpha(80),
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
                   ),
 
-                if (!isHighValue && product.trackInventory && product.quantity <= 0)
+                if (!isRental && !isHighValue && product.trackInventory && product.quantity <= 0)
                   Padding(
                     padding: const EdgeInsets.only(top: 4),
                     child: Text(
@@ -1011,6 +1056,187 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
       ),
     );
   }
+
+  Widget _buildRentalInfoSection(ProductModel product, ThemeData theme) {
+    final ri = product.rentalInfo!;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Period chip + availability
+        Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withAlpha(20),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: AppColors.primary.withAlpha(80)),
+              ),
+              child: Text(
+                ri.periodDisplayFull,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.primary,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: ri.isAvailable ? Colors.green.withAlpha(20) : Colors.red.withAlpha(20),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    ri.isAvailable ? Icons.check_circle : Icons.cancel,
+                    size: 14,
+                    color: ri.isAvailable ? Colors.green : Colors.red,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    ri.isAvailable ? 'Disponível' : 'Indisponível',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: ri.isAvailable ? Colors.green[700] : Colors.red[700],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+
+        // Deposit
+        if (ri.deposit != null && ri.deposit! > 0) ...[
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Icon(Icons.account_balance_wallet_outlined, size: 16, color: theme.colorScheme.onSurfaceVariant),
+              const SizedBox(width: 6),
+              Text(
+                'Caução: ${Formatters.currency(ri.deposit!)}',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ],
+
+        // Property-specific info grid (imóvel)
+        if (ri.rentalType == 'imovel') ...[
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainerHighest.withAlpha(80),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Detalhes do Imóvel',
+                  style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 16,
+                  runSpacing: 10,
+                  children: [
+                    if (ri.propertyType != null)
+                      _rentalInfoChip(Icons.home_outlined, ri.propertyTypeDisplay, theme),
+                    if (ri.bedrooms != null)
+                      _rentalInfoChip(Icons.bed_outlined, '${ri.bedrooms} quarto${ri.bedrooms! > 1 ? 's' : ''}', theme),
+                    if (ri.bathrooms != null)
+                      _rentalInfoChip(Icons.bathtub_outlined, '${ri.bathrooms} banheiro${ri.bathrooms! > 1 ? 's' : ''}', theme),
+                    if (ri.area != null)
+                      _rentalInfoChip(Icons.square_foot, '${ri.area!.toStringAsFixed(0)} m\u00B2', theme),
+                    if (ri.furnished == true)
+                      _rentalInfoChip(Icons.chair_outlined, 'Mobiliado', theme),
+                    if (ri.furnished == false)
+                      _rentalInfoChip(Icons.chair_outlined, 'Sem mobília', theme),
+                    if (ri.petsAllowed == true)
+                      _rentalInfoChip(Icons.pets, 'Aceita pets', theme),
+                    if (ri.petsAllowed == false)
+                      _rentalInfoChip(Icons.pets, 'Não aceita pets', theme),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+
+        // Vehicle info (veículo)
+        if (ri.rentalType == 'veiculo') ...[
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainerHighest.withAlpha(80),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Detalhes do Veículo',
+                  style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 16,
+                  runSpacing: 10,
+                  children: [
+                    if (ri.brand != null)
+                      _rentalInfoChip(Icons.directions_car, ri.brand!, theme),
+                    if (ri.model != null)
+                      _rentalInfoChip(Icons.label_outline, ri.model!, theme),
+                    if (ri.year != null)
+                      _rentalInfoChip(Icons.calendar_today, '${ri.year}', theme),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+
+        // Availability notes
+        if (ri.availabilityNotes != null && ri.availabilityNotes!.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Text(
+            ri.availabilityNotes!,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _rentalInfoChip(IconData icon, String label, ThemeData theme) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 16, color: theme.colorScheme.onSurfaceVariant),
+        const SizedBox(width: 4),
+        Text(
+          label,
+          style: theme.textTheme.bodySmall?.copyWith(
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
+    );
+  }
+
 }
 
 // ============================================================================
@@ -1092,6 +1318,7 @@ class _ProductReviewsSection extends ConsumerWidget {
       ],
     );
   }
+
 }
 
 /// Frosted glass icon button for the transparent AppBar

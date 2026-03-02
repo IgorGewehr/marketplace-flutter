@@ -33,6 +33,9 @@ class ServiceModel {
   final String status; // active, draft, inactive
   final bool acceptsQuote;
   final bool instantBooking;
+  final bool scheduleEnabled;
+  final int slotDurationMinutes;
+  final int breakBetweenMinutes;
   final ServiceMarketplaceStats? marketplaceStats;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -67,6 +70,9 @@ class ServiceModel {
     this.status = 'active',
     this.acceptsQuote = true,
     this.instantBooking = false,
+    this.scheduleEnabled = false,
+    this.slotDurationMinutes = 60,
+    this.breakBetweenMinutes = 0,
     this.marketplaceStats,
     required this.createdAt,
     required this.updatedAt,
@@ -152,6 +158,9 @@ class ServiceModel {
       status: json['status'] as String? ?? 'active',
       acceptsQuote: json['acceptsQuote'] as bool? ?? true,
       instantBooking: json['instantBooking'] as bool? ?? false,
+      scheduleEnabled: json['scheduleEnabled'] as bool? ?? false,
+      slotDurationMinutes: json['slotDurationMinutes'] as int? ?? 60,
+      breakBetweenMinutes: json['breakBetweenMinutes'] as int? ?? 0,
       marketplaceStats: json['marketplaceStats'] != null
           ? ServiceMarketplaceStats.fromJson(json['marketplaceStats'] as Map<String, dynamic>)
           : null,
@@ -191,6 +200,9 @@ class ServiceModel {
       'status': status,
       'acceptsQuote': acceptsQuote,
       'instantBooking': instantBooking,
+      'scheduleEnabled': scheduleEnabled,
+      'slotDurationMinutes': slotDurationMinutes,
+      'breakBetweenMinutes': breakBetweenMinutes,
       if (marketplaceStats != null) 'marketplaceStats': marketplaceStats!.toJson(),
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
@@ -227,6 +239,9 @@ class ServiceModel {
     String? status,
     bool? acceptsQuote,
     bool? instantBooking,
+    bool? scheduleEnabled,
+    int? slotDurationMinutes,
+    int? breakBetweenMinutes,
     ServiceMarketplaceStats? marketplaceStats,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -261,6 +276,9 @@ class ServiceModel {
       status: status ?? this.status,
       acceptsQuote: acceptsQuote ?? this.acceptsQuote,
       instantBooking: instantBooking ?? this.instantBooking,
+      scheduleEnabled: scheduleEnabled ?? this.scheduleEnabled,
+      slotDurationMinutes: slotDurationMinutes ?? this.slotDurationMinutes,
+      breakBetweenMinutes: breakBetweenMinutes ?? this.breakBetweenMinutes,
       marketplaceStats: marketplaceStats ?? this.marketplaceStats,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -388,6 +406,40 @@ class ServiceHours {
       if (sunday != null) 'sunday': sunday,
     };
   }
+
+  /// Get hours string for a given day name (e.g. 'monday')
+  /// Returns the raw string like "08:00-18:00" or null
+  String? getHoursForDay(String day) {
+    switch (day.toLowerCase()) {
+      case 'monday':
+        return monday;
+      case 'tuesday':
+        return tuesday;
+      case 'wednesday':
+        return wednesday;
+      case 'thursday':
+        return thursday;
+      case 'friday':
+        return friday;
+      case 'saturday':
+        return saturday;
+      case 'sunday':
+        return sunday;
+      default:
+        return null;
+    }
+  }
+
+  /// Get all days as a map
+  Map<String, String?> get allDays => {
+        'monday': monday,
+        'tuesday': tuesday,
+        'wednesday': wednesday,
+        'thursday': thursday,
+        'friday': friday,
+        'saturday': saturday,
+        'sunday': sunday,
+      };
 }
 
 class ServiceDuration {

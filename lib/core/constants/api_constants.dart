@@ -33,6 +33,15 @@ class ApiConstants {
   static const String marketplaceServiceCategories = '/api/marketplace/service-categories';
   static const String marketplaceServicesSearch = '/api/marketplace/services/search';
 
+  // Marketplace Rentals
+  static const String marketplaceRentals = '/api/marketplace/products';
+  static const String marketplaceRentalsFeatured = '/api/marketplace/rentals/featured';
+  static const String marketplaceRentalsRecent = '/api/marketplace/rentals/recent';
+
+  // Marketplace Jobs
+  static const String marketplaceJobsFeatured = '/api/marketplace/jobs/featured';
+  static const String marketplaceJobsRecent = '/api/marketplace/jobs/recent';
+
   // === Cart Endpoints ===
   static const String cart = '/api/cart';
   static const String cartItems = '/api/cart/items';
@@ -104,6 +113,11 @@ class ApiConstants {
   static const String reviews = '/api/reviews';
   static const String reviewsCheck = '/api/reviews/check';
   static const String marketplaceReviews = '/api/marketplace/reviews';
+
+  // === Appointments Endpoints ===
+  static const String appointments = '/api/appointments';
+  static String appointmentById(String id) => '/api/appointments/$id';
+  static String serviceSlots(String serviceId) => '/api/marketplace/services/$serviceId/slots';
 
   // === Shipping Endpoints ===
   static const String shippingCalculate = '/api/shipping/calculate';

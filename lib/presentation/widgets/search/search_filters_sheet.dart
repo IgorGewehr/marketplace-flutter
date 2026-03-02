@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/utils/formatters.dart';
+import '../../../core/theme/app_colors.dart';
 import '../../providers/products_provider.dart';
 
 /// Search filters bottom sheet
@@ -14,16 +15,29 @@ class SearchFiltersSheet extends ConsumerStatefulWidget {
 
 class _SearchFiltersSheetState extends ConsumerState<SearchFiltersSheet> {
   late String _selectedCategory;
-  RangeValues _priceRange = const RangeValues(0, 50000);
+  double? _minPrice;
+  double? _maxPrice;
   String _sortBy = 'recent';
   final _tagController = TextEditingController();
+  final _minController = TextEditingController();
+  final _maxController = TextEditingController();
   List<String> _tags = [];
+
+  static const _maxPresets = [
+    (label: 'R\$ 500', value: 500.0),
+    (label: 'R\$ 1k', value: 1000.0),
+    (label: 'R\$ 5k', value: 5000.0),
+    (label: 'R\$ 50k', value: 50000.0),
+    (label: 'R\$ 200k', value: 200000.0),
+    (label: 'R\$ 500k', value: 500000.0),
+    (label: 'R\$ 1M', value: 1000000.0),
+    (label: 'R\$ 5M', value: 5000000.0),
+  ];
 
   @override
   void initState() {
     super.initState();
     final filters = ref.read(productFiltersProvider);
-    // filters.category stores a category ID; resolve it back to a name for display
     final categoryId = filters.category;
     if (categoryId != null) {
       final idToName = ref.read(categoryIdToNameProvider).valueOrNull ?? {};
@@ -31,10 +45,10 @@ class _SearchFiltersSheetState extends ConsumerState<SearchFiltersSheet> {
     } else {
       _selectedCategory = 'Todos';
     }
-    _priceRange = RangeValues(
-      filters.minPrice ?? 0,
-      filters.maxPrice ?? 50000,
-    );
+    _minPrice = filters.minPrice;
+    _maxPrice = filters.maxPrice;
+    _minController.text = filters.minPrice != null ? filters.minPrice!.toInt().toString() : '';
+    _maxController.text = filters.maxPrice != null ? filters.maxPrice!.toInt().toString() : '';
     _sortBy = filters.sortBy;
     _tags = List.from(filters.tags ?? []);
   }
@@ -42,6 +56,8 @@ class _SearchFiltersSheetState extends ConsumerState<SearchFiltersSheet> {
   @override
   void dispose() {
     _tagController.dispose();
+    _minController.dispose();
+    _maxController.dispose();
     super.dispose();
   }
 
@@ -51,13 +67,17 @@ class _SearchFiltersSheetState extends ConsumerState<SearchFiltersSheet> {
     final categoryId = _selectedCategory == 'Todos'
         ? null
         : nameToId[_selectedCategory] ?? _selectedCategory;
-    ref.read(productFiltersProvider.notifier).state = currentFilters.copyWith(
+
+    ref.read(productFiltersProvider.notifier).state = ProductFilters(
+      query: currentFilters.query,
       category: categoryId,
-      minPrice: _priceRange.start > 0 ? _priceRange.start : null,
-      maxPrice: _priceRange.end < 50000 ? _priceRange.end : null,
+      minPrice: _minPrice,
+      maxPrice: _maxPrice,
       sortBy: _sortBy,
+      page: 1,
+      limit: currentFilters.limit,
       tags: _tags.isNotEmpty ? _tags : null,
-      page: 1, // Reset to first page
+      followedOnly: currentFilters.followedOnly,
     );
     Navigator.pop(context);
   }
@@ -65,7 +85,10 @@ class _SearchFiltersSheetState extends ConsumerState<SearchFiltersSheet> {
   void _clearFilters() {
     setState(() {
       _selectedCategory = 'Todos';
-      _priceRange = const RangeValues(0, 50000);
+      _minPrice = null;
+      _maxPrice = null;
+      _minController.clear();
+      _maxController.clear();
       _sortBy = 'recent';
       _tags = [];
       _tagController.clear();
@@ -80,6 +103,29 @@ class _SearchFiltersSheetState extends ConsumerState<SearchFiltersSheet> {
         _tagController.clear();
       });
     }
+  }
+
+  void _setMaxPreset(double value) {
+    setState(() {
+      _maxPrice = value;
+      _maxController.text = value.toInt().toString();
+    });
+  }
+
+  void _onMinChanged(String val) {
+    final digits = val.replaceAll(RegExp(r'[^\d]'), '');
+    _minController.value = _minController.value.copyWith(text: digits);
+    setState(() {
+      _minPrice = digits.isEmpty ? null : double.tryParse(digits);
+    });
+  }
+
+  void _onMaxChanged(String val) {
+    final digits = val.replaceAll(RegExp(r'[^\d]'), '');
+    _maxController.value = _maxController.value.copyWith(text: digits);
+    setState(() {
+      _maxPrice = digits.isEmpty ? null : double.tryParse(digits);
+    });
   }
 
   @override
@@ -120,7 +166,7 @@ class _SearchFiltersSheetState extends ConsumerState<SearchFiltersSheet> {
                 ),
                 TextButton(
                   onPressed: _clearFilters,
-                  child: const Text('Limpar'),
+                  child: const Text('Limpar tudo'),
                 ),
               ],
             ),
@@ -135,7 +181,7 @@ class _SearchFiltersSheetState extends ConsumerState<SearchFiltersSheet> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Category filter
+                  // ─── Category ───────────────────────────────────────────
                   Text(
                     'Categoria',
                     style: theme.textTheme.titleMedium?.copyWith(
@@ -145,72 +191,157 @@ class _SearchFiltersSheetState extends ConsumerState<SearchFiltersSheet> {
                   const SizedBox(height: 12),
                   categoriesAsync.when(
                     loading: () => const CircularProgressIndicator(),
-                    error: (_, __) => const Text('Erro ao carregar categorias'),
+                    error: (e, _) => const Text('Erro ao carregar categorias'),
                     data: (categories) => Wrap(
                       spacing: 8,
                       runSpacing: 8,
                       children: categories.map((category) {
                         final isSelected = category == _selectedCategory;
-                        return FilterChip(
-                          label: Text(category),
-                          selected: isSelected,
-                          onSelected: (_) {
+                        return GestureDetector(
+                          onTap: () {
+                            HapticFeedback.selectionClick();
                             setState(() => _selectedCategory = category);
                           },
-                          selectedColor: theme.colorScheme.primaryContainer,
-                          checkmarkColor: theme.colorScheme.primary,
-                          labelStyle: TextStyle(
-                            color: isSelected
-                                ? theme.colorScheme.primary
-                                : theme.colorScheme.onSurface,
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 200),
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: isSelected ? AppColors.primary : Colors.transparent,
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: isSelected
+                                    ? AppColors.primary
+                                    : theme.colorScheme.outline.withAlpha(60),
+                                width: isSelected ? 1.5 : 1,
+                              ),
+                            ),
+                            child: Text(
+                              category,
+                              style: TextStyle(
+                                color: isSelected ? Colors.white : theme.colorScheme.onSurface,
+                                fontWeight:
+                                    isSelected ? FontWeight.w600 : FontWeight.normal,
+                                fontSize: 13,
+                              ),
+                            ),
                           ),
                         );
                       }).toList(),
                     ),
                   ),
 
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 28),
 
-                  // Price range filter
-                  Text(
-                    'Faixa de preço',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
+                  // ─── Price range ─────────────────────────────────────────
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        Formatters.currency(_priceRange.start),
-                        style: theme.textTheme.bodyMedium,
+                        'Faixa de preço',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
-                      Text(
-                        _priceRange.end >= 50000
-                            ? 'R\$ 50.000+'
-                            : Formatters.currency(_priceRange.end),
-                        style: theme.textTheme.bodyMedium,
+                      if (_minPrice != null || _maxPrice != null)
+                        TextButton(
+                          onPressed: () => setState(() {
+                            _minPrice = null;
+                            _maxPrice = null;
+                            _minController.clear();
+                            _maxController.clear();
+                          }),
+                          style: TextButton.styleFrom(
+                            visualDensity: VisualDensity.compact,
+                            padding: EdgeInsets.zero,
+                          ),
+                          child: const Text('Limpar'),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Quick max presets
+                  SizedBox(
+                    height: 34,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: _maxPresets.length,
+                      separatorBuilder: (context, _) => const SizedBox(width: 8),
+                      itemBuilder: (context, i) {
+                        final preset = _maxPresets[i];
+                        final isActive = _maxPrice == preset.value;
+                        return GestureDetector(
+                          onTap: () {
+                            HapticFeedback.selectionClick();
+                            if (isActive) {
+                              setState(() {
+                                _maxPrice = null;
+                                _maxController.clear();
+                              });
+                            } else {
+                              _setMaxPreset(preset.value);
+                            }
+                          },
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 200),
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                            decoration: BoxDecoration(
+                              color: isActive ? AppColors.primary : Colors.transparent,
+                              borderRadius: BorderRadius.circular(17),
+                              border: Border.all(
+                                color: isActive
+                                    ? AppColors.primary
+                                    : theme.colorScheme.outline.withAlpha(60),
+                              ),
+                            ),
+                            child: Text(
+                              preset.label,
+                              style: TextStyle(
+                                color: isActive ? Colors.white : theme.colorScheme.onSurface,
+                                fontSize: 12,
+                                fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  // Min / Max text fields
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _PriceTextField(
+                          controller: _minController,
+                          label: 'Mínimo',
+                          onChanged: _onMinChanged,
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        child: Text(
+                          '–',
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            color: theme.colorScheme.outline,
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: _PriceTextField(
+                          controller: _maxController,
+                          label: 'Máximo',
+                          onChanged: _onMaxChanged,
+                        ),
                       ),
                     ],
                   ),
-                  RangeSlider(
-                    values: _priceRange,
-                    min: 0,
-                    max: 50000,
-                    divisions: 100,
-                    labels: RangeLabels(
-                      Formatters.currency(_priceRange.start),
-                      Formatters.currency(_priceRange.end),
-                    ),
-                    onChanged: (values) {
-                      setState(() => _priceRange = values);
-                    },
-                  ),
 
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 28),
 
-                  // Tag filter
+                  // ─── Tags ────────────────────────────────────────────────
                   Text(
                     'Tags',
                     style: theme.textTheme.titleMedium?.copyWith(
@@ -242,18 +373,26 @@ class _SearchFiltersSheetState extends ConsumerState<SearchFiltersSheet> {
                     Wrap(
                       spacing: 6,
                       runSpacing: 6,
-                      children: _tags.map((tag) => Chip(
-                        label: Text('#$tag'),
-                        deleteIcon: const Icon(Icons.close, size: 16),
-                        onDeleted: () => setState(() => _tags.remove(tag)),
-                        visualDensity: VisualDensity.compact,
-                      )).toList(),
+                      children: _tags
+                          .map((tag) => Chip(
+                                label: Text('#$tag'),
+                                deleteIcon: const Icon(Icons.close, size: 16),
+                                onDeleted: () => setState(() => _tags.remove(tag)),
+                                visualDensity: VisualDensity.compact,
+                                backgroundColor: AppColors.primary.withAlpha(20),
+                                side: BorderSide(color: AppColors.primary.withAlpha(60)),
+                                labelStyle: TextStyle(
+                                  color: AppColors.primary,
+                                  fontSize: 12,
+                                ),
+                              ))
+                          .toList(),
                     ),
                   ],
 
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 28),
 
-                  // Sort by filter
+                  // ─── Sort ────────────────────────────────────────────────
                   Text(
                     'Ordenar por',
                     style: theme.textTheme.titleMedium?.copyWith(
@@ -298,17 +437,69 @@ class _SearchFiltersSheetState extends ConsumerState<SearchFiltersSheet> {
   }
 
   Widget _buildSortChip(String value, String label) {
-    final theme = Theme.of(context);
     final isSelected = _sortBy == value;
-
-    return FilterChip(
-      label: Text(label),
-      selected: isSelected,
-      onSelected: (_) {
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.selectionClick();
         setState(() => _sortBy = value);
       },
-      selectedColor: theme.colorScheme.primaryContainer,
-      checkmarkColor: theme.colorScheme.primary,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.primary : Colors.transparent,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSelected
+                ? AppColors.primary
+                : Theme.of(context).colorScheme.outline.withAlpha(60),
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: isSelected ? Colors.white : Theme.of(context).colorScheme.onSurface,
+            fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+            fontSize: 13,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PriceTextField extends StatelessWidget {
+  final TextEditingController controller;
+  final String label;
+  final ValueChanged<String> onChanged;
+
+  const _PriceTextField({
+    required this.controller,
+    required this.label,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return TextField(
+      controller: controller,
+      keyboardType: TextInputType.number,
+      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+      onChanged: onChanged,
+      decoration: InputDecoration(
+        labelText: label,
+        prefixText: 'R\$ ',
+        prefixStyle: TextStyle(
+          color: theme.colorScheme.onSurface,
+          fontWeight: FontWeight.w500,
+        ),
+        isDense: true,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      ),
     );
   }
 }

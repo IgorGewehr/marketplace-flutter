@@ -77,9 +77,14 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
     quantity, trackInventory, hasVariants, variants,
     visibility, ncm, cfop, location,
     weight, dimensions, isPerishable, shippingCategory, shippingPolicy,
+    productType, rentalInfo,
+    listingType, companyName, salary, salaryNegotiable, jobType, workMode,
+    requirements, benefits, contactEmail, contactPhone,
   } = req.body;
 
-  if (!name || price === undefined || price === null) {
+  const isJob = listingType === "job";
+
+  if (!name || (!isJob && (price === undefined || price === null))) {
     res.status(400).json({ error: "Nome e preco sao obrigatorios" });
     return;
   }
@@ -95,6 +100,10 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
     const now = admin.firestore.Timestamp.now();
     const productId = uuidv4();
 
+    const isRental = productType === "rental";
+    const isJobListing = listingType === "job";
+    const skipInventory = isRental || isJobListing;
+
     const productData: Record<string, unknown> = {
       id: productId,
       tenantId,
@@ -105,15 +114,15 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
       subcategoryId: subcategoryId || null,
       tags: tags || [],
       images: images || [],
-      price: parseFloat(price) || 0,
+      price: isJobListing ? 0 : (parseFloat(price) || 0),
       compareAtPrice: compareAtPrice ? parseFloat(compareAtPrice) : null,
       costPrice: costPrice ? parseFloat(costPrice) : null,
       sku: sku || null,
       barcode: barcode || null,
-      quantity: quantity !== undefined && quantity !== null ? parseInt(quantity) : 0,
-      trackInventory: trackInventory ?? true,
-      hasVariants: hasVariants ?? false,
-      variants: variants || [],
+      quantity: skipInventory ? 0 : (quantity !== undefined && quantity !== null ? parseInt(quantity) : 0),
+      trackInventory: skipInventory ? false : (trackInventory ?? true),
+      hasVariants: skipInventory ? false : (hasVariants ?? false),
+      variants: skipInventory ? [] : (variants || []),
       visibility: visibility || "both",
       status: "active",
       ncm: ncm || null,
@@ -123,7 +132,19 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
       dimensions: dimensions || null,
       isPerishable: isPerishable ?? false,
       shippingCategory: shippingCategory || null,
-      shippingPolicy: shippingPolicy || "delivery",
+      shippingPolicy: skipInventory ? "pickup_only" : (shippingPolicy || "delivery"),
+      productType: productType || "product",
+      rentalInfo: isRental && rentalInfo ? rentalInfo : null,
+      listingType: listingType || "product",
+      companyName: isJobListing ? (companyName || null) : null,
+      salary: isJobListing ? (salary || null) : null,
+      salaryNegotiable: isJobListing ? (salaryNegotiable ?? false) : false,
+      jobType: isJobListing ? (jobType || null) : null,
+      workMode: isJobListing ? (workMode || null) : null,
+      requirements: isJobListing ? (requirements || []) : [],
+      benefits: isJobListing ? (benefits || []) : [],
+      contactEmail: isJobListing ? (contactEmail || null) : null,
+      contactPhone: isJobListing ? (contactPhone || null) : null,
       marketplaceStats: {
         views: 0,
         favorites: 0,
@@ -191,6 +212,9 @@ router.patch("/:id", async (req: Request, res: Response): Promise<void> => {
       "quantity", "trackInventory", "hasVariants", "variants",
       "visibility", "status", "ncm", "cfop", "location",
       "weight", "dimensions", "isPerishable", "shippingCategory", "shippingPolicy",
+      "productType", "rentalInfo",
+      "listingType", "companyName", "salary", "salaryNegotiable", "jobType", "workMode",
+      "requirements", "benefits", "contactEmail", "contactPhone",
     ];
 
     for (const field of allowedFields) {

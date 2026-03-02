@@ -77,6 +77,7 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
     isAvailable, availableDays, serviceHours, serviceAreas,
     isRemote, isOnSite, duration, requirements, includes, excludes,
     certifications, experience, acceptsQuote, instantBooking,
+    scheduleEnabled, slotDurationMinutes, breakBetweenMinutes,
   } = req.body;
 
   if (!name || basePrice === undefined || basePrice === null) {
@@ -125,6 +126,9 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
       status: "active",
       acceptsQuote: acceptsQuote ?? true,
       instantBooking: instantBooking ?? false,
+      scheduleEnabled: scheduleEnabled ?? false,
+      slotDurationMinutes: slotDurationMinutes || 60,
+      breakBetweenMinutes: breakBetweenMinutes || 0,
       marketplaceStats: {
         views: 0,
         favorites: 0,
@@ -186,6 +190,7 @@ router.patch("/:id", async (req: Request, res: Response): Promise<void> => {
       "isAvailable", "availableDays", "serviceHours", "serviceAreas",
       "isRemote", "isOnSite", "duration", "requirements", "includes", "excludes",
       "certifications", "experience", "status", "acceptsQuote", "instantBooking",
+      "scheduleEnabled", "slotDurationMinutes", "breakBetweenMinutes",
     ];
 
     for (const field of allowedFields) {

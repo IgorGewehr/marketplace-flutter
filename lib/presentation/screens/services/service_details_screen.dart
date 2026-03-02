@@ -8,6 +8,7 @@ import '../../providers/auth_providers.dart';
 import '../../providers/chat_provider.dart';
 import '../../providers/services_provider.dart';
 import '../../widgets/products/image_carousel.dart';
+import '../../widgets/services/booking_section.dart';
 import '../../widgets/shared/loading_overlay.dart';
 
 /// Service details screen
@@ -320,6 +321,10 @@ class _ServiceDetailsScreenState extends ConsumerState<ServiceDetailsScreen>
                         ),
                       ),
 
+                      // Booking section (when schedule is enabled)
+                      if (service.scheduleEnabled)
+                        BookingSection(service: service),
+
                       // Bottom padding for action buttons
                       const SizedBox(height: 100),
                     ],
@@ -383,7 +388,9 @@ class _ServiceDetailsScreenState extends ConsumerState<ServiceDetailsScreen>
                   child: FilledButton(
                     onPressed: _isNavigatingToChat
                         ? null
-                        : (service.instantBooking ? _contactProvider : _requestQuote),
+                        : (service.scheduleEnabled || service.instantBooking
+                            ? _contactProvider
+                            : _requestQuote),
                     style: FilledButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       backgroundColor: theme.colorScheme.primary,
@@ -392,14 +399,18 @@ class _ServiceDetailsScreenState extends ConsumerState<ServiceDetailsScreen>
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(
-                          service.instantBooking
+                          service.scheduleEnabled || service.instantBooking
                               ? Icons.event_available
                               : Icons.description_outlined,
                           size: 20,
                         ),
                         const SizedBox(width: 8),
                         Text(
-                          service.instantBooking ? 'Agendar agora' : 'Solicitar orçamento',
+                          service.scheduleEnabled
+                              ? 'Ver Horários'
+                              : service.instantBooking
+                                  ? 'Agendar agora'
+                                  : 'Solicitar orçamento',
                         ),
                       ],
                     ),

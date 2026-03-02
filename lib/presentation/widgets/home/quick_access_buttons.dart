@@ -10,10 +10,10 @@ class QuickAccessButtons extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           _QuickButton(
             icon: Icons.favorite_rounded,
@@ -21,18 +21,28 @@ class QuickAccessButtons extends StatelessWidget {
             label: 'Favoritos',
             onTap: () => context.push(AppRouter.favorites),
           ),
+          const SizedBox(width: 12),
           _QuickButton(
-            icon: Icons.percent_rounded,
-            color: AppColors.quickPromo,
-            label: 'Promoções',
-            onTap: () => context.push(AppRouter.search),
+            icon: Icons.work_rounded,
+            color: AppColors.quickJobs,
+            label: 'Empregos',
+            onTap: () => context.push(AppRouter.jobs),
           ),
+          const SizedBox(width: 12),
+          _QuickButton(
+            icon: Icons.vpn_key_rounded,
+            color: AppColors.quickRentals,
+            label: 'Aluguéis',
+            onTap: () => context.push(AppRouter.rentals),
+          ),
+          const SizedBox(width: 12),
           _QuickButton(
             icon: Icons.build_rounded,
             color: AppColors.quickServices,
             label: 'Serviços',
             onTap: () => context.push(AppRouter.services),
           ),
+          const SizedBox(width: 12),
           _QuickButton(
             icon: Icons.grid_view_rounded,
             color: AppColors.quickCategories,

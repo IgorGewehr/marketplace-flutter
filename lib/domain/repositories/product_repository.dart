@@ -14,6 +14,8 @@ abstract class ProductRepository {
     double? maxPrice,
     String? sortBy,
     String? sortOrder,
+    String? productType,
+    String? listingType,
   });
 
   /// Get featured products
@@ -61,6 +63,43 @@ abstract class ProductRepository {
 
   /// Upload product images
   Future<List<ProductImage>> uploadImages(String productId, List<String> imagePaths);
+
+  /// Get featured jobs
+  Future<List<ProductModel>> getFeaturedJobs({int limit = 10});
+
+  /// Get recent jobs
+  Future<List<ProductModel>> getRecentJobs({int limit = 20});
+
+  /// Get paginated jobs with filters
+  Future<ProductListResponse> getJobs({
+    int page = 1,
+    int limit = 20,
+    String? jobType,
+    String? workMode,
+    String? sortBy,
+    String? search,
+  });
+
+  /// Get featured rentals
+  Future<List<ProductModel>> getFeaturedRentals({int limit = 10});
+
+  /// Get recent rentals
+  Future<List<ProductModel>> getRecentRentals({int limit = 10});
+
+  /// Get paginated rentals
+  Future<ProductListResponse> getRentals({
+    int page = 1,
+    int limit = 20,
+    String? rentalType,
+    String? rentalPeriod,
+    double? minPrice,
+    double? maxPrice,
+    String? city,
+    int? bedrooms,
+    double? minArea,
+    String? sortBy,
+    String? search,
+  });
 }
 
 /// Response wrapper for paginated product lists
@@ -109,6 +148,20 @@ class CreateProductRequest {
   final int quantity;
   final bool trackInventory;
   final bool? hasVariants;
+  final String productType;
+  final Map<String, dynamic>? rentalInfo;
+  final Map<String, dynamic>? location;
+  // Job fields
+  final String listingType;
+  final String? companyName;
+  final String? salary;
+  final bool? salaryNegotiable;
+  final String? jobType;
+  final String? workMode;
+  final List<String>? requirements;
+  final List<String>? benefits;
+  final String? contactEmail;
+  final String? contactPhone;
 
   const CreateProductRequest({
     required this.name,
@@ -125,6 +178,19 @@ class CreateProductRequest {
     this.quantity = 0,
     this.trackInventory = true,
     this.hasVariants,
+    this.productType = 'product',
+    this.rentalInfo,
+    this.location,
+    this.listingType = 'product',
+    this.companyName,
+    this.salary,
+    this.salaryNegotiable,
+    this.jobType,
+    this.workMode,
+    this.requirements,
+    this.benefits,
+    this.contactEmail,
+    this.contactPhone,
   });
 
   Map<String, dynamic> toJson() {
@@ -143,6 +209,19 @@ class CreateProductRequest {
       'quantity': quantity,
       'trackInventory': trackInventory,
       if (hasVariants != null) 'hasVariants': hasVariants,
+      'productType': productType,
+      if (rentalInfo != null) 'rentalInfo': rentalInfo,
+      if (location != null) 'location': location,
+      'listingType': listingType,
+      if (companyName != null) 'companyName': companyName,
+      if (salary != null) 'salary': salary,
+      if (salaryNegotiable != null) 'salaryNegotiable': salaryNegotiable,
+      if (jobType != null) 'jobType': jobType,
+      if (workMode != null) 'workMode': workMode,
+      if (requirements != null && requirements!.isNotEmpty) 'requirements': requirements,
+      if (benefits != null && benefits!.isNotEmpty) 'benefits': benefits,
+      if (contactEmail != null) 'contactEmail': contactEmail,
+      if (contactPhone != null) 'contactPhone': contactPhone,
     };
   }
 }
@@ -164,6 +243,20 @@ class UpdateProductRequest {
   final int? quantity;
   final bool? trackInventory;
   final bool? hasVariants;
+  final String? productType;
+  final Map<String, dynamic>? rentalInfo;
+  final Map<String, dynamic>? location;
+  // Job fields
+  final String? listingType;
+  final String? companyName;
+  final String? salary;
+  final bool? salaryNegotiable;
+  final String? jobType;
+  final String? workMode;
+  final List<String>? requirements;
+  final List<String>? benefits;
+  final String? contactEmail;
+  final String? contactPhone;
 
   const UpdateProductRequest({
     this.name,
@@ -181,6 +274,19 @@ class UpdateProductRequest {
     this.quantity,
     this.trackInventory,
     this.hasVariants,
+    this.productType,
+    this.rentalInfo,
+    this.location,
+    this.listingType,
+    this.companyName,
+    this.salary,
+    this.salaryNegotiable,
+    this.jobType,
+    this.workMode,
+    this.requirements,
+    this.benefits,
+    this.contactEmail,
+    this.contactPhone,
   });
 
   Map<String, dynamic> toJson() {
@@ -200,6 +306,19 @@ class UpdateProductRequest {
       if (quantity != null) 'quantity': quantity,
       if (trackInventory != null) 'trackInventory': trackInventory,
       if (hasVariants != null) 'hasVariants': hasVariants,
+      if (productType != null) 'productType': productType,
+      if (rentalInfo != null) 'rentalInfo': rentalInfo,
+      if (location != null) 'location': location,
+      if (listingType != null) 'listingType': listingType,
+      if (companyName != null) 'companyName': companyName,
+      if (salary != null) 'salary': salary,
+      if (salaryNegotiable != null) 'salaryNegotiable': salaryNegotiable,
+      if (jobType != null) 'jobType': jobType,
+      if (workMode != null) 'workMode': workMode,
+      if (requirements != null) 'requirements': requirements,
+      if (benefits != null) 'benefits': benefits,
+      if (contactEmail != null) 'contactEmail': contactEmail,
+      if (contactPhone != null) 'contactPhone': contactPhone,
     };
   }
 }

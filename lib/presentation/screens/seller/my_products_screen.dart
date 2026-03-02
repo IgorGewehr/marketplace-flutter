@@ -7,8 +7,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shimmer/shimmer.dart';
 
+import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../data/models/product_model.dart';
+import '../../providers/mercadopago_provider.dart';
 import '../../providers/my_products_provider.dart';
 import '../../widgets/seller/my_product_card.dart';
 import '../../widgets/shared/app_feedback.dart';
@@ -80,8 +82,25 @@ class MyProductsScreen extends ConsumerWidget {
                 Padding(
                   padding: const EdgeInsets.only(right: 12),
                   child: FilledButton.icon(
-                    onPressed: () {
+                    onPressed: () async {
                       HapticFeedback.lightImpact();
+                      // Check MP connection before creating product
+                      final isLoading = ref.read(isMpConnectionLoadingProvider);
+                      if (isLoading) {
+                        final connection = await ref.read(mpConnectionProvider.future);
+                        if (!context.mounted) return;
+                        if (connection?.isConnected != true) {
+                          _showMpConnectDialog(context, ref);
+                          return;
+                        }
+                        context.push('/seller/products/new');
+                        return;
+                      }
+                      final isMpConnected = ref.read(isMpConnectedProvider);
+                      if (!isMpConnected) {
+                        _showMpConnectDialog(context, ref);
+                        return;
+                      }
                       context.push('/seller/products/new');
                     },
                     icon: const Icon(Icons.add_rounded, size: 18),
@@ -375,6 +394,58 @@ class MyProductsScreen extends ConsumerWidget {
     ref.read(myProductsProvider.notifier).deleteProduct(product.id);
     AppFeedback.showSuccess(context, 'Produto excluído');
   }
+}
+
+void _showMpConnectDialog(BuildContext context, WidgetRef ref) {
+  final theme = Theme.of(context);
+  showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      icon: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: AppColors.sellerAccent.withAlpha(25),
+          shape: BoxShape.circle,
+        ),
+        child: const Icon(
+          Icons.account_balance_wallet_outlined,
+          color: AppColors.sellerAccent,
+          size: 32,
+        ),
+      ),
+      title: const Text('Conecte o Mercado Pago'),
+      titleTextStyle: theme.textTheme.titleLarge?.copyWith(
+        fontWeight: FontWeight.bold,
+      ),
+      content: const Text(
+        'Para publicar produtos e receber pagamentos, você precisa conectar sua conta do Mercado Pago.',
+        textAlign: TextAlign.center,
+      ),
+      actionsAlignment: MainAxisAlignment.center,
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx, false),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton.icon(
+          onPressed: () => Navigator.pop(ctx, true),
+          icon: const Icon(Icons.link, size: 18),
+          label: const Text('Conectar Mercado Pago'),
+          style: FilledButton.styleFrom(
+            backgroundColor: AppColors.sellerAccent,
+          ),
+        ),
+      ],
+    ),
+  ).then((confirmed) async {
+    if (confirmed == true && context.mounted) {
+      final connected = await context.push<bool>(AppRouter.sellerMpConnect);
+      if (connected == true && context.mounted) {
+        context.push('/seller/products/new');
+      }
+    }
+  });
 }
 
 // ── Search Bar ─────────────────────────────────────────────────────────────

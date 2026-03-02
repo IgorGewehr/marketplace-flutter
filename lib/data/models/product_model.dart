@@ -35,6 +35,21 @@ class ProductModel {
   final bool isPerishable;
   final String? shippingCategory; // standard, fragile, heavy, perishable
   final String shippingPolicy; // delivery, pickup_only, seller_arranges
+  // Rental fields
+  final String productType; // product, rental
+  final RentalInfo? rentalInfo;
+  // Listing type (product vs job)
+  final String listingType; // 'product' (default), 'job'
+  // Job fields (only used when listingType == 'job')
+  final String? companyName;
+  final String? salary;
+  final bool salaryNegotiable;
+  final String? jobType; // clt, pj, freelance, estagio, temporario
+  final String? workMode; // presencial, remoto, hibrido
+  final List<String> requirements;
+  final List<String> benefits;
+  final String? contactEmail;
+  final String? contactPhone;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -68,9 +83,61 @@ class ProductModel {
     this.isPerishable = false,
     this.shippingCategory,
     this.shippingPolicy = 'delivery',
+    this.productType = 'product',
+    this.rentalInfo,
+    this.listingType = 'product',
+    this.companyName,
+    this.salary,
+    this.salaryNegotiable = false,
+    this.jobType,
+    this.workMode,
+    this.requirements = const [],
+    this.benefits = const [],
+    this.contactEmail,
+    this.contactPhone,
     required this.createdAt,
     required this.updatedAt,
   });
+
+  /// Check if this product is a rental listing
+  bool get isRental => productType == 'rental';
+
+  /// Check if this is a job listing
+  bool get isJob => listingType == 'job';
+
+  /// Salary display string
+  String get salaryDisplay {
+    if (salary == null || salary!.isEmpty || salaryNegotiable) return 'A combinar';
+    return salary!;
+  }
+
+  /// Human-readable job type label
+  String get jobTypeLabel {
+    switch (jobType) {
+      case 'clt': return 'CLT';
+      case 'pj': return 'PJ';
+      case 'freelance': return 'Freelance';
+      case 'estagio': return 'Estágio';
+      case 'temporario': return 'Temporário';
+      default: return jobType ?? '';
+    }
+  }
+
+  /// Human-readable work mode label
+  String get workModeLabel {
+    switch (workMode) {
+      case 'presencial': return 'Presencial';
+      case 'remoto': return 'Remoto';
+      case 'hibrido': return 'Híbrido';
+      default: return workMode ?? '';
+    }
+  }
+
+  /// Formatted rental price with period suffix (e.g. "R$ 1.500/mês")
+  String? get rentalPriceDisplay {
+    if (!isRental || rentalInfo == null) return null;
+    return 'R\$ ${price.toStringAsFixed(price.truncateToDouble() == price ? 0 : 2)}/${rentalInfo!.periodSuffix}';
+  }
 
   /// Check if product is oversized (any dimension > 40x30x30 cm)
   bool get isOversized =>
@@ -146,6 +213,20 @@ class ProductModel {
       isPerishable: json['isPerishable'] as bool? ?? false,
       shippingCategory: json['shippingCategory'] as String?,
       shippingPolicy: json['shippingPolicy'] as String? ?? 'delivery',
+      productType: json['productType'] as String? ?? 'product',
+      rentalInfo: json['rentalInfo'] is Map<String, dynamic>
+          ? RentalInfo.fromJson(json['rentalInfo'] as Map<String, dynamic>)
+          : null,
+      listingType: json['listingType'] as String? ?? 'product',
+      companyName: json['companyName'] as String?,
+      salary: json['salary'] as String?,
+      salaryNegotiable: json['salaryNegotiable'] as bool? ?? false,
+      jobType: json['jobType'] as String?,
+      workMode: json['workMode'] as String?,
+      requirements: (json['requirements'] as List<dynamic>?)?.cast<String>() ?? [],
+      benefits: (json['benefits'] as List<dynamic>?)?.cast<String>() ?? [],
+      contactEmail: json['contactEmail'] as String?,
+      contactPhone: json['contactPhone'] as String?,
       createdAt: parseFirestoreDate(json['createdAt']) ?? DateTime.now(),
       updatedAt: parseFirestoreDate(json['updatedAt']) ?? DateTime.now(),
     );
@@ -182,6 +263,18 @@ class ProductModel {
       'isPerishable': isPerishable,
       if (shippingCategory != null) 'shippingCategory': shippingCategory,
       'shippingPolicy': shippingPolicy,
+      'productType': productType,
+      if (rentalInfo != null) 'rentalInfo': rentalInfo!.toJson(),
+      'listingType': listingType,
+      if (companyName != null) 'companyName': companyName,
+      if (salary != null) 'salary': salary,
+      if (salaryNegotiable) 'salaryNegotiable': salaryNegotiable,
+      if (jobType != null) 'jobType': jobType,
+      if (workMode != null) 'workMode': workMode,
+      if (requirements.isNotEmpty) 'requirements': requirements,
+      if (benefits.isNotEmpty) 'benefits': benefits,
+      if (contactEmail != null) 'contactEmail': contactEmail,
+      if (contactPhone != null) 'contactPhone': contactPhone,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
     };
@@ -217,6 +310,18 @@ class ProductModel {
     bool? isPerishable,
     String? shippingCategory,
     String? shippingPolicy,
+    String? productType,
+    RentalInfo? rentalInfo,
+    String? listingType,
+    String? companyName,
+    String? salary,
+    bool? salaryNegotiable,
+    String? jobType,
+    String? workMode,
+    List<String>? requirements,
+    List<String>? benefits,
+    String? contactEmail,
+    String? contactPhone,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -250,6 +355,18 @@ class ProductModel {
       isPerishable: isPerishable ?? this.isPerishable,
       shippingCategory: shippingCategory ?? this.shippingCategory,
       shippingPolicy: shippingPolicy ?? this.shippingPolicy,
+      productType: productType ?? this.productType,
+      rentalInfo: rentalInfo ?? this.rentalInfo,
+      listingType: listingType ?? this.listingType,
+      companyName: companyName ?? this.companyName,
+      salary: salary ?? this.salary,
+      salaryNegotiable: salaryNegotiable ?? this.salaryNegotiable,
+      jobType: jobType ?? this.jobType,
+      workMode: workMode ?? this.workMode,
+      requirements: requirements ?? this.requirements,
+      benefits: benefits ?? this.benefits,
+      contactEmail: contactEmail ?? this.contactEmail,
+      contactPhone: contactPhone ?? this.contactPhone,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
@@ -490,6 +607,181 @@ class ProductLocation {
       state: state ?? this.state,
       neighborhood: neighborhood ?? this.neighborhood,
       zipCode: zipCode ?? this.zipCode,
+    );
+  }
+}
+
+/// Rental-specific information for products with productType == 'rental'
+class RentalInfo {
+  final String rentalType; // imovel, equipamento, veiculo, outro
+  final String rentalPeriod; // diario, semanal, mensal, anual
+  final double? deposit; // caução
+  final bool isAvailable;
+  final String? availabilityNotes;
+  // Imóvel fields
+  final int? bedrooms;
+  final int? bathrooms;
+  final double? area; // m²
+  final String? propertyType; // apartamento, casa, sala_comercial, terreno, kitnet
+  final bool? furnished;
+  final bool? petsAllowed;
+  // Veículo fields
+  final int? year;
+  final String? brand;
+  final String? model;
+
+  const RentalInfo({
+    required this.rentalType,
+    required this.rentalPeriod,
+    this.deposit,
+    this.isAvailable = true,
+    this.availabilityNotes,
+    this.bedrooms,
+    this.bathrooms,
+    this.area,
+    this.propertyType,
+    this.furnished,
+    this.petsAllowed,
+    this.year,
+    this.brand,
+    this.model,
+  });
+
+  /// Short period suffix for price display (e.g. "mês", "dia")
+  String get periodSuffix {
+    switch (rentalPeriod) {
+      case 'diario':
+        return 'dia';
+      case 'semanal':
+        return 'sem';
+      case 'mensal':
+        return 'mês';
+      case 'anual':
+        return 'ano';
+      default:
+        return 'mês';
+    }
+  }
+
+  /// Full period display (e.g. "Mensal", "Diário")
+  String get periodDisplayFull {
+    switch (rentalPeriod) {
+      case 'diario':
+        return 'Diário';
+      case 'semanal':
+        return 'Semanal';
+      case 'mensal':
+        return 'Mensal';
+      case 'anual':
+        return 'Anual';
+      default:
+        return 'Mensal';
+    }
+  }
+
+  /// Display label for rental type
+  String get rentalTypeDisplay {
+    switch (rentalType) {
+      case 'imovel':
+        return 'Imóvel';
+      case 'equipamento':
+        return 'Equipamento';
+      case 'veiculo':
+        return 'Veículo';
+      case 'outro':
+        return 'Outro';
+      default:
+        return rentalType;
+    }
+  }
+
+  /// Display label for property type
+  String get propertyTypeDisplay {
+    switch (propertyType) {
+      case 'apartamento':
+        return 'Apartamento';
+      case 'casa':
+        return 'Casa';
+      case 'sala_comercial':
+        return 'Sala Comercial';
+      case 'terreno':
+        return 'Terreno';
+      case 'kitnet':
+        return 'Kitnet';
+      default:
+        return propertyType ?? '';
+    }
+  }
+
+  factory RentalInfo.fromJson(Map<String, dynamic> json) {
+    return RentalInfo(
+      rentalType: json['rentalType'] as String? ?? 'outro',
+      rentalPeriod: json['rentalPeriod'] as String? ?? 'mensal',
+      deposit: (json['deposit'] as num?)?.toDouble(),
+      isAvailable: json['isAvailable'] as bool? ?? true,
+      availabilityNotes: json['availabilityNotes'] as String?,
+      bedrooms: json['bedrooms'] as int?,
+      bathrooms: json['bathrooms'] as int?,
+      area: (json['area'] as num?)?.toDouble(),
+      propertyType: json['propertyType'] as String?,
+      furnished: json['furnished'] as bool?,
+      petsAllowed: json['petsAllowed'] as bool?,
+      year: json['year'] as int?,
+      brand: json['brand'] as String?,
+      model: json['model'] as String?,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'rentalType': rentalType,
+      'rentalPeriod': rentalPeriod,
+      if (deposit != null) 'deposit': deposit,
+      'isAvailable': isAvailable,
+      if (availabilityNotes != null) 'availabilityNotes': availabilityNotes,
+      if (bedrooms != null) 'bedrooms': bedrooms,
+      if (bathrooms != null) 'bathrooms': bathrooms,
+      if (area != null) 'area': area,
+      if (propertyType != null) 'propertyType': propertyType,
+      if (furnished != null) 'furnished': furnished,
+      if (petsAllowed != null) 'petsAllowed': petsAllowed,
+      if (year != null) 'year': year,
+      if (brand != null) 'brand': brand,
+      if (model != null) 'model': model,
+    };
+  }
+
+  RentalInfo copyWith({
+    String? rentalType,
+    String? rentalPeriod,
+    double? deposit,
+    bool? isAvailable,
+    String? availabilityNotes,
+    int? bedrooms,
+    int? bathrooms,
+    double? area,
+    String? propertyType,
+    bool? furnished,
+    bool? petsAllowed,
+    int? year,
+    String? brand,
+    String? model,
+  }) {
+    return RentalInfo(
+      rentalType: rentalType ?? this.rentalType,
+      rentalPeriod: rentalPeriod ?? this.rentalPeriod,
+      deposit: deposit ?? this.deposit,
+      isAvailable: isAvailable ?? this.isAvailable,
+      availabilityNotes: availabilityNotes ?? this.availabilityNotes,
+      bedrooms: bedrooms ?? this.bedrooms,
+      bathrooms: bathrooms ?? this.bathrooms,
+      area: area ?? this.area,
+      propertyType: propertyType ?? this.propertyType,
+      furnished: furnished ?? this.furnished,
+      petsAllowed: petsAllowed ?? this.petsAllowed,
+      year: year ?? this.year,
+      brand: brand ?? this.brand,
+      model: model ?? this.model,
     );
   }
 }

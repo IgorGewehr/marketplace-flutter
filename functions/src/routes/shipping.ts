@@ -9,39 +9,32 @@ const router = Router();
 // Distance-based price multipliers
 // ============================================================================
 const DISTANCE_MULTIPLIERS: Record<number, { multiplier: number; estimate: string }> = {
-  0: { multiplier: 0.5, estimate: "Até 3 dias úteis" },
-  1: { multiplier: 1.0, estimate: "3-5 dias úteis" },
-  2: { multiplier: 1.3, estimate: "5-7 dias úteis" },
+  0: { multiplier: 0.5, estimate: "Estimativa: 2-4 dias úteis" },
+  1: { multiplier: 0.7, estimate: "Estimativa: 3-5 dias úteis" },
+  2: { multiplier: 0.85, estimate: "Estimativa: 5-8 dias úteis" },
 };
 // Distance 3+ uses the default
-const DEFAULT_DISTANCE = { multiplier: 1.5, estimate: "5-7 dias úteis" };
+const DEFAULT_DISTANCE = { multiplier: 1.0, estimate: "Estimativa: 5-8 dias úteis" };
 
 const TIER_LABELS: Record<string, string> = {
-  same_day: "Mesmo dia",
-  next_day: "Dia seguinte",
-  scheduled: "Agendado",
+  scheduled: "Entrega padrão",
   seller_arranges: "Combinar com vendedor",
 };
 
 // Tier multipliers on top of distance-adjusted base
 const TIER_MULTIPLIERS: Record<string, number> = {
-  same_day: 1.6,
-  next_day: 1.0,
   scheduled: 1.0,
 };
 
-// Weight surcharge: R$2.00 per kg over 5kg
+// Weight surcharge: R$1.00 per kg over 5kg
 const WEIGHT_FREE_KG = 5;
-const WEIGHT_SURCHARGE_PER_KG = 2.0;
+const WEIGHT_SURCHARGE_PER_KG = 1.0;
 
 // Volume surcharge if requires van
-const VOLUME_SURCHARGE = 5.0;
+const VOLUME_SURCHARGE = 2.0;
 
-// Same-day premium
-const SAME_DAY_PREMIUM = 4.0;
-
-// Same-day cutoff hour (BRT = UTC-3)
-const SAME_DAY_CUTOFF_HOUR_BRT = 14;
+// Global free delivery minimum — applies to ALL zones
+const GLOBAL_FREE_DELIVERY_MINIMUM = 150;
 
 // ============================================================================
 // Types
@@ -215,14 +208,15 @@ export async function calculateFreightForItems(params: {
 
   // 2. Resolve seller zone from tenantId
   let sellerZone: { id: string; data: admin.firestore.DocumentData } | null = null;
+  let sellerCity = "";
   if (tenantId) {
     const tenantDoc = await db.collection("tenants").doc(tenantId).get();
     if (tenantDoc.exists) {
       const tenantData = tenantDoc.data()!;
       const sellerAddress = tenantData.address || {};
       const sellerZip = sellerAddress.zipCode || "";
-      const sellerCity = sellerAddress.city || "";
-      sellerZone = await resolveZone(db, sellerZip, sellerCity);
+      sellerCity = (sellerAddress.city || "").toLowerCase().trim();
+      sellerZone = await resolveZone(db, sellerZip, sellerAddress.city || "");
     }
   }
   // Fallback to zone_0 if seller zone not resolved
@@ -291,6 +285,76 @@ export async function calculateFreightForItems(params: {
 
   const zoneDistance = computeZoneDistance(sellerZoneId, buyerZoneId, adjacencyMap);
 
+  // 4b. Concórdia-to-Concórdia: always free delivery
+  const buyerCityLower = city.toLowerCase().trim();
+  const isConcordiaToConcordia =
+    buyerCityLower === "concórdia" && sellerCity === "concórdia";
+
+  if (isConcordiaToConcordia) {
+    const estimatedDelivery = getEstimatedDeliveryLabel("scheduled", 0);
+    const estimatedDate = calculateEstimatedDeliveryDate("scheduled", 0);
+
+    const freeOptions: FreightOption[] = [
+      {
+        zoneId: buyerZoneId,
+        zoneName: buyerZoneData.name || "Concórdia",
+        tier: "scheduled",
+        tierLabel: TIER_LABELS.scheduled,
+        price: 0,
+        estimatedDelivery,
+        estimatedDeliveryDate: estimatedDate ? estimatedDate.toISOString() : null,
+        requiresVan: false,
+        available: true,
+        breakdown: {
+          basePrice: 0,
+          weightSurcharge: 0,
+          volumeSurcharge: 0,
+          tierPremium: 0,
+          freeDeliveryDiscount: 0,
+          pickupDiscount: 0,
+        },
+        isFreeDelivery: true,
+        sellerZoneId,
+        sellerZoneName,
+        zoneDistance: 0,
+      },
+      {
+        zoneId: sellerZoneId,
+        zoneName: sellerZoneName,
+        tier: "pickup_point",
+        tierLabel: "Retirar na loja",
+        price: 0,
+        estimatedDelivery: "Disponível após confirmação",
+        estimatedDeliveryDate: null,
+        requiresVan: false,
+        available: true,
+        breakdown: {
+          basePrice: 0,
+          weightSurcharge: 0,
+          volumeSurcharge: 0,
+          tierPremium: 0,
+          freeDeliveryDiscount: 0,
+          pickupDiscount: 0,
+        },
+        isFreeDelivery: true,
+        sellerZoneId,
+        sellerZoneName,
+        zoneDistance: 0,
+      },
+    ];
+
+    return {
+      options: freeOptions,
+      freeDeliveryMessage: "Frete grátis para entregas em Concórdia!",
+      sellerZoneId,
+      sellerZoneName,
+      buyerZoneId,
+      zoneDistance: 0,
+      hasMixedCart,
+      pickupOnlyCount,
+    };
+  }
+
   // 5. Calculate total weight and volume from delivery items only
   let totalWeight = 0;
   let requiresVan = false;
@@ -316,21 +380,8 @@ export async function calculateFreightForItems(params: {
   const buyerBasePrice = buyerZoneData.basePrice || 0;
   const adjustedBase = Math.round(buyerBasePrice * distanceInfo.multiplier * 100) / 100;
 
-  // 8. Determine available tiers based on distance
-  const tiers: string[] = [];
-
-  // same_day: ONLY distance 0 + seller in zone_0 + before cutoff + weekday
-  if (zoneDistance === 0 && sellerZoneId === "zone_0") {
-    tiers.push("same_day");
-  }
-
-  // next_day: ONLY distance <= 1
-  if (zoneDistance <= 1) {
-    tiers.push("next_day");
-  }
-
-  // scheduled: always available
-  tiers.push("scheduled");
+  // 8. Only one tier: scheduled (entrega padrão)
+  const tiers: string[] = ["scheduled"];
 
   // 9. Build freight options
   const options: FreightOption[] = [];
@@ -338,7 +389,7 @@ export async function calculateFreightForItems(params: {
 
   for (const tier of tiers) {
     const tierMultiplier = TIER_MULTIPLIERS[tier] || 1.0;
-    const tierPremium = tier === "same_day" ? SAME_DAY_PREMIUM : 0;
+    const tierPremium = 0;
     const tierBase = Math.round(adjustedBase * tierMultiplier * 100) / 100;
 
     const rawPrice = tierBase + weightSurcharge + volumeSurcharge + tierPremium;
@@ -348,34 +399,23 @@ export async function calculateFreightForItems(params: {
     let isFreeDelivery = false;
     let amountToFreeDelivery: number | undefined;
 
-    if (freeDeliveryMin && subtotal >= freeDeliveryMin && tier !== "same_day") {
+    // Use the lower of global or zone-specific minimum (if zone has one)
+    const effectiveMinimum = freeDeliveryMin
+      ? Math.min(GLOBAL_FREE_DELIVERY_MINIMUM, freeDeliveryMin)
+      : GLOBAL_FREE_DELIVERY_MINIMUM;
+
+    if (subtotal >= effectiveMinimum) {
       freeDeliveryDiscount = tierBase;
       isFreeDelivery = true;
-    } else if (freeDeliveryMin && tier !== "same_day") {
-      amountToFreeDelivery = Math.round((freeDeliveryMin - subtotal) * 100) / 100;
+    } else {
+      amountToFreeDelivery = Math.round((effectiveMinimum - subtotal) * 100) / 100;
       if (amountToFreeDelivery < 0) amountToFreeDelivery = undefined;
     }
 
     const finalPrice = Math.max(0, Math.round((rawPrice - freeDeliveryDiscount) * 100) / 100);
 
-    // Check same_day availability (time/day constraints)
-    let available = true;
-    let unavailableReason: string | undefined;
-
-    if (tier === "same_day") {
-      const now = new Date();
-      const brtHour = (now.getUTCHours() - 3 + 24) % 24;
-      const dayOfWeek = now.getUTCDay();
-      const brtDay = brtHour > now.getUTCHours() ? (dayOfWeek - 1 + 7) % 7 : dayOfWeek;
-
-      if (brtDay === 0 || brtDay === 6) {
-        available = false;
-        unavailableReason = "Entrega no mesmo dia não disponível nos fins de semana";
-      } else if (brtHour >= SAME_DAY_CUTOFF_HOUR_BRT) {
-        available = false;
-        unavailableReason = `Pedidos até ${SAME_DAY_CUTOFF_HOUR_BRT}h para entrega hoje`;
-      }
-    }
+    const available = true;
+    const unavailableReason: string | undefined = undefined;
 
     const estimatedDelivery = getEstimatedDeliveryLabel(tier, zoneDistance);
     const estimatedDate = calculateEstimatedDeliveryDate(tier, zoneDistance);
@@ -400,7 +440,7 @@ export async function calculateFreightForItems(params: {
         pickupDiscount: 0,
       },
       isFreeDelivery,
-      freeDeliveryThreshold: freeDeliveryMin || undefined,
+      freeDeliveryThreshold: effectiveMinimum,
       amountToFreeDelivery,
       sellerZoneId,
       sellerZoneName,
@@ -408,11 +448,42 @@ export async function calculateFreightForItems(params: {
     });
   }
 
+  // Always add free store pickup option
+  options.push({
+    zoneId: sellerZoneId,
+    zoneName: sellerZoneName,
+    tier: "pickup_point",
+    tierLabel: "Retirar na loja",
+    price: 0,
+    estimatedDelivery: "Disponível após confirmação",
+    estimatedDeliveryDate: null,
+    requiresVan: false,
+    available: true,
+    breakdown: {
+      basePrice: 0,
+      weightSurcharge: 0,
+      volumeSurcharge: 0,
+      tierPremium: 0,
+      freeDeliveryDiscount: 0,
+      pickupDiscount: 0,
+    },
+    isFreeDelivery: true,
+    sellerZoneId,
+    sellerZoneName,
+    zoneDistance: 0,
+  });
+
   // Free delivery message
   let freeDeliveryMessage: string | undefined;
-  if (freeDeliveryMin && subtotal < freeDeliveryMin) {
-    const remaining = Math.round((freeDeliveryMin - subtotal) * 100) / 100;
+  const globalEffectiveMin = freeDeliveryMin
+    ? Math.min(GLOBAL_FREE_DELIVERY_MINIMUM, freeDeliveryMin)
+    : GLOBAL_FREE_DELIVERY_MINIMUM;
+
+  if (subtotal < globalEffectiveMin) {
+    const remaining = Math.round((globalEffectiveMin - subtotal) * 100) / 100;
     freeDeliveryMessage = `Adicione R$ ${remaining.toFixed(2)} para frete grátis`;
+  } else {
+    freeDeliveryMessage = "Frete grátis nesta entrega! 🎉";
   }
 
   return {
@@ -506,18 +577,16 @@ async function resolveZone(
 
 function getEstimatedDeliveryLabel(tier: string, zoneDistance: number): string {
   switch (tier) {
-  case "same_day":
-    return "Hoje";
-  case "next_day":
-    return "Amanhã";
   case "scheduled": {
     const distanceInfo = DISTANCE_MULTIPLIERS[zoneDistance] || DEFAULT_DISTANCE;
     return distanceInfo.estimate;
   }
   case "seller_arranges":
     return "A combinar";
-  default:
-    return "3-5 dias úteis";
+  default: {
+    const info = DISTANCE_MULTIPLIERS[zoneDistance] || DEFAULT_DISTANCE;
+    return info.estimate;
+  }
   }
 }
 
@@ -525,34 +594,18 @@ function calculateEstimatedDeliveryDate(
   tier: string,
   zoneDistance: number,
 ): Date | null {
+  if (tier === "seller_arranges") return null;
+
   const now = new Date();
   const brtOffset = -3;
   const brtNow = new Date(now.getTime() + brtOffset * 60 * 60 * 1000);
 
-  switch (tier) {
-  case "same_day": {
-    const eod = new Date(brtNow);
-    eod.setHours(20, 0, 0, 0);
-    return eod;
-  }
-  case "next_day": {
-    const next = new Date(brtNow);
-    next.setDate(next.getDate() + 1);
-    if (next.getDay() === 0) next.setDate(next.getDate() + 1);
-    if (next.getDay() === 6) next.setDate(next.getDate() + 2);
-    next.setHours(18, 0, 0, 0);
-    return next;
-  }
-  case "scheduled": {
-    const daysToAdd = zoneDistance <= 0 ? 3 : zoneDistance <= 1 ? 5 : 7;
-    const sched = new Date(brtNow);
-    sched.setDate(sched.getDate() + daysToAdd);
-    sched.setHours(18, 0, 0, 0);
-    return sched;
-  }
-  default:
-    return null;
-  }
+  // Estimated upper bound — not a promise
+  const daysToAdd = zoneDistance <= 0 ? 4 : zoneDistance <= 1 ? 5 : 8;
+  const estimated = new Date(brtNow);
+  estimated.setDate(estimated.getDate() + daysToAdd);
+  estimated.setHours(18, 0, 0, 0);
+  return estimated;
 }
 
 function serializeTimestamps(data: admin.firestore.DocumentData): Record<string, unknown> {

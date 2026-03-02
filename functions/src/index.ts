@@ -23,6 +23,7 @@ import cartRouter from "./routes/cart";
 import sellerRouter from "./routes/seller";
 import reviewsRouter from "./routes/reviews";
 import shippingRouter from "./routes/shipping";
+import appointmentsRouter from "./routes/appointments";
 import deliveryWebhookRouter from "./routes/delivery-webhook";
 import { releaseHeldPayments } from "./scheduled/release-payments";
 
@@ -188,6 +189,9 @@ app.use("/api/seller", sellerRouter);
 
 // Reviews (create + check)
 app.use("/api/reviews", reviewsRouter);
+
+// Appointments (scheduling)
+app.use("/api/appointments", appointmentsRouter);
 
 // Shipping freight calculation (authenticated)
 app.use("/api/shipping", shippingRouter);

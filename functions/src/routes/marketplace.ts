@@ -23,6 +23,8 @@ router.get("/products", async (req: Request, res: Response): Promise<void> => {
   const search = req.query.search ? String(req.query.search).toLowerCase() : undefined;
   const minPrice = req.query.minPrice ? parseFloat(String(req.query.minPrice)) : undefined;
   const maxPrice = req.query.maxPrice ? parseFloat(String(req.query.maxPrice)) : undefined;
+  const productType = req.query.productType ? String(req.query.productType) : undefined;
+  const listingType = req.query.listingType ? String(req.query.listingType) : undefined;
   const sortBy = req.query.sortBy ? String(req.query.sortBy) : "createdAt";
   const sortOrder = req.query.sortOrder === "asc" ? "asc" : "desc";
 
@@ -31,6 +33,16 @@ router.get("/products", async (req: Request, res: Response): Promise<void> => {
     let query: admin.firestore.Query = db
       .collection("products")
       .where("status", "==", "active");
+
+    // Filter by productType (default: exclude rentals from main product listing)
+    if (productType) {
+      query = query.where("productType", "==", productType);
+    }
+
+    // Filter by listingType (product vs job)
+    if (listingType) {
+      query = query.where("listingType", "==", listingType);
+    }
 
     if (categoryId) {
       query = query.where("categoryId", "==", categoryId);
@@ -46,6 +58,24 @@ router.get("/products", async (req: Request, res: Response): Promise<void> => {
 
     if (maxPrice !== undefined) {
       query = query.where("price", "<=", maxPrice);
+    }
+
+    // Filter by rentalType (imovel, equipamento, veiculo, outro)
+    const rentalType = req.query.rentalType ? String(req.query.rentalType) : undefined;
+    if (rentalType) {
+      query = query.where("rentalInfo.rentalType", "==", rentalType);
+    }
+
+    // Filter by jobType (CLT, PJ, freelance, etc.)
+    const jobType = req.query.jobType ? String(req.query.jobType) : undefined;
+    if (jobType) {
+      query = query.where("jobType", "==", jobType);
+    }
+
+    // Filter by workMode (presencial, remoto, hibrido)
+    const workMode = req.query.workMode ? String(req.query.workMode) : undefined;
+    if (workMode) {
+      query = query.where("workMode", "==", workMode);
     }
 
     // Sort
@@ -67,8 +97,12 @@ router.get("/products", async (req: Request, res: Response): Promise<void> => {
 
     let products = productsSnap.docs.map((doc) => ({ id: doc.id, ...serializeTimestamps(doc.data()) }) as Record<string, unknown>);
 
-    // Hide out-of-stock products (trackInventory=false → on-demand, always visible)
+    // Hide out-of-stock products (trackInventory=false → on-demand, always visible; jobs skip stock check)
+    // When no explicit productType/listingType filter, also exclude rentals and jobs from default listing
     products = products.filter((p) => {
+      if (!listingType && p.listingType === "job") return false;
+      if (!productType && p.productType === "rental") return false;
+      if (p.listingType === "job") return true;
       if (p.trackInventory === false) return true;
       return ((p.quantity as number) ?? 0) > 0;
     });
@@ -79,7 +113,8 @@ router.get("/products", async (req: Request, res: Response): Promise<void> => {
         const name = String(p.name || "").toLowerCase();
         const desc = String(p.description || "").toLowerCase();
         const tags = Array.isArray(p.tags) ? p.tags.join(" ").toLowerCase() : "";
-        return name.includes(search) || desc.includes(search) || tags.includes(search);
+        const company = String(p.companyName || "").toLowerCase();
+        return name.includes(search) || desc.includes(search) || tags.includes(search) || company.includes(search);
       });
     }
 
@@ -125,8 +160,10 @@ router.get("/products/featured", async (req: Request, res: Response): Promise<vo
       products = fallbackSnap.docs.map((doc) => ({ id: doc.id, ...serializeTimestamps(doc.data()) }) as Record<string, unknown>);
     }
 
-    // Hide out-of-stock products (trackInventory=false → on-demand, always visible)
+    // Hide out-of-stock, job listings, and rentals from featured products
     products = products.filter((p) => {
+      if (p.listingType === "job") return false;
+      if (p.productType === "rental") return false;
       if (p.trackInventory === false) return true;
       return ((p.quantity as number) ?? 0) > 0;
     });
@@ -154,10 +191,12 @@ router.get("/products/recent", async (req: Request, res: Response): Promise<void
       .limit(limit)
       .get();
 
-    // Hide out-of-stock products (trackInventory=false → on-demand, always visible)
+    // Hide out-of-stock, job listings, and rentals from recent products
     const products = productsSnap.docs
       .map((doc) => ({ id: doc.id, ...serializeTimestamps(doc.data()) }) as Record<string, unknown>)
       .filter((p) => {
+        if (p.listingType === "job") return false;
+        if (p.productType === "rental") return false;
         if (p.trackInventory === false) return true;
         return ((p.quantity as number) ?? 0) > 0;
       });
@@ -297,6 +336,152 @@ router.get("/banners", async (req: Request, res: Response): Promise<void> => {
   } catch (error) {
     // Return empty banners if collection doesn't exist yet
     res.json({ banners: [] });
+  }
+});
+
+// ============================================================================
+// Rentals Marketplace
+// ============================================================================
+
+/**
+ * GET /api/marketplace/rentals/featured
+ * Get featured rental listings (most viewed).
+ */
+router.get("/rentals/featured", async (req: Request, res: Response): Promise<void> => {
+  const limit = Math.min(parseInt(String(req.query.limit || "10")), 30);
+
+  try {
+    const db = admin.firestore();
+    let productsSnap = await db
+      .collection("products")
+      .where("status", "==", "active")
+      .where("productType", "==", "rental")
+      .orderBy("marketplaceStats.views", "desc")
+      .limit(limit)
+      .get();
+
+    // Fallback to recent if no views
+    if (productsSnap.empty) {
+      productsSnap = await db
+        .collection("products")
+        .where("status", "==", "active")
+        .where("productType", "==", "rental")
+        .orderBy("createdAt", "desc")
+        .limit(limit)
+        .get();
+    }
+
+    const products = productsSnap.docs
+      .map((doc) => ({ id: doc.id, ...serializeTimestamps(doc.data()) }) as Record<string, unknown>)
+      .filter((p) => {
+        const ri = p.rentalInfo as Record<string, unknown> | undefined;
+        return !ri || ri.isAvailable !== false;
+      });
+
+    res.json({ products });
+  } catch (error) {
+    functions.logger.error("Error fetching featured rentals", error);
+    res.status(500).json({ error: "Erro ao buscar aluguéis em destaque" });
+  }
+});
+
+/**
+ * GET /api/marketplace/rentals/recent
+ * Get recently added rental listings.
+ */
+router.get("/rentals/recent", async (req: Request, res: Response): Promise<void> => {
+  const limit = Math.min(parseInt(String(req.query.limit || "10")), 30);
+
+  try {
+    const db = admin.firestore();
+    const productsSnap = await db
+      .collection("products")
+      .where("status", "==", "active")
+      .where("productType", "==", "rental")
+      .orderBy("createdAt", "desc")
+      .limit(limit)
+      .get();
+
+    const products = productsSnap.docs
+      .map((doc) => ({ id: doc.id, ...serializeTimestamps(doc.data()) }) as Record<string, unknown>)
+      .filter((p) => {
+        const ri = p.rentalInfo as Record<string, unknown> | undefined;
+        return !ri || ri.isAvailable !== false;
+      });
+
+    res.json({ products });
+  } catch (error) {
+    functions.logger.error("Error fetching recent rentals", error);
+    res.status(500).json({ error: "Erro ao buscar aluguéis recentes" });
+  }
+});
+
+// ============================================================================
+// Jobs Marketplace
+// ============================================================================
+
+/**
+ * GET /api/marketplace/jobs/featured
+ * Get featured job listings (most viewed).
+ */
+router.get("/jobs/featured", async (req: Request, res: Response): Promise<void> => {
+  const limit = Math.min(parseInt(String(req.query.limit || "10")), 30);
+
+  try {
+    const db = admin.firestore();
+    let productsSnap = await db
+      .collection("products")
+      .where("status", "==", "active")
+      .where("listingType", "==", "job")
+      .orderBy("marketplaceStats.views", "desc")
+      .limit(limit)
+      .get();
+
+    // Fallback to recent if no views
+    if (productsSnap.empty) {
+      productsSnap = await db
+        .collection("products")
+        .where("status", "==", "active")
+        .where("listingType", "==", "job")
+        .orderBy("createdAt", "desc")
+        .limit(limit)
+        .get();
+    }
+
+    const products = productsSnap.docs
+      .map((doc) => ({ id: doc.id, ...serializeTimestamps(doc.data()) }) as Record<string, unknown>);
+
+    res.json({ products });
+  } catch (error) {
+    functions.logger.error("Error fetching featured jobs", error);
+    res.status(500).json({ error: "Erro ao buscar vagas em destaque" });
+  }
+});
+
+/**
+ * GET /api/marketplace/jobs/recent
+ * Get recently added job listings.
+ */
+router.get("/jobs/recent", async (req: Request, res: Response): Promise<void> => {
+  const limit = Math.min(parseInt(String(req.query.limit || "20")), 50);
+
+  try {
+    const db = admin.firestore();
+    const productsSnap = await db
+      .collection("products")
+      .where("status", "==", "active")
+      .where("listingType", "==", "job")
+      .orderBy("createdAt", "desc")
+      .limit(limit)
+      .get();
+
+    const products = productsSnap.docs
+      .map((doc) => ({ id: doc.id, ...serializeTimestamps(doc.data()) }) as Record<string, unknown>);
+
+    res.json({ products });
+  } catch (error) {
+    functions.logger.error("Error fetching recent jobs", error);
+    res.status(500).json({ error: "Erro ao buscar vagas recentes" });
   }
 });
 
@@ -538,6 +723,127 @@ router.get("/services/:id", async (req: Request, res: Response): Promise<void> =
   } catch (error) {
     functions.logger.error("Error fetching service", error);
     res.status(500).json({ error: "Erro ao buscar servico" });
+  }
+});
+
+/**
+ * GET /api/marketplace/services/:id/slots
+ * Get available time slots for a service on a specific date.
+ *
+ * Query params: date (YYYY-MM-DD)
+ */
+router.get("/services/:id/slots", async (req: Request, res: Response): Promise<void> => {
+  const serviceId = String(req.params.id);
+  const date = req.query.date ? String(req.query.date) : undefined;
+
+  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    res.status(400).json({ error: "Parâmetro date (YYYY-MM-DD) é obrigatório" });
+    return;
+  }
+
+  try {
+    const db = admin.firestore();
+    const serviceDoc = await db.collection("services").doc(serviceId).get();
+
+    if (!serviceDoc.exists) {
+      res.status(404).json({ error: "Serviço não encontrado" });
+      return;
+    }
+
+    const service = serviceDoc.data()!;
+
+    if (!service.scheduleEnabled) {
+      res.json({ date, dayOfWeek: "", slots: [] });
+      return;
+    }
+
+    const DAY_NAMES = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+    const appointmentDate = new Date(date + "T00:00:00");
+    const dayOfWeek = DAY_NAMES[appointmentDate.getDay()];
+
+    // Check if day is in available days
+    const availableDays: string[] = service.availableDays || [];
+    if (availableDays.length > 0 && !availableDays.includes(dayOfWeek)) {
+      res.json({ date, dayOfWeek, slots: [] });
+      return;
+    }
+
+    // Get hours for this day
+    const serviceHours = service.serviceHours || {};
+    const dayHours = serviceHours[dayOfWeek];
+    if (!dayHours) {
+      res.json({ date, dayOfWeek, slots: [] });
+      return;
+    }
+
+    const [hoursStart, hoursEnd] = dayHours.split("-");
+    if (!hoursStart || !hoursEnd) {
+      res.json({ date, dayOfWeek, slots: [] });
+      return;
+    }
+
+    const slotDuration = service.slotDurationMinutes || 60;
+    const breakBetween = service.breakBetweenMinutes || 0;
+
+    // Generate slots
+    const [startH, startM] = hoursStart.split(":").map(Number);
+    const [endH, endM] = hoursEnd.split(":").map(Number);
+    const startMinutes = startH * 60 + startM;
+    const endMinutes = endH * 60 + endM;
+
+    const allSlots: Array<{ startTime: string; endTime: string; available: boolean }> = [];
+
+    let current = startMinutes;
+    while (current + slotDuration <= endMinutes) {
+      const slotStartH = Math.floor(current / 60).toString().padStart(2, "0");
+      const slotStartM = (current % 60).toString().padStart(2, "0");
+      const slotEndMin = current + slotDuration;
+      const slotEndH = Math.floor(slotEndMin / 60).toString().padStart(2, "0");
+      const slotEndM = (slotEndMin % 60).toString().padStart(2, "0");
+
+      allSlots.push({
+        startTime: `${slotStartH}:${slotStartM}`,
+        endTime: `${slotEndH}:${slotEndM}`,
+        available: true,
+      });
+
+      current += slotDuration + breakBetween;
+    }
+
+    // Remove already booked slots
+    const appointmentsSnap = await db
+      .collection("appointments")
+      .where("serviceId", "==", serviceId)
+      .where("date", "==", date)
+      .where("status", "in", ["pending", "confirmed"])
+      .get();
+
+    const bookedSlots = appointmentsSnap.docs.map((doc) => doc.data());
+
+    // Also remove past slots for today
+    const now = new Date();
+    const isToday = date === `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    const currentTimeStr = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+
+    for (const slot of allSlots) {
+      // Check if past (today only)
+      if (isToday && slot.startTime <= currentTimeStr) {
+        slot.available = false;
+        continue;
+      }
+      // Check if booked
+      const isBooked = bookedSlots.some((apt) =>
+        slot.startTime < apt.endTime && slot.endTime > apt.startTime
+      );
+      if (isBooked) {
+        slot.available = false;
+      }
+    }
+
+    res.json({ date, dayOfWeek, slots: allSlots });
+  } catch (error) {
+    functions.logger.error("Error fetching service slots", error);
+    res.status(500).json({ error: "Erro ao buscar horários disponíveis" });
   }
 });
 

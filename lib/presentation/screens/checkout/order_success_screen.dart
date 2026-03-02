@@ -128,8 +128,33 @@ class _OrderSuccessScreenState extends ConsumerState<OrderSuccessScreen>
                         children: [
                           const SizedBox(height: 24),
 
-                          // Success icon with animated glow + elasticOut entrance
-                          _SuccessIcon(pulseController: _pulseController)
+                          // Success icon with animated glow + elasticOut entrance + ring
+                          Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              // Expanding ring effect
+                              TweenAnimationBuilder<double>(
+                                tween: Tween(begin: 0.0, end: 1.0),
+                                duration: const Duration(milliseconds: 1200),
+                                curve: Curves.easeOut,
+                                builder: (context, value, _) {
+                                  return Container(
+                                    width: 120 + (40 * value),
+                                    height: 120 + (40 * value),
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color: theme.colorScheme.primary
+                                            .withAlpha((60 * (1 - value)).round()),
+                                        width: 2 * (1 - value),
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                              _SuccessIcon(pulseController: _pulseController),
+                            ],
+                          )
                               .animate()
                               .scale(
                                 begin: const Offset(0, 0),
@@ -306,7 +331,7 @@ class _OrderSuccessScreenState extends ConsumerState<OrderSuccessScreen>
   }
 }
 
-/// Animated success icon with pulsing glow
+/// Animated success icon with pulsing glow and drawing checkmark
 class _SuccessIcon extends StatelessWidget {
   final AnimationController pulseController;
 
@@ -326,7 +351,14 @@ class _SuccessIcon extends StatelessWidget {
           width: 120,
           height: 120,
           decoration: BoxDecoration(
-            color: theme.colorScheme.primary,
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                theme.colorScheme.primary,
+                theme.colorScheme.primary.withAlpha(220),
+              ],
+            ),
             shape: BoxShape.circle,
             boxShadow: [
               BoxShadow(
@@ -334,18 +366,68 @@ class _SuccessIcon extends StatelessWidget {
                 blurRadius: glowRadius,
                 spreadRadius: 4 + (pulseController.value * 4),
               ),
+              BoxShadow(
+                color: theme.colorScheme.primary.withAlpha(20),
+                blurRadius: 40,
+                spreadRadius: 8,
+              ),
             ],
           ),
           child: child,
         );
       },
-      child: const Icon(
-        Icons.check_rounded,
-        size: 60,
-        color: Colors.white,
+      child: TweenAnimationBuilder<double>(
+        tween: Tween(begin: 0.0, end: 1.0),
+        duration: const Duration(milliseconds: 600),
+        curve: const Interval(0.3, 1.0, curve: Curves.easeOutCubic),
+        builder: (context, value, _) {
+          return CustomPaint(
+            size: const Size(60, 60),
+            painter: _CheckmarkPainter(progress: value),
+          );
+        },
       ),
     );
   }
+}
+
+/// Custom painter that draws a checkmark progressively
+class _CheckmarkPainter extends CustomPainter {
+  final double progress;
+
+  _CheckmarkPainter({required this.progress});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.white
+      ..strokeWidth = 5.0
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..style = PaintingStyle.stroke;
+
+    final path = Path();
+    // Checkmark path points relative to center
+    final startX = size.width * 0.22;
+    final startY = size.height * 0.50;
+    final midX = size.width * 0.42;
+    final midY = size.height * 0.70;
+    final endX = size.width * 0.78;
+    final endY = size.height * 0.30;
+
+    path.moveTo(startX, startY);
+    path.lineTo(midX, midY);
+    path.lineTo(endX, endY);
+
+    // Use PathMetric to draw the path progressively
+    final pathMetric = path.computeMetrics().first;
+    final drawPath = pathMetric.extractPath(0, pathMetric.length * progress);
+    canvas.drawPath(drawPath, paint);
+  }
+
+  @override
+  bool shouldRepaint(_CheckmarkPainter oldDelegate) =>
+      oldDelegate.progress != progress;
 }
 
 /// Order summary card with visual hierarchy

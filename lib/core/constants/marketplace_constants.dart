@@ -51,16 +51,12 @@ class DeliveryTypes {
 
 /// Delivery tiers for logistics
 class DeliveryTiers {
-  static const String sameDay = 'same_day';
-  static const String nextDay = 'next_day';
   static const String scheduled = 'scheduled';
   static const String pickupPoint = 'pickup_point';
   static const String sellerArranges = 'seller_arranges';
 
   static const Map<String, String> labels = {
-    sameDay: 'Mesmo dia',
-    nextDay: 'Dia seguinte',
-    scheduled: 'Agendado',
+    scheduled: 'Entrega padrão',
     pickupPoint: 'Ponto de retirada',
     sellerArranges: 'Combinar com vendedor',
   };
@@ -88,14 +84,44 @@ class DeliveryStatuses {
 /// Zone distance delivery estimates
 class ZoneDistanceInfo {
   static const Map<int, String> deliveryEstimates = {
-    0: 'Até 3 dias úteis',
-    1: '3-5 dias úteis',
-    2: '5-7 dias úteis',
-    3: '5-7 dias úteis',
+    0: 'Estimativa: 2-4 dias úteis',
+    1: 'Estimativa: 3-5 dias úteis',
+    2: 'Estimativa: 5-8 dias úteis',
+    3: 'Estimativa: 5-8 dias úteis',
   };
 
   static String estimate(int distance) =>
-      deliveryEstimates[distance] ?? '5-7 dias úteis';
+      deliveryEstimates[distance] ?? 'Estimativa: 5-8 dias úteis';
+}
+
+/// Listing types
+class ListingTypes {
+  static const String product = 'product';
+  static const String job = 'job';
+}
+
+/// Job contract types
+class JobTypes {
+  static const Map<String, String> labels = {
+    'clt': 'CLT',
+    'pj': 'PJ',
+    'freelance': 'Freelance',
+    'estagio': 'Estágio',
+    'temporario': 'Temporário',
+  };
+
+  static String label(String type) => labels[type] ?? type;
+}
+
+/// Work modes
+class WorkModes {
+  static const Map<String, String> labels = {
+    'presencial': 'Presencial',
+    'remoto': 'Remoto',
+    'hibrido': 'Híbrido',
+  };
+
+  static String label(String mode) => labels[mode] ?? mode;
 }
 
 /// Shipping policies for products

@@ -63,6 +63,50 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
   final _lengthController = TextEditingController();
   bool _isPerishable = false;
 
+  // Rental fields
+  String _productType = 'product'; // 'product' or 'rental'
+  String _rentalType = 'imovel'; // imovel, equipamento, veiculo, outro
+  String _rentalPeriod = 'mensal'; // diario, semanal, mensal, anual
+  final _depositController = TextEditingController();
+  final _cityController = TextEditingController();
+  final _stateController = TextEditingController();
+  final _neighborhoodController = TextEditingController();
+  final _zipCodeController = TextEditingController();
+  // Imóvel-specific
+  String? _propertyType;
+  final _bedroomsController = TextEditingController();
+  final _bathroomsController = TextEditingController();
+  final _areaController = TextEditingController();
+  bool _furnished = false;
+  bool _petsAllowed = false;
+  // Veículo-specific
+  final _brandController = TextEditingController();
+  final _modelController = TextEditingController();
+  final _yearController = TextEditingController();
+
+  bool get _isRental => _productType == 'rental';
+
+  // Job fields
+  String _listingType = 'product'; // 'product' or 'job'
+  final _companyNameController = TextEditingController();
+  final _salaryController = TextEditingController();
+  bool _salaryNegotiable = false;
+  String? _selectedJobType;
+  String? _selectedWorkMode;
+  List<String> _requirements = [];
+  List<String> _benefits = [];
+  final _requirementController = TextEditingController();
+  final _benefitController = TextEditingController();
+  final _contactEmailController = TextEditingController();
+  final _contactPhoneController = TextEditingController();
+
+  bool get _isJobListing => _listingType == 'job';
+
+  String get _announcementType {
+    if (_isJobListing) return 'job';
+    return _productType;
+  }
+
   // Scroll + validation highlight
   final _scrollController = ScrollController();
   final _photosKey = GlobalKey();
@@ -153,6 +197,40 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
       _lengthController.text = product.dimensions!.length.toString();
     }
     _isPerishable = product.isPerishable;
+    _productType = product.productType;
+    if (product.rentalInfo != null) {
+      _rentalType = product.rentalInfo!.rentalType;
+      _rentalPeriod = product.rentalInfo!.rentalPeriod;
+      if (product.rentalInfo!.deposit != null) {
+        _depositController.text = _BrlCurrencyFormatter.format(product.rentalInfo!.deposit!);
+      }
+      _propertyType = product.rentalInfo!.propertyType;
+      if (product.rentalInfo!.bedrooms != null) _bedroomsController.text = product.rentalInfo!.bedrooms.toString();
+      if (product.rentalInfo!.bathrooms != null) _bathroomsController.text = product.rentalInfo!.bathrooms.toString();
+      if (product.rentalInfo!.area != null) _areaController.text = product.rentalInfo!.area.toString();
+      _furnished = product.rentalInfo!.furnished ?? false;
+      _petsAllowed = product.rentalInfo!.petsAllowed ?? false;
+      if (product.rentalInfo!.brand != null) _brandController.text = product.rentalInfo!.brand!;
+      if (product.rentalInfo!.model != null) _modelController.text = product.rentalInfo!.model!;
+      if (product.rentalInfo!.year != null) _yearController.text = product.rentalInfo!.year.toString();
+    }
+    if (product.location != null) {
+      if (product.location!.city != null) _cityController.text = product.location!.city!;
+      if (product.location!.state != null) _stateController.text = product.location!.state!;
+      if (product.location!.neighborhood != null) _neighborhoodController.text = product.location!.neighborhood!;
+      if (product.location!.zipCode != null) _zipCodeController.text = product.location!.zipCode!;
+    }
+    // Job fields
+    _listingType = product.listingType;
+    if (product.companyName != null) _companyNameController.text = product.companyName!;
+    if (product.salary != null) _salaryController.text = product.salary!;
+    _salaryNegotiable = product.salaryNegotiable;
+    _selectedJobType = product.jobType;
+    _selectedWorkMode = product.workMode;
+    _requirements = List.from(product.requirements);
+    _benefits = List.from(product.benefits);
+    if (product.contactEmail != null) _contactEmailController.text = product.contactEmail!;
+    if (product.contactPhone != null) _contactPhoneController.text = product.contactPhone!;
     _isPopulating = false;
 
     // Validate category after frame so categoriesProvider is loaded
@@ -184,11 +262,42 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     _widthController.dispose();
     _heightController.dispose();
     _lengthController.dispose();
+    _depositController.dispose();
+    _cityController.dispose();
+    _stateController.dispose();
+    _neighborhoodController.dispose();
+    _zipCodeController.dispose();
+    _bedroomsController.dispose();
+    _bathroomsController.dispose();
+    _areaController.dispose();
+    _brandController.dispose();
+    _modelController.dispose();
+    _yearController.dispose();
+    _companyNameController.dispose();
+    _salaryController.dispose();
+    _requirementController.dispose();
+    _benefitController.dispose();
+    _contactEmailController.dispose();
+    _contactPhoneController.dispose();
     _scrollController.dispose();
     super.dispose();
   }
 
   int? _findFirstInvalidSection() {
+    if (_isJobListing) {
+      // Job: photos are optional, validate info + category
+      final name = _nameController.text.trim();
+      final desc = _descriptionController.text.trim();
+      if (name.isEmpty || name.length < 3 || desc.isEmpty || desc.length < 10) {
+        return 1;
+      }
+      if (_selectedCategory == null || _selectedCategory!.isEmpty) return 3;
+      // Require at least one contact method
+      if (_contactEmailController.text.trim().isEmpty && _contactPhoneController.text.trim().isEmpty) {
+        return 1;
+      }
+      return null;
+    }
     if (_existingImageUrls.isEmpty && _newImageFiles.isEmpty) return 0;
     final name = _nameController.text.trim();
     final desc = _descriptionController.text.trim();
@@ -237,11 +346,19 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
   }
 
   Future<void> _saveProduct() async {
-    // Validate at least one photo first (top of form)
-    if (_existingImageUrls.isEmpty && _newImageFiles.isEmpty) {
+    // Validate at least one photo first (top of form) — skip for jobs
+    if (!_isJobListing && _existingImageUrls.isEmpty && _newImageFiles.isEmpty) {
       _highlightError(0);
       AppFeedback.showWarning(context, 'Adicione pelo menos 1 foto do produto');
       return;
+    }
+
+    // Job-specific validation: require at least one contact method
+    if (_isJobListing) {
+      if (_contactEmailController.text.trim().isEmpty && _contactPhoneController.text.trim().isEmpty) {
+        AppFeedback.showWarning(context, 'Informe ao menos um contato (email ou telefone)');
+        return;
+      }
     }
 
     if (!_formKey.currentState!.validate()) {
@@ -283,8 +400,8 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
 
       setState(() => _isUploadingImages = false);
 
-      // Validate that we have at least one image after upload
-      if (allImageUrls.isEmpty) {
+      // Validate that we have at least one image after upload (skip for jobs)
+      if (!_isJobListing && allImageUrls.isEmpty) {
         if (mounted) {
           AppFeedback.showError(context, 'Não foi possível enviar as fotos. Tente novamente.');
         }
@@ -306,6 +423,53 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
           _heightController.text.isNotEmpty ||
           _lengthController.text.isNotEmpty;
 
+      // Build rental info if this is a rental
+      RentalInfo? rentalInfo;
+      if (_isRental) {
+        rentalInfo = RentalInfo(
+          rentalType: _rentalType,
+          rentalPeriod: _rentalPeriod,
+          deposit: _depositController.text.isNotEmpty
+              ? double.tryParse(_depositController.text.replaceAll('.', '').replaceAll(',', '.'))
+              : null,
+          isAvailable: true,
+          propertyType: _rentalType == 'imovel' ? _propertyType : null,
+          bedrooms: _rentalType == 'imovel' && _bedroomsController.text.isNotEmpty
+              ? int.tryParse(_bedroomsController.text)
+              : null,
+          bathrooms: _rentalType == 'imovel' && _bathroomsController.text.isNotEmpty
+              ? int.tryParse(_bathroomsController.text)
+              : null,
+          area: _rentalType == 'imovel' && _areaController.text.isNotEmpty
+              ? double.tryParse(_areaController.text)
+              : null,
+          furnished: _rentalType == 'imovel' ? _furnished : null,
+          petsAllowed: _rentalType == 'imovel' ? _petsAllowed : null,
+          brand: _rentalType == 'veiculo' && _brandController.text.isNotEmpty
+              ? _brandController.text.trim()
+              : null,
+          model: _rentalType == 'veiculo' && _modelController.text.isNotEmpty
+              ? _modelController.text.trim()
+              : null,
+          year: _rentalType == 'veiculo' && _yearController.text.isNotEmpty
+              ? int.tryParse(_yearController.text)
+              : null,
+        );
+      }
+
+      // Build location (required for rentals, optional for products)
+      ProductLocation? location;
+      if (_cityController.text.isNotEmpty || _stateController.text.isNotEmpty) {
+        location = ProductLocation(
+          city: _cityController.text.trim().isNotEmpty ? _cityController.text.trim() : null,
+          state: _stateController.text.trim().isNotEmpty ? _stateController.text.trim() : null,
+          neighborhood: _neighborhoodController.text.trim().isNotEmpty ? _neighborhoodController.text.trim() : null,
+          zipCode: _zipCodeController.text.trim().isNotEmpty ? _zipCodeController.text.trim() : null,
+        );
+      }
+
+      final skipInventory = _isRental || _isJobListing;
+
       final product = ProductModel(
         id: productId,
         tenantId: ref.read(currentUserProvider).valueOrNull?.tenantId ?? '',
@@ -314,17 +478,17 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
         sku: null,
         barcode: null,
         categoryId: _selectedCategory!,
-        price: double.parse(_priceController.text.replaceAll('.', '').replaceAll(',', '.')),
+        price: _isJobListing ? 0 : double.parse(_priceController.text.replaceAll('.', '').replaceAll(',', '.')),
         costPrice: null,
         compareAtPrice: null,
-        quantity: _isOnDemand ? 0 : (_quantityController.text.isNotEmpty ? int.parse(_quantityController.text) : 0),
-        trackInventory: !_isOnDemand,
+        quantity: skipInventory ? 0 : (_isOnDemand ? 0 : (_quantityController.text.isNotEmpty ? int.parse(_quantityController.text) : 0)),
+        trackInventory: skipInventory ? false : !_isOnDemand,
         status: _isActive ? 'active' : 'draft',
         visibility: 'marketplace',
         images: images,
         tags: _tags,
-        hasVariants: _hasVariants,
-        variants: _variants,
+        hasVariants: skipInventory ? false : _hasVariants,
+        variants: skipInventory ? [] : _variants,
         weight: hasWeight ? double.tryParse(_weightController.text) : null,
         dimensions: hasDimensions
             ? ProductDimensions(
@@ -334,7 +498,20 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
               )
             : null,
         isPerishable: _isPerishable,
-        shippingPolicy: _shippingPolicy,
+        shippingPolicy: skipInventory ? 'pickup_only' : _shippingPolicy,
+        productType: _productType,
+        rentalInfo: rentalInfo,
+        location: location,
+        listingType: _listingType,
+        companyName: _isJobListing ? _companyNameController.text.trim() : null,
+        salary: _isJobListing ? (_salaryNegotiable ? null : _salaryController.text.trim()) : null,
+        salaryNegotiable: _isJobListing ? _salaryNegotiable : false,
+        jobType: _isJobListing ? _selectedJobType : null,
+        workMode: _isJobListing ? _selectedWorkMode : null,
+        requirements: _isJobListing ? _requirements : [],
+        benefits: _isJobListing ? _benefits : [],
+        contactEmail: _isJobListing ? (_contactEmailController.text.trim().isNotEmpty ? _contactEmailController.text.trim() : null) : null,
+        contactPhone: _isJobListing ? (_contactPhoneController.text.trim().isNotEmpty ? _contactPhoneController.text.trim() : null) : null,
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
       );
@@ -357,7 +534,9 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
 
       if (mounted) {
         _hasUnsavedChanges = false;
-        AppFeedback.showSuccess(context, _isEditing ? 'Produto atualizado!' : 'Produto criado!');
+        AppFeedback.showSuccess(context, _isEditing
+            ? (_isJobListing ? 'Vaga atualizada!' : 'Produto atualizado!')
+            : (_isJobListing ? 'Vaga criada!' : 'Produto criado!'));
         context.go(AppRouter.sellerProducts);
       }
     } catch (e) {
@@ -411,9 +590,9 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     final categoriesAsync = ref.watch(categoryModelsProvider);
     final progress = _filledSections / _totalRequiredSections;
 
-    // B3: Gate - require MP connection for new products
+    // B3: Gate - require MP connection for new products (skip for jobs)
     final isMpConnected = ref.watch(isMpConnectedProvider);
-    if (!isMpConnected && !_isEditing) {
+    if (!isMpConnected && !_isEditing && !_isJobListing) {
       return Scaffold(
         backgroundColor: AppColors.background,
         appBar: AppBar(
@@ -514,12 +693,16 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
         title: Row(
           children: [
             Icon(
-              _isEditing ? Icons.edit_outlined : Icons.add_box_outlined,
+              _isJobListing
+                  ? Icons.work_outlined
+                  : (_isEditing ? Icons.edit_outlined : Icons.add_box_outlined),
               size: 20,
             ),
             const SizedBox(width: 8),
             Text(
-              _isEditing ? 'Editar Produto' : 'Novo Produto',
+              _isJobListing
+                  ? (_isEditing ? 'Editar Vaga' : 'Nova Vaga')
+                  : (_isEditing ? 'Editar Produto' : 'Novo Produto'),
               style: const TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
@@ -595,12 +778,93 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
           controller: _scrollController,
           padding: const EdgeInsets.all(16),
           children: [
+            // Section 0: Product Type selector
+            if (!_isEditing)
+              _SectionCard(
+                icon: Icons.dashboard_outlined,
+                title: 'Tipo de Anúncio',
+                subtitle: 'Produto à venda, aluguel ou vaga de emprego',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SegmentedButton<String>(
+                      segments: const [
+                        ButtonSegment(
+                          value: 'product',
+                          label: Text('Produto'),
+                          icon: Icon(Icons.shopping_bag_outlined, size: 18),
+                        ),
+                        ButtonSegment(
+                          value: 'rental',
+                          label: Text('Aluguel'),
+                          icon: Icon(Icons.vpn_key_rounded, size: 18),
+                        ),
+                        ButtonSegment(
+                          value: 'job',
+                          label: Text('Vaga'),
+                          icon: Icon(Icons.work_outlined, size: 18),
+                        ),
+                      ],
+                      selected: {_announcementType},
+                      onSelectionChanged: (value) {
+                        setState(() {
+                          final type = value.first;
+                          if (type == 'job') {
+                            _listingType = 'job';
+                            _productType = 'product';
+                          } else {
+                            _listingType = 'product';
+                            _productType = type;
+                          }
+                          _hasUnsavedChanges = true;
+                        });
+                      },
+                    ),
+                    if (_isRental) ...[
+                      const SizedBox(height: 16),
+                      Text(
+                        'Tipo de aluguel',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      DropdownButtonFormField<String>(
+                        value: _rentalType,
+                        decoration: const InputDecoration(
+                          prefixIcon: Icon(Icons.category_outlined),
+                        ),
+                        items: const [
+                          DropdownMenuItem(value: 'imovel', child: Text('Imóvel')),
+                          DropdownMenuItem(value: 'equipamento', child: Text('Equipamento')),
+                          DropdownMenuItem(value: 'veiculo', child: Text('Veículo')),
+                          DropdownMenuItem(value: 'outro', child: Text('Outro')),
+                        ],
+                        onChanged: (value) {
+                          if (value != null) {
+                            setState(() {
+                              _rentalType = value;
+                              _hasUnsavedChanges = true;
+                            });
+                          }
+                        },
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            if (!_isEditing) const SizedBox(height: 16),
+
             // Section 1: Photos
             _SectionCard(
               key: _photosKey,
               icon: Icons.camera_alt_outlined,
-              title: 'Fotos',
-              subtitle: 'Adicione até 5 fotos do produto',
+              title: _isJobListing ? 'Logo / Imagem (opcional)' : 'Fotos',
+              subtitle: _isJobListing
+                  ? 'Adicione a logo ou imagem da empresa'
+                  : 'Adicione até 5 fotos do produto',
               hasError: _highlightedSection == 0,
               child: PhotoPickerGrid(
                 initialUrls: _existingImageUrls,
@@ -619,26 +883,49 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
             ),
             const SizedBox(height: 16),
 
-            // Section 2: Product info
+            // Section 2: Product info (or Job info)
             _SectionCard(
               key: _infoKey,
-              icon: Icons.info_outline,
-              title: 'Informações',
-              subtitle: 'Nome e descrição do produto',
+              icon: _isJobListing ? Icons.business_outlined : Icons.info_outline,
+              title: _isJobListing ? 'Informações da Vaga' : 'Informações',
+              subtitle: _isJobListing
+                  ? 'Empresa, título e descrição da vaga'
+                  : 'Nome e descrição do produto',
               hasError: _highlightedSection == 1,
               child: Column(
                 children: [
+                  if (_isJobListing) ...[
+                    TextFormField(
+                      controller: _companyNameController,
+                      decoration: const InputDecoration(
+                        labelText: 'Nome da empresa *',
+                        hintText: 'Ex: Tech Solutions Ltda',
+                        prefixIcon: Icon(Icons.business),
+                      ),
+                      textCapitalization: TextCapitalization.words,
+                      validator: (value) {
+                        if (!_isJobListing) return null;
+                        if (value == null || value.trim().isEmpty) {
+                          return 'Informe o nome da empresa';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                  ],
                   TextFormField(
                     controller: _nameController,
-                    decoration: const InputDecoration(
-                      labelText: 'Nome do produto *',
-                      hintText: 'Ex: Camiseta Premium Algodão',
-                      prefixIcon: Icon(Icons.label_outline),
+                    decoration: InputDecoration(
+                      labelText: _isJobListing ? 'Título da vaga *' : 'Nome do produto *',
+                      hintText: _isJobListing
+                          ? 'Ex: Desenvolvedor Flutter Pleno'
+                          : 'Ex: Camiseta Premium Algodão',
+                      prefixIcon: Icon(_isJobListing ? Icons.work_outline : Icons.label_outline),
                     ),
                     textCapitalization: TextCapitalization.words,
                     validator: (value) {
                       if (value == null || value.trim().isEmpty) {
-                        return 'Informe o nome do produto';
+                        return _isJobListing ? 'Informe o título da vaga' : 'Informe o nome do produto';
                       }
                       if (value.trim().length < 3) {
                         return 'Nome muito curto (mínimo 3 caracteres)';
@@ -649,11 +936,12 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: _descriptionController,
-                    decoration: const InputDecoration(
-                      labelText: 'Descrição *',
-                      hintText:
-                          'Descreva as características, materiais, tamanhos...',
-                      prefixIcon: Icon(Icons.description_outlined),
+                    decoration: InputDecoration(
+                      labelText: _isJobListing ? 'Descrição da vaga *' : 'Descrição *',
+                      hintText: _isJobListing
+                          ? 'Descreva as responsabilidades, atividades, diferenciais...'
+                          : 'Descreva as características, materiais, tamanhos...',
+                      prefixIcon: const Icon(Icons.description_outlined),
                       alignLabelWithHint: true,
                     ),
                     maxLines: 5,
@@ -673,19 +961,22 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
             ),
             const SizedBox(height: 16),
 
-            // Section 3: Price & quantity
+            // Section 3: Price & quantity (hidden for jobs, adapted for rentals)
+            if (!_isJobListing)
             _SectionCard(
               key: _priceKey,
               icon: Icons.attach_money,
-              title: 'Preço e Estoque',
-              subtitle: 'Defina o valor e a quantidade disponível',
+              title: _isRental ? 'Valor do Aluguel' : 'Preço e Estoque',
+              subtitle: _isRental
+                  ? 'Defina o valor e período do aluguel'
+                  : 'Defina o valor e a quantidade disponível',
               hasError: _highlightedSection == 2,
               child: Column(
                 children: [
                   TextFormField(
                     controller: _priceController,
-                    decoration: const InputDecoration(
-                      labelText: 'Preço *',
+                    decoration: InputDecoration(
+                      labelText: _isRental ? 'Valor do aluguel *' : 'Preço *',
                       prefixText: 'R\$ ',
                       prefixIcon: Icon(Icons.attach_money),
                     ),
@@ -706,63 +997,602 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                       return null;
                     },
                   ),
-                  const SizedBox(height: 16),
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text(
-                      'Sob demanda',
+                  // Rental-specific: period selector + deposit
+                  if (_isRental) ...[
+                    const SizedBox(height: 16),
+                    Text(
+                      'Período',
                       style: TextStyle(
-                        fontSize: 15,
+                        fontSize: 13,
                         fontWeight: FontWeight.w600,
                         color: AppColors.textPrimary,
                       ),
                     ),
-                    subtitle: const Text(
-                      'Sem limite de estoque — o comprador pode encomendar',
-                      style: TextStyle(fontSize: 12, color: AppColors.textHint),
+                    const SizedBox(height: 8),
+                    SegmentedButton<String>(
+                      segments: const [
+                        ButtonSegment(value: 'diario', label: Text('Diário')),
+                        ButtonSegment(value: 'semanal', label: Text('Semanal')),
+                        ButtonSegment(value: 'mensal', label: Text('Mensal')),
+                        ButtonSegment(value: 'anual', label: Text('Anual')),
+                      ],
+                      selected: {_rentalPeriod},
+                      onSelectionChanged: (value) {
+                        setState(() {
+                          _rentalPeriod = value.first;
+                          _hasUnsavedChanges = true;
+                        });
+                      },
+                      style: SegmentedButton.styleFrom(
+                        textStyle: const TextStyle(fontSize: 12),
+                      ),
                     ),
-                    value: _isOnDemand,
-                    activeColor: AppColors.sellerAccent,
-                    onChanged: (value) {
-                      setState(() {
-                        _isOnDemand = value;
-                        if (value) _quantityController.clear();
-                        _hasUnsavedChanges = true;
-                      });
-                    },
-                  ),
-                  if (!_isOnDemand) ...[
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 16),
                     TextFormField(
-                      controller: _quantityController,
+                      controller: _depositController,
                       decoration: const InputDecoration(
-                        labelText: 'Quantidade em estoque *',
-                        suffixText: 'unidades',
-                        prefixIcon: Icon(Icons.inventory_2_outlined),
+                        labelText: 'Caução (opcional)',
+                        prefixText: 'R\$ ',
+                        prefixIcon: Icon(Icons.account_balance_wallet_outlined),
+                        hintText: 'Valor de garantia',
                       ),
                       keyboardType: TextInputType.number,
                       inputFormatters: [
-                        FilteringTextInputFormatter.digitsOnly
+                        FilteringTextInputFormatter.digitsOnly,
+                        _BrlCurrencyFormatter(),
                       ],
-                      validator: (value) {
-                        if (_isOnDemand) return null;
-                        if (value == null || value.isEmpty) {
-                          return 'Informe a quantidade em estoque';
-                        }
-                        final qty = int.tryParse(value);
-                        if (qty == null || qty < 0) {
-                          return 'Quantidade inválida';
-                        }
-                        return null;
+                    ),
+                  ],
+                  // Product-specific: stock controls
+                  if (!_isRental) ...[
+                    const SizedBox(height: 16),
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text(
+                        'Sob demanda',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      subtitle: const Text(
+                        'Sem limite de estoque — o comprador pode encomendar',
+                        style: TextStyle(fontSize: 12, color: AppColors.textHint),
+                      ),
+                      value: _isOnDemand,
+                      activeColor: AppColors.sellerAccent,
+                      onChanged: (value) {
+                        setState(() {
+                          _isOnDemand = value;
+                          if (value) _quantityController.clear();
+                          _hasUnsavedChanges = true;
+                        });
                       },
                     ),
+                    if (!_isOnDemand) ...[
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: _quantityController,
+                        decoration: const InputDecoration(
+                          labelText: 'Quantidade em estoque *',
+                          suffixText: 'unidades',
+                          prefixIcon: Icon(Icons.inventory_2_outlined),
+                        ),
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly
+                        ],
+                        validator: (value) {
+                          if (_isOnDemand || _isRental) return null;
+                          if (value == null || value.isEmpty) {
+                            return 'Informe a quantidade em estoque';
+                          }
+                          final qty = int.tryParse(value);
+                          if (qty == null || qty < 0) {
+                            return 'Quantidade inválida';
+                          }
+                          return null;
+                        },
+                      ),
+                    ],
                   ],
                 ],
               ),
             ),
-            const SizedBox(height: 16),
+            if (!_isJobListing) const SizedBox(height: 16),
 
-            // Section: Shipping
+            // ── Job-specific sections ──
+            if (_isJobListing) ...[
+              const SizedBox(height: 16),
+              // Salary
+              _SectionCard(
+                icon: Icons.attach_money,
+                title: 'Salário',
+                subtitle: 'Informe a faixa salarial da vaga',
+                child: Column(
+                  children: [
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text(
+                        'A combinar',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      subtitle: const Text(
+                        'Salário será negociado com o candidato',
+                        style: TextStyle(fontSize: 12, color: AppColors.textHint),
+                      ),
+                      value: _salaryNegotiable,
+                      activeColor: AppColors.sellerAccent,
+                      onChanged: (value) {
+                        setState(() {
+                          _salaryNegotiable = value;
+                          if (value) _salaryController.clear();
+                          _hasUnsavedChanges = true;
+                        });
+                      },
+                    ),
+                    if (!_salaryNegotiable) ...[
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: _salaryController,
+                        decoration: const InputDecoration(
+                          labelText: 'Salário',
+                          hintText: 'Ex: R\$ 3.000 a R\$ 5.000',
+                          prefixIcon: Icon(Icons.payments_outlined),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              // Job Type & Work Mode
+              _SectionCard(
+                icon: Icons.badge_outlined,
+                title: 'Tipo e Modalidade',
+                subtitle: 'Regime de contratação e local de trabalho',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Tipo de vaga',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    DropdownButtonFormField<String>(
+                      value: _selectedJobType,
+                      decoration: const InputDecoration(
+                        prefixIcon: Icon(Icons.work_outline),
+                        hintText: 'Selecione o tipo',
+                      ),
+                      items: JobTypes.labels.entries
+                          .map((e) => DropdownMenuItem(
+                                value: e.key,
+                                child: Text(e.value),
+                              ))
+                          .toList(),
+                      onChanged: (value) {
+                        setState(() {
+                          _selectedJobType = value;
+                          _hasUnsavedChanges = true;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Modalidade de trabalho',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    DropdownButtonFormField<String>(
+                      value: _selectedWorkMode,
+                      decoration: const InputDecoration(
+                        prefixIcon: Icon(Icons.location_on_outlined),
+                        hintText: 'Selecione a modalidade',
+                      ),
+                      items: WorkModes.labels.entries
+                          .map((e) => DropdownMenuItem(
+                                value: e.key,
+                                child: Text(e.value),
+                              ))
+                          .toList(),
+                      onChanged: (value) {
+                        setState(() {
+                          _selectedWorkMode = value;
+                          _hasUnsavedChanges = true;
+                        });
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              // Requirements
+              _SectionCard(
+                icon: Icons.checklist_outlined,
+                title: 'Requisitos',
+                subtitle: 'Liste os requisitos para a vaga',
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _requirementController,
+                            decoration: InputDecoration(
+                              hintText: 'Ex: Experiência com Flutter',
+                              suffixIcon: IconButton(
+                                icon: const Icon(Icons.add_circle_outline),
+                                color: AppColors.sellerAccent,
+                                onPressed: () {
+                                  final text = _requirementController.text.trim();
+                                  if (text.isNotEmpty && !_requirements.contains(text)) {
+                                    setState(() {
+                                      _requirements.add(text);
+                                      _requirementController.clear();
+                                      _hasUnsavedChanges = true;
+                                    });
+                                  }
+                                },
+                              ),
+                            ),
+                            textInputAction: TextInputAction.done,
+                            onSubmitted: (_) {
+                              final text = _requirementController.text.trim();
+                              if (text.isNotEmpty && !_requirements.contains(text)) {
+                                setState(() {
+                                  _requirements.add(text);
+                                  _requirementController.clear();
+                                  _hasUnsavedChanges = true;
+                                });
+                              }
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (_requirements.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: _requirements
+                              .map((req) => Chip(
+                                    label: Text(req, style: const TextStyle(fontSize: 13)),
+                                    deleteIcon: const Icon(Icons.close, size: 18),
+                                    onDeleted: () {
+                                      setState(() {
+                                        _requirements.remove(req);
+                                        _hasUnsavedChanges = true;
+                                      });
+                                    },
+                                    backgroundColor: AppColors.primary.withAlpha(20),
+                                    side: BorderSide.none,
+                                  ))
+                              .toList(),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              // Benefits
+              _SectionCard(
+                icon: Icons.card_giftcard_outlined,
+                title: 'Benefícios',
+                subtitle: 'Liste os benefícios oferecidos',
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _benefitController,
+                            decoration: InputDecoration(
+                              hintText: 'Ex: Vale refeição, Plano de saúde',
+                              suffixIcon: IconButton(
+                                icon: const Icon(Icons.add_circle_outline),
+                                color: AppColors.sellerAccent,
+                                onPressed: () {
+                                  final text = _benefitController.text.trim();
+                                  if (text.isNotEmpty && !_benefits.contains(text)) {
+                                    setState(() {
+                                      _benefits.add(text);
+                                      _benefitController.clear();
+                                      _hasUnsavedChanges = true;
+                                    });
+                                  }
+                                },
+                              ),
+                            ),
+                            textInputAction: TextInputAction.done,
+                            onSubmitted: (_) {
+                              final text = _benefitController.text.trim();
+                              if (text.isNotEmpty && !_benefits.contains(text)) {
+                                setState(() {
+                                  _benefits.add(text);
+                                  _benefitController.clear();
+                                  _hasUnsavedChanges = true;
+                                });
+                              }
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (_benefits.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: _benefits
+                              .map((ben) => Chip(
+                                    label: Text(ben, style: const TextStyle(fontSize: 13)),
+                                    deleteIcon: const Icon(Icons.close, size: 18),
+                                    onDeleted: () {
+                                      setState(() {
+                                        _benefits.remove(ben);
+                                        _hasUnsavedChanges = true;
+                                      });
+                                    },
+                                    backgroundColor: AppColors.secondary.withAlpha(20),
+                                    side: BorderSide.none,
+                                  ))
+                              .toList(),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              // Contact
+              _SectionCard(
+                icon: Icons.contact_mail_outlined,
+                title: 'Contato',
+                subtitle: 'Informe ao menos um meio de contato',
+                child: Column(
+                  children: [
+                    TextFormField(
+                      controller: _contactEmailController,
+                      decoration: const InputDecoration(
+                        labelText: 'Email de contato',
+                        hintText: 'rh@empresa.com',
+                        prefixIcon: Icon(Icons.email_outlined),
+                      ),
+                      keyboardType: TextInputType.emailAddress,
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _contactPhoneController,
+                      decoration: const InputDecoration(
+                        labelText: 'Telefone / WhatsApp',
+                        hintText: '(11) 99999-9999',
+                        prefixIcon: Icon(Icons.phone_outlined),
+                      ),
+                      keyboardType: TextInputType.phone,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
+
+            // Section: Rental Location (required for rentals)
+            if (_isRental)
+              _SectionCard(
+                icon: Icons.location_on_outlined,
+                title: 'Localização',
+                subtitle: 'Informe a localização do imóvel/item',
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          flex: 2,
+                          child: TextFormField(
+                            controller: _cityController,
+                            decoration: const InputDecoration(
+                              labelText: 'Cidade *',
+                              prefixIcon: Icon(Icons.location_city),
+                            ),
+                            validator: (value) {
+                              if (_isRental && (value == null || value.trim().isEmpty)) {
+                                return 'Informe a cidade';
+                              }
+                              return null;
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: TextFormField(
+                            controller: _stateController,
+                            decoration: const InputDecoration(
+                              labelText: 'UF *',
+                            ),
+                            textCapitalization: TextCapitalization.characters,
+                            maxLength: 2,
+                            validator: (value) {
+                              if (_isRental && (value == null || value.trim().isEmpty)) {
+                                return 'UF';
+                              }
+                              return null;
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _neighborhoodController,
+                      decoration: const InputDecoration(
+                        labelText: 'Bairro (opcional)',
+                        prefixIcon: Icon(Icons.map_outlined),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _zipCodeController,
+                      decoration: const InputDecoration(
+                        labelText: 'CEP (opcional)',
+                        prefixIcon: Icon(Icons.pin_drop_outlined),
+                      ),
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      maxLength: 8,
+                    ),
+                  ],
+                ),
+              ),
+            if (_isRental) const SizedBox(height: 16),
+
+            // Section: Rental Details (conditional on rental type)
+            if (_isRental && _rentalType == 'imovel')
+              _SectionCard(
+                icon: Icons.home_outlined,
+                title: 'Detalhes do Imóvel',
+                subtitle: 'Informações específicas do imóvel',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    DropdownButtonFormField<String>(
+                      value: _propertyType,
+                      decoration: const InputDecoration(
+                        labelText: 'Tipo de imóvel',
+                        prefixIcon: Icon(Icons.home_work_outlined),
+                      ),
+                      items: const [
+                        DropdownMenuItem(value: 'apartamento', child: Text('Apartamento')),
+                        DropdownMenuItem(value: 'casa', child: Text('Casa')),
+                        DropdownMenuItem(value: 'sala_comercial', child: Text('Sala Comercial')),
+                        DropdownMenuItem(value: 'terreno', child: Text('Terreno')),
+                        DropdownMenuItem(value: 'kitnet', child: Text('Kitnet')),
+                      ],
+                      onChanged: (value) {
+                        setState(() {
+                          _propertyType = value;
+                          _hasUnsavedChanges = true;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            controller: _bedroomsController,
+                            decoration: const InputDecoration(
+                              labelText: 'Quartos',
+                              prefixIcon: Icon(Icons.bed_outlined),
+                            ),
+                            keyboardType: TextInputType.number,
+                            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: TextFormField(
+                            controller: _bathroomsController,
+                            decoration: const InputDecoration(
+                              labelText: 'Banheiros',
+                              prefixIcon: Icon(Icons.bathtub_outlined),
+                            ),
+                            keyboardType: TextInputType.number,
+                            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _areaController,
+                      decoration: const InputDecoration(
+                        labelText: 'Área (m²)',
+                        prefixIcon: Icon(Icons.square_foot),
+                        suffixText: 'm²',
+                      ),
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[\d.,]'))],
+                    ),
+                    const SizedBox(height: 12),
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Mobiliado', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                      value: _furnished,
+                      activeColor: AppColors.sellerAccent,
+                      onChanged: (v) => setState(() { _furnished = v; _hasUnsavedChanges = true; }),
+                    ),
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Aceita pets', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                      value: _petsAllowed,
+                      activeColor: AppColors.sellerAccent,
+                      onChanged: (v) => setState(() { _petsAllowed = v; _hasUnsavedChanges = true; }),
+                    ),
+                  ],
+                ),
+              ),
+            if (_isRental && _rentalType == 'imovel') const SizedBox(height: 16),
+
+            if (_isRental && _rentalType == 'veiculo')
+              _SectionCard(
+                icon: Icons.directions_car,
+                title: 'Detalhes do Veículo',
+                subtitle: 'Informações do veículo',
+                child: Column(
+                  children: [
+                    TextFormField(
+                      controller: _brandController,
+                      decoration: const InputDecoration(
+                        labelText: 'Marca',
+                        prefixIcon: Icon(Icons.branding_watermark_outlined),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _modelController,
+                      decoration: const InputDecoration(
+                        labelText: 'Modelo',
+                        prefixIcon: Icon(Icons.label_outline),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _yearController,
+                      decoration: const InputDecoration(
+                        labelText: 'Ano',
+                        prefixIcon: Icon(Icons.calendar_today),
+                      ),
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      maxLength: 4,
+                    ),
+                  ],
+                ),
+              ),
+            if (_isRental && _rentalType == 'veiculo') const SizedBox(height: 16),
+
+            // Section: Shipping (hidden for rentals and jobs)
+            if (!_isRental && !_isJobListing)
             _SectionCard(
               icon: Icons.local_shipping_outlined,
               title: 'Envio',
@@ -912,14 +1742,14 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: 16),
+            if (!_isRental && !_isJobListing) const SizedBox(height: 16),
 
             // Section 4: Category
             _SectionCard(
               key: _categoryKey,
               icon: Icons.category_outlined,
               title: 'Categoria',
-              subtitle: 'Escolha a categoria do produto',
+              subtitle: _isJobListing ? 'Escolha a categoria da vaga' : 'Escolha a categoria do produto',
               hasError: _highlightedSection == 3,
               child: categoriesAsync.when(
                 loading: () => const LinearProgressIndicator(),
@@ -1016,9 +1846,10 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: 16),
+            if (!_isRental && !_isJobListing) const SizedBox(height: 16),
 
-            // Section 6: Variants
+            // Section 6: Variants (hidden for rentals and jobs)
+            if (!_isRental && !_isJobListing)
             _SectionCard(
               icon: Icons.style_outlined,
               title: 'Variantes',
@@ -1080,7 +1911,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                         const SizedBox(height: 2),
                         Text(
                           _isActive
-                              ? 'Produto visível para compradores'
+                              ? (_isJobListing ? 'Vaga visível para candidatos' : 'Produto visível para compradores')
                               : 'Salvo como rascunho',
                           style: const TextStyle(
                             fontSize: 13,
@@ -1130,7 +1961,9 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                       )
                     : const Icon(Icons.rocket_launch_outlined, size: 20),
                 label: Text(
-                  _isEditing ? 'Salvar alterações' : 'Publicar produto',
+                  _isEditing
+                      ? 'Salvar alterações'
+                      : (_isJobListing ? 'Publicar vaga' : 'Publicar produto'),
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,

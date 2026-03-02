@@ -156,6 +156,14 @@ class CartNotifier extends Notifier<CartState> {
 
   /// Add product to cart
   Future<void> addToCart(ProductModel product, {int quantity = 1, String? variant, String? variantId}) async {
+    // Reject rental products — rentals are contact-only
+    if (product.isRental) {
+      state = state.copyWith(
+        error: 'Aluguéis não podem ser adicionados ao carrinho. Entre em contato com o anunciante.',
+      );
+      return;
+    }
+
     // Resolve variant price: use the variant's price if available, otherwise fall back to product price
     final resolvedVariant = variantId != null
         ? product.variants.firstWhereOrNull((v) => v.id == variantId)

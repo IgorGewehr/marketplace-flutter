@@ -1,11 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/router/app_router.dart';
-import '../../../core/theme/app_colors.dart';
-import '../../providers/mercadopago_provider.dart';
 import '../../providers/seller_mode_provider.dart';
 import '../../widgets/seller/seller_bottom_nav.dart';
 import '../../widgets/shared/app_feedback.dart';
@@ -26,8 +23,9 @@ class _SellerShellState extends ConsumerState<SellerShell> {
   int _getCurrentIndex(BuildContext context) {
     final location = GoRouterState.of(context).matchedLocation;
     if (location.startsWith('/seller/products')) return 1;
-    if (location.startsWith('/seller/orders')) return 2;
-    if (location.startsWith('/seller/wallet')) return 3;
+    if (location.startsWith('/seller/agenda')) return 2;
+    if (location.startsWith('/seller/orders')) return 3;
+    if (location.startsWith('/seller/wallet')) return 4;
     return 0; // Dashboard
   }
 
@@ -40,90 +38,15 @@ class _SellerShellState extends ConsumerState<SellerShell> {
         context.go('/seller/products');
         break;
       case 2:
-        context.go('/seller/orders');
+        context.go('/seller/agenda');
         break;
       case 3:
+        context.go('/seller/orders');
+        break;
+      case 4:
         context.go('/seller/wallet');
         break;
     }
-  }
-
-  Future<void> _onFabPressed() async {
-    // If the provider is still loading (initial fetch), wait for it
-    final isLoading = ref.read(isMpConnectionLoadingProvider);
-    if (isLoading) {
-      // Wait for the mpConnectionProvider to finish its initial load
-      final connection = await ref.read(mpConnectionProvider.future);
-      if (!mounted) return;
-      if (connection?.isConnected != true) {
-        _showMpConnectDialog();
-        return;
-      }
-      context.push('/seller/products/new');
-      return;
-    }
-
-    // Check Mercado Pago connection before creating product
-    final isMpConnected = ref.read(isMpConnectedProvider);
-    if (!isMpConnected) {
-      _showMpConnectDialog();
-      return;
-    }
-
-    // All checks passed — create product
-    context.push('/seller/products/new');
-  }
-
-  void _showMpConnectDialog() {
-    final theme = Theme.of(context);
-    showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        icon: Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: AppColors.sellerAccent.withAlpha(25),
-            shape: BoxShape.circle,
-          ),
-          child: const Icon(
-            Icons.account_balance_wallet_outlined,
-            color: AppColors.sellerAccent,
-            size: 32,
-          ),
-        ),
-        title: const Text('Conecte o Mercado Pago'),
-        titleTextStyle: theme.textTheme.titleLarge?.copyWith(
-          fontWeight: FontWeight.bold,
-        ),
-        content: const Text(
-          'Para publicar produtos e receber pagamentos, você precisa conectar sua conta do Mercado Pago.',
-          textAlign: TextAlign.center,
-        ),
-        actionsAlignment: MainAxisAlignment.center,
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton.icon(
-            onPressed: () => Navigator.pop(ctx, true),
-            icon: const Icon(Icons.link, size: 18),
-            label: const Text('Conectar Mercado Pago'),
-            style: FilledButton.styleFrom(
-              backgroundColor: AppColors.sellerAccent,
-            ),
-          ),
-        ],
-      ),
-    ).then((confirmed) async {
-      if (confirmed == true && mounted) {
-        final connected = await context.push<bool>(AppRouter.sellerMpConnect);
-        if (connected == true && mounted) {
-          context.push('/seller/products/new');
-        }
-      }
-    });
   }
 
   @override
@@ -158,7 +81,6 @@ class _SellerShellState extends ConsumerState<SellerShell> {
             SellerBottomNav(
               currentIndex: currentIndex,
               onTap: _onTabTap,
-              onFabPressed: _onFabPressed,
             ),
           ],
         ),

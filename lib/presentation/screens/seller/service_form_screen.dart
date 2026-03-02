@@ -40,6 +40,20 @@ class _ServiceFormScreenState extends ConsumerState<ServiceFormScreen> {
   bool _isOnSite = true;
   bool _acceptsQuote = true;
   bool _instantBooking = false;
+  bool _scheduleEnabled = false;
+  int _slotDurationMinutes = 60;
+  int _breakBetweenMinutes = 0;
+  Map<String, bool> _scheduleDays = {
+    'monday': false,
+    'tuesday': false,
+    'wednesday': false,
+    'thursday': false,
+    'friday': false,
+    'saturday': false,
+    'sunday': false,
+  };
+  Map<String, String> _scheduleStart = {};
+  Map<String, String> _scheduleEnd = {};
 
   String _selectedCategory = '';
   String _pricingType = 'fixed';
@@ -89,6 +103,25 @@ class _ServiceFormScreenState extends ConsumerState<ServiceFormScreen> {
       _certifications = List.from(service.certifications);
       _serviceAreas = List.from(service.serviceAreas);
       _existingImageUrls = service.images.map((i) => i.url).toList();
+
+      // Schedule fields
+      _scheduleEnabled = service.scheduleEnabled;
+      _slotDurationMinutes = service.slotDurationMinutes;
+      _breakBetweenMinutes = service.breakBetweenMinutes;
+      for (final day in service.availableDays) {
+        _scheduleDays[day] = true;
+      }
+      if (service.serviceHours != null) {
+        for (final entry in service.serviceHours!.allDays.entries) {
+          if (entry.value != null) {
+            final parts = entry.value!.split('-');
+            if (parts.length == 2) {
+              _scheduleStart[entry.key] = parts[0];
+              _scheduleEnd[entry.key] = parts[1];
+            }
+          }
+        }
+      }
     }
   }
 
@@ -218,6 +251,18 @@ class _ServiceFormScreenState extends ConsumerState<ServiceFormScreen> {
 
     setState(() => _isLoading = true);
 
+    // Build schedule data
+    final activeDays = _scheduleDays.entries
+        .where((e) => e.value)
+        .map((e) => e.key)
+        .toList();
+    final serviceHoursMap = <String, String>{};
+    for (final day in activeDays) {
+      final start = _scheduleStart[day] ?? '08:00';
+      final end = _scheduleEnd[day] ?? '18:00';
+      serviceHoursMap[day] = '$start-$end';
+    }
+
     try {
       final request = _isEditing
           ? UpdateServiceRequest(
@@ -248,6 +293,11 @@ class _ServiceFormScreenState extends ConsumerState<ServiceFormScreen> {
               status: _isActive ? 'active' : 'draft',
               acceptsQuote: _acceptsQuote,
               instantBooking: _instantBooking,
+              scheduleEnabled: _scheduleEnabled,
+              slotDurationMinutes: _slotDurationMinutes,
+              breakBetweenMinutes: _breakBetweenMinutes,
+              availableDays: activeDays,
+              serviceHours: serviceHoursMap.isNotEmpty ? serviceHoursMap : null,
             )
           : CreateServiceRequest(
               name: _nameController.text.trim(),
@@ -275,6 +325,11 @@ class _ServiceFormScreenState extends ConsumerState<ServiceFormScreen> {
                   : _experienceController.text.trim(),
               acceptsQuote: _acceptsQuote,
               instantBooking: _instantBooking,
+              scheduleEnabled: _scheduleEnabled,
+              slotDurationMinutes: _slotDurationMinutes,
+              breakBetweenMinutes: _breakBetweenMinutes,
+              availableDays: activeDays,
+              serviceHours: serviceHoursMap.isNotEmpty ? serviceHoursMap : null,
             );
 
       String? targetServiceId = widget.serviceId;
@@ -733,6 +788,125 @@ class _ServiceFormScreenState extends ConsumerState<ServiceFormScreen> {
                 ],
               ),
             ),
+            const SizedBox(height: 24),
+
+            // Schedule Configuration Section
+            _SectionHeader(title: 'Agendamento Online'),
+            const SizedBox(height: 16),
+
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Habilitar agendamento online',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.textPrimary,
+                              ),
+                            ),
+                            SizedBox(height: 2),
+                            Text(
+                              'Clientes podem agendar horários diretamente',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: AppColors.textHint,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Switch(
+                        value: _scheduleEnabled,
+                        onChanged: (value) => setState(() {
+                          _scheduleEnabled = value;
+                          _hasUnsavedChanges = true;
+                        }),
+                        activeColor: AppColors.sellerAccent,
+                      ),
+                    ],
+                  ),
+
+                  if (_scheduleEnabled) ...[
+                    const Divider(height: 24),
+
+                    // Slot duration
+                    DropdownButtonFormField<int>(
+                      value: _slotDurationMinutes,
+                      decoration: const InputDecoration(
+                        labelText: 'Duração do atendimento',
+                      ),
+                      items: const [
+                        DropdownMenuItem(value: 15, child: Text('15 minutos')),
+                        DropdownMenuItem(value: 30, child: Text('30 minutos')),
+                        DropdownMenuItem(value: 45, child: Text('45 minutos')),
+                        DropdownMenuItem(value: 60, child: Text('1 hora')),
+                        DropdownMenuItem(value: 90, child: Text('1h30')),
+                        DropdownMenuItem(value: 120, child: Text('2 horas')),
+                      ],
+                      onChanged: (value) {
+                        if (value != null) {
+                          setState(() {
+                            _slotDurationMinutes = value;
+                            _hasUnsavedChanges = true;
+                          });
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Break between
+                    DropdownButtonFormField<int>(
+                      value: _breakBetweenMinutes,
+                      decoration: const InputDecoration(
+                        labelText: 'Intervalo entre atendimentos',
+                      ),
+                      items: const [
+                        DropdownMenuItem(value: 0, child: Text('Sem intervalo')),
+                        DropdownMenuItem(value: 5, child: Text('5 minutos')),
+                        DropdownMenuItem(value: 10, child: Text('10 minutos')),
+                        DropdownMenuItem(value: 15, child: Text('15 minutos')),
+                        DropdownMenuItem(value: 30, child: Text('30 minutos')),
+                      ],
+                      onChanged: (value) {
+                        if (value != null) {
+                          setState(() {
+                            _breakBetweenMinutes = value;
+                            _hasUnsavedChanges = true;
+                          });
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Days of the week
+                    const Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Dias de atendimento',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    ..._buildDayRows(),
+                  ],
+                ],
+              ),
+            ),
             const SizedBox(height: 16),
 
             // Active and Available toggles
@@ -785,6 +959,113 @@ class _ServiceFormScreenState extends ConsumerState<ServiceFormScreen> {
       ),
       ),
     );
+  }
+
+  List<Widget> _buildDayRows() {
+    const dayLabels = {
+      'monday': 'Segunda',
+      'tuesday': 'Terça',
+      'wednesday': 'Quarta',
+      'thursday': 'Quinta',
+      'friday': 'Sexta',
+      'saturday': 'Sábado',
+      'sunday': 'Domingo',
+    };
+
+    return dayLabels.entries.map((entry) {
+      final day = entry.key;
+      final label = entry.value;
+      final isActive = _scheduleDays[day] ?? false;
+
+      return Column(
+        children: [
+          Row(
+            children: [
+              SizedBox(
+                width: 24,
+                height: 24,
+                child: Checkbox(
+                  value: isActive,
+                  onChanged: (value) => setState(() {
+                    _scheduleDays[day] = value ?? false;
+                    if (value == true) {
+                      _scheduleStart.putIfAbsent(day, () => '08:00');
+                      _scheduleEnd.putIfAbsent(day, () => '18:00');
+                    }
+                    _hasUnsavedChanges = true;
+                  }),
+                  activeColor: AppColors.sellerAccent,
+                  visualDensity: VisualDensity.compact,
+                ),
+              ),
+              const SizedBox(width: 8),
+              SizedBox(
+                width: 72,
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: isActive ? AppColors.textPrimary : AppColors.textHint,
+                    fontWeight: isActive ? FontWeight.w500 : FontWeight.normal,
+                  ),
+                ),
+              ),
+              if (isActive) ...[
+                const SizedBox(width: 8),
+                _TimePickerChip(
+                  label: _scheduleStart[day] ?? '08:00',
+                  onTap: () => _pickTime(day, isStart: true),
+                ),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 6),
+                  child: Text('—', style: TextStyle(color: AppColors.textHint)),
+                ),
+                _TimePickerChip(
+                  label: _scheduleEnd[day] ?? '18:00',
+                  onTap: () => _pickTime(day, isStart: false),
+                ),
+              ],
+            ],
+          ),
+          if (day != 'sunday') const SizedBox(height: 4),
+        ],
+      );
+    }).toList();
+  }
+
+  Future<void> _pickTime(String day, {required bool isStart}) async {
+    final current = isStart
+        ? (_scheduleStart[day] ?? '08:00')
+        : (_scheduleEnd[day] ?? '18:00');
+    final parts = current.split(':');
+    final initial = TimeOfDay(
+      hour: int.tryParse(parts[0]) ?? 8,
+      minute: int.tryParse(parts[1]) ?? 0,
+    );
+
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: initial,
+      builder: (context, child) {
+        return MediaQuery(
+          data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
+          child: child!,
+        );
+      },
+    );
+
+    if (picked != null) {
+      final timeStr =
+          '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}';
+      setState(() {
+        if (isStart) {
+          _scheduleStart[day] = timeStr;
+        } else {
+          _scheduleEnd[day] = timeStr;
+        }
+        _hasUnsavedChanges = true;
+      });
+    }
   }
 
   void _showAddItemDialog(String title, Function(String) onAdd) {
@@ -908,6 +1189,36 @@ class _ListField extends StatelessWidget {
             );
           }),
       ],
+    );
+  }
+}
+
+class _TimePickerChip extends StatelessWidget {
+  final String label;
+  final VoidCallback onTap;
+
+  const _TimePickerChip({required this.label, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: AppColors.sellerAccent.withAlpha(15),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: AppColors.sellerAccent.withAlpha(40)),
+        ),
+        child: Text(
+          label,
+          style: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+            color: AppColors.sellerAccent,
+          ),
+        ),
+      ),
     );
   }
 }

@@ -26,6 +26,7 @@ import '../../presentation/screens/orders/orders_screen.dart';
 import '../../presentation/screens/orders/order_details_screen.dart';
 import '../../data/models/product_model.dart';
 import '../../presentation/screens/seller/seller_dashboard_screen.dart';
+import '../../presentation/screens/seller/seller_agenda_screen.dart';
 import '../../presentation/screens/seller/my_products_screen.dart';
 import '../../presentation/screens/seller/product_form_screen.dart';
 import '../../presentation/screens/seller/seller_orders_screen.dart';
@@ -46,6 +47,9 @@ import '../../presentation/screens/favorites/favorites_screen.dart';
 import '../../presentation/screens/services/services_screen.dart';
 import '../../presentation/screens/services/service_details_screen.dart';
 import '../../presentation/screens/shipping/delivery_zones_screen.dart';
+import '../../presentation/screens/rentals/rentals_screen.dart';
+import '../../presentation/screens/jobs/jobs_screen.dart';
+import '../../presentation/screens/jobs/job_details_screen.dart';
 
 /// Returns a [CustomTransitionPage] with a smooth slide-from-right + fade transition.
 /// Wraps [child] with [_PopSafeWrapper] so the Android system back button never
@@ -131,6 +135,7 @@ class AppRouter {
   static const sellerProducts = '/seller/products';
   static const sellerProductNew = '/seller/products/new';
   static const sellerProductEdit = '/seller/products/:id/edit';
+  static const sellerAgenda = '/seller/agenda';
   static const sellerOrders = '/seller/orders';
   static const sellerOrderDetails = '/seller/orders/:id';
   static const sellerWallet = '/seller/wallet';
@@ -145,6 +150,9 @@ class AppRouter {
   static const favorites = '/favorites';
   static const services = '/services';
   static const serviceDetails = '/service/:id';
+  static const rentals = '/rentals';
+  static const jobs = '/jobs';
+  static const jobDetails = '/job/:id';
   static const sellerProfile = '/seller-profile/:id';
   static const sellerEditProfile = '/seller/edit-profile';
   static const deliveryZones = '/delivery-zones';
@@ -380,6 +388,33 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         parentNavigatorKey: _rootNavigatorKey,
+        path: AppRouter.rentals,
+        pageBuilder: (context, state) => _slidePage(
+          context: context,
+          state: state,
+          child: const RentalsScreen(),
+        ),
+      ),
+      GoRoute(
+        parentNavigatorKey: _rootNavigatorKey,
+        path: AppRouter.jobs,
+        pageBuilder: (context, state) => _slidePage(
+          context: context,
+          state: state,
+          child: const JobsScreen(),
+        ),
+      ),
+      GoRoute(
+        parentNavigatorKey: _rootNavigatorKey,
+        path: AppRouter.jobDetails,
+        pageBuilder: (context, state) => _slidePage(
+          context: context,
+          state: state,
+          child: JobDetailsScreen(jobId: state.pathParameters['id']!),
+        ),
+      ),
+      GoRoute(
+        parentNavigatorKey: _rootNavigatorKey,
         path: AppRouter.cart,
         pageBuilder: (context, state) => _slidePage(
           context: context,
@@ -481,6 +516,10 @@ final routerProvider = Provider<GoRouter>((ref) {
                 },
               ),
             ],
+          ),
+          GoRoute(
+            path: AppRouter.sellerAgenda,
+            builder: (context, state) => const SellerAgendaScreen(),
           ),
           GoRoute(
             path: AppRouter.sellerOrders,

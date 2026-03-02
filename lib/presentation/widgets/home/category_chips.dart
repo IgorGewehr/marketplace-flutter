@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../../core/router/app_router.dart';
 import '../../providers/products_provider.dart';
 
 /// Icon mapping for categories by name/slug
@@ -39,6 +41,12 @@ const Map<String, IconData> _categoryIconMap = {
   'serviços': Icons.handyman_rounded,
   'servicos': Icons.handyman_rounded,
   'produtos': Icons.inventory_2_rounded,
+  'aluguéis': Icons.vpn_key_rounded,
+  'alugueis': Icons.vpn_key_rounded,
+  'aluguel': Icons.vpn_key_rounded,
+  'empregos': Icons.work_rounded,
+  'emprego': Icons.work_rounded,
+  'vagas': Icons.work_rounded,
 };
 
 IconData _getIconForCategory(String categoryName) {
@@ -73,6 +81,12 @@ class CategoryTabs extends ConsumerWidget {
               icon: _getIconForCategory(category),
               isSelected: isSelected,
               onTap: () {
+                // Navigate to dedicated screen for special categories
+                final lower = category.toLowerCase();
+                if (lower == 'empregos' || lower == 'vagas') {
+                  context.push(AppRouter.jobs);
+                  return;
+                }
                 ref.read(selectedCategoryProvider.notifier).state = category;
               },
             );

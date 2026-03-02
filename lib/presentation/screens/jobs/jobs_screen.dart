@@ -5,22 +5,21 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_colors.dart';
-import '../../providers/services_provider.dart';
+import '../../providers/jobs_provider.dart';
 import '../../widgets/home/section_header.dart';
-import '../../widgets/services/service_card.dart';
-import '../../widgets/services/service_grid.dart';
+import '../../widgets/jobs/job_card.dart';
 import '../../widgets/shared/error_state.dart';
 import '../../widgets/shared/shimmer_loading.dart';
 
-/// Services screen - browse services marketplace
-class ServicesScreen extends ConsumerStatefulWidget {
-  const ServicesScreen({super.key});
+/// Jobs listing screen with filters — follows Services screen pattern
+class JobsScreen extends ConsumerStatefulWidget {
+  const JobsScreen({super.key});
 
   @override
-  ConsumerState<ServicesScreen> createState() => _ServicesScreenState();
+  ConsumerState<JobsScreen> createState() => _JobsScreenState();
 }
 
-class _ServicesScreenState extends ConsumerState<ServicesScreen> {
+class _JobsScreenState extends ConsumerState<JobsScreen> {
   final ScrollController _scrollController = ScrollController();
 
   @override
@@ -38,26 +37,26 @@ class _ServicesScreenState extends ConsumerState<ServicesScreen> {
   void _onScroll() {
     if (_scrollController.position.pixels >=
         _scrollController.position.maxScrollExtent - 200) {
-      ref.read(paginatedRecentServicesProvider.notifier).loadMore();
+      ref.read(paginatedJobsProvider.notifier).loadMore();
     }
   }
 
   Future<void> _onRefresh() async {
-    ref.invalidate(featuredServicesProvider);
-    ref.invalidate(recentServicesProvider);
-    ref.read(paginatedRecentServicesProvider.notifier).refresh();
+    ref.invalidate(featuredJobsProvider);
+    ref.invalidate(recentJobsProvider);
+    ref.read(paginatedJobsProvider.notifier).refresh();
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final featuredAsync = ref.watch(featuredServicesProvider);
-    final recentAsync = ref.watch(recentServicesProvider);
+    final featuredAsync = ref.watch(featuredJobsProvider);
+    final recentAsync = ref.watch(recentJobsProvider);
 
     return Scaffold(
       backgroundColor: theme.colorScheme.surface,
       appBar: AppBar(
-        title: const Text('Serviços'),
+        title: const Text('Vagas de Emprego'),
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
         elevation: 0,
@@ -68,9 +67,7 @@ class _ServicesScreenState extends ConsumerState<ServicesScreen> {
           ),
           IconButton(
             icon: const Icon(Icons.filter_list),
-            onPressed: () {
-              _showFilterBottomSheet(context);
-            },
+            onPressed: () => _showFilterBottomSheet(context),
           ),
         ],
       ),
@@ -81,95 +78,133 @@ class _ServicesScreenState extends ConsumerState<ServicesScreen> {
           child: CustomScrollView(
             controller: _scrollController,
             slivers: [
-              // Category chips
+              // Category chips (job types)
               SliverToBoxAdapter(
-                child: _ServiceCategoryChips(),
+                child: _JobCategoryChips(),
               ),
 
               const SliverToBoxAdapter(child: SizedBox(height: 16)),
 
-              // Featured services section
+              // Featured jobs section
               SliverToBoxAdapter(
                 child: SectionHeader(
-                  title: 'Serviços em Destaque',
-                  actionLabel: 'Ver todos',
+                  title: 'Em Destaque',
+                  actionLabel: 'Ver todas',
                   onActionPressed: () {
-                    ref.read(selectedServiceCategoryProvider.notifier).state = 'Todos';
-                    ref.invalidate(filteredServicesProvider);
+                    ref.read(selectedJobTypeProvider.notifier).state = 'Todos';
+                    ref.invalidate(featuredJobsProvider);
                   },
                 ),
               ),
 
               const SliverToBoxAdapter(child: SizedBox(height: 12)),
 
-              // Featured services grid
+              // Featured jobs grid
               featuredAsync.when(
-                loading: () => const SliverServiceGrid(isLoading: true),
+                loading: () => const SliverToBoxAdapter(
+                  child: ShimmerLoading(itemCount: 4, isGrid: true),
+                ),
                 error: (_, __) => SliverToBoxAdapter(
                   child: ErrorState(
                     icon: Icons.cloud_off_rounded,
-                    message: 'Erro ao carregar serviços em destaque.',
-                    onRetry: () => ref.invalidate(featuredServicesProvider),
+                    message: 'Erro ao carregar vagas em destaque.',
+                    onRetry: () => ref.invalidate(featuredJobsProvider),
                   ),
                 ),
-                data: (services) {
-                  if (services.isEmpty) {
+                data: (jobs) {
+                  if (jobs.isEmpty) {
                     return SliverToBoxAdapter(
                       child: _AnimatedEmptySection(
-                        icon: Icons.home_repair_service_outlined,
-                        title: 'Nenhum serviço em destaque',
-                        subtitle: 'Novos serviços aparecerão aqui em breve',
+                        icon: Icons.work_outline_rounded,
+                        title: 'Nenhuma vaga em destaque',
+                        subtitle: 'Novas vagas aparecerão aqui em breve',
                       ),
                     );
                   }
-                  return SliverServiceGrid(services: services);
+                  return SliverPadding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    sliver: SliverGrid(
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 2,
+                        mainAxisSpacing: 12,
+                        crossAxisSpacing: 12,
+                        childAspectRatio: 0.68,
+                      ),
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) => JobCard(job: jobs[index])
+                            .animate(delay: Duration(milliseconds: (index % 6) * 60))
+                            .fadeIn(duration: 300.ms, curve: Curves.easeOut)
+                            .slideY(begin: 0.08, end: 0, duration: 300.ms, curve: Curves.easeOut),
+                        childCount: jobs.length,
+                      ),
+                    ),
+                  );
                 },
               ),
 
               const SliverToBoxAdapter(child: SizedBox(height: 32)),
 
-              // Recent services section
+              // Recent jobs section
               SliverToBoxAdapter(
                 child: SectionHeader(
-                  title: 'Serviços Recentes',
-                  actionLabel: 'Ver todos',
+                  title: 'Vagas Recentes',
+                  actionLabel: 'Ver todas',
                   onActionPressed: () {
-                    ref.read(selectedServiceCategoryProvider.notifier).state = 'Todos';
-                    ref.invalidate(recentServicesProvider);
+                    ref.read(selectedJobTypeProvider.notifier).state = 'Todos';
+                    ref.invalidate(recentJobsProvider);
                   },
                 ),
               ),
 
               const SliverToBoxAdapter(child: SizedBox(height: 12)),
 
-              // Recent services grid
+              // Recent jobs grid
               recentAsync.when(
-                loading: () => const SliverServiceGrid(isLoading: true),
+                loading: () => const SliverToBoxAdapter(
+                  child: ShimmerLoading(itemCount: 4, isGrid: true),
+                ),
                 error: (_, __) => SliverToBoxAdapter(
                   child: ErrorState(
                     icon: Icons.cloud_off_rounded,
-                    message: 'Erro ao carregar serviços recentes.',
-                    onRetry: () => ref.invalidate(recentServicesProvider),
+                    message: 'Erro ao carregar vagas recentes.',
+                    onRetry: () => ref.invalidate(recentJobsProvider),
                   ),
                 ),
-                data: (services) {
-                  if (services.isEmpty) {
+                data: (jobs) {
+                  if (jobs.isEmpty) {
                     return SliverToBoxAdapter(
                       child: _AnimatedEmptySection(
                         icon: Icons.schedule_rounded,
-                        title: 'Nenhum serviço recente',
-                        subtitle: 'Serviços adicionados recentemente aparecerão aqui',
+                        title: 'Nenhuma vaga recente',
+                        subtitle: 'Vagas adicionadas recentemente aparecerão aqui',
                       ),
                     );
                   }
-                  return SliverServiceGrid(services: services);
+                  return SliverPadding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    sliver: SliverGrid(
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 2,
+                        mainAxisSpacing: 12,
+                        crossAxisSpacing: 12,
+                        childAspectRatio: 0.68,
+                      ),
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) => JobCard(job: jobs[index])
+                            .animate(delay: Duration(milliseconds: (index % 6) * 60))
+                            .fadeIn(duration: 300.ms, curve: Curves.easeOut)
+                            .slideY(begin: 0.08, end: 0, duration: 300.ms, curve: Curves.easeOut),
+                        childCount: jobs.length,
+                      ),
+                    ),
+                  );
                 },
               ),
 
               const SliverToBoxAdapter(child: SizedBox(height: 32)),
 
-              // Paginated "Mais serviços" section (infinite scroll)
-              ..._buildPaginatedServices(),
+              // Paginated "Mais Vagas" section (infinite scroll)
+              ..._buildPaginatedJobs(),
 
               // Bottom padding for floating nav
               const SliverToBoxAdapter(child: SizedBox(height: 120)),
@@ -180,16 +215,16 @@ class _ServicesScreenState extends ConsumerState<ServicesScreen> {
     );
   }
 
-  List<Widget> _buildPaginatedServices() {
-    final paginatedState = ref.watch(paginatedRecentServicesProvider);
-    if (paginatedState.services.isEmpty && !paginatedState.isLoading) {
+  List<Widget> _buildPaginatedJobs() {
+    final paginatedState = ref.watch(paginatedJobsProvider);
+    if (paginatedState.jobs.isEmpty && !paginatedState.isLoading) {
       return [];
     }
 
     return [
       SliverToBoxAdapter(
         child: SectionHeader(
-          title: 'Mais serviços',
+          title: 'Mais Vagas',
           actionLabel: '',
           onActionPressed: () {},
         ),
@@ -200,19 +235,19 @@ class _ServicesScreenState extends ConsumerState<ServicesScreen> {
         sliver: SliverGrid(
           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: 2,
-            mainAxisSpacing: 16,
-            crossAxisSpacing: 16,
-            childAspectRatio: 0.60,
+            mainAxisSpacing: 12,
+            crossAxisSpacing: 12,
+            childAspectRatio: 0.68,
           ),
           delegate: SliverChildBuilderDelegate(
             (context, index) {
-              if (index >= paginatedState.services.length) return null;
-              return ServiceCard(service: paginatedState.services[index])
+              if (index >= paginatedState.jobs.length) return null;
+              return JobCard(job: paginatedState.jobs[index])
                   .animate(delay: Duration(milliseconds: (index % 6) * 60))
                   .fadeIn(duration: 300.ms, curve: Curves.easeOut)
                   .slideY(begin: 0.08, end: 0, duration: 300.ms, curve: Curves.easeOut);
             },
-            childCount: paginatedState.services.length,
+            childCount: paginatedState.jobs.length,
           ),
         ),
       ),
@@ -231,69 +266,64 @@ class _ServicesScreenState extends ConsumerState<ServicesScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => const _ServiceFilterSheet(),
+      builder: (context) => const _JobFilterSheet(),
     );
   }
 }
 
-class _ServiceCategoryChips extends ConsumerWidget {
+class _JobCategoryChips extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final categoriesAsync = ref.watch(serviceCategoriesProvider);
-    final selectedCategory = ref.watch(selectedServiceCategoryProvider);
+    final selectedType = ref.watch(selectedJobTypeProvider);
 
-    return categoriesAsync.when(
-      loading: () => const SizedBox(height: 40),
-      error: (_, __) => const SizedBox.shrink(),
-      data: (categories) {
-        if (categories.length <= 1) return const SizedBox.shrink();
-        return SizedBox(
-          height: 40,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            itemCount: categories.length,
-            itemBuilder: (context, index) {
-              final category = categories[index];
-              final isSelected = category == selectedCategory;
+    // Hide if only "Todos" would show (shouldn't happen, but guard)
+    if (jobTypeCategories.length <= 1) return const SizedBox.shrink();
 
-              return Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: ChoiceChip(
-                  label: Text(category),
-                  selected: isSelected,
-                  showCheckmark: false,
-                  onSelected: (selected) {
-                    if (selected) {
-                      HapticFeedback.selectionClick();
-                      ref.read(selectedServiceCategoryProvider.notifier).state = category;
-                      ref.invalidate(featuredServicesProvider);
-                      ref.invalidate(recentServicesProvider);
-                    }
-                  },
-                  backgroundColor: theme.colorScheme.surface,
-                  selectedColor: theme.colorScheme.primary,
-                  labelStyle: TextStyle(
-                    color: isSelected ? Colors.white : theme.colorScheme.onSurface,
-                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                  ),
-                  side: BorderSide(
-                    color: isSelected
-                        ? theme.colorScheme.primary
-                        : theme.colorScheme.outline.withAlpha(50),
-                  ),
-                ),
-              );
-            },
-          ),
-        );
-      },
+    return SizedBox(
+      height: 48,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.only(left: 16, right: 16, top: 8),
+        itemCount: jobTypeCategories.length,
+        itemBuilder: (context, index) {
+          final category = jobTypeCategories[index];
+          final isSelected = category == selectedType;
+
+          return Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: ChoiceChip(
+              label: Text(category),
+              selected: isSelected,
+              showCheckmark: false,
+              onSelected: (selected) {
+                if (selected) {
+                  HapticFeedback.selectionClick();
+                  ref.read(selectedJobTypeProvider.notifier).state = category;
+                  ref.invalidate(featuredJobsProvider);
+                  ref.invalidate(recentJobsProvider);
+                }
+              },
+              backgroundColor: theme.colorScheme.surface,
+              selectedColor: AppColors.primary,
+              labelStyle: TextStyle(
+                color: isSelected ? Colors.white : theme.colorScheme.onSurface,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+              ),
+              side: BorderSide(
+                color: isSelected
+                    ? AppColors.primary
+                    : theme.colorScheme.outline.withAlpha(50),
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 }
 
-/// Animated empty section for when a service category returns no data
+/// Animated empty section for when a job category returns no data
 class _AnimatedEmptySection extends StatelessWidget {
   final IconData icon;
   final String title;
@@ -343,18 +373,41 @@ class _AnimatedEmptySection extends StatelessWidget {
   }
 }
 
-class _ServiceFilterSheet extends ConsumerStatefulWidget {
-  const _ServiceFilterSheet();
+class _JobFilterSheet extends ConsumerStatefulWidget {
+  const _JobFilterSheet();
 
   @override
-  ConsumerState<_ServiceFilterSheet> createState() => _ServiceFilterSheetState();
+  ConsumerState<_JobFilterSheet> createState() => _JobFilterSheetState();
 }
 
-class _ServiceFilterSheetState extends ConsumerState<_ServiceFilterSheet> {
-  RangeValues _priceRange = const RangeValues(0, 5000);
-  String _pricingType = 'Todos';
-  bool _remoteOnly = false;
+class _JobFilterSheetState extends ConsumerState<_JobFilterSheet> {
+  String _jobType = 'Todos';
+  String _workMode = 'Todos';
   String _sortBy = 'recent';
+
+  @override
+  void initState() {
+    super.initState();
+    final filters = ref.read(jobFiltersProvider);
+    if (filters.jobType != null) {
+      // Reverse map API value to display
+      for (final cat in jobTypeCategories) {
+        if (jobTypeCategoryToValue(cat) == filters.jobType) {
+          _jobType = cat;
+          break;
+        }
+      }
+    }
+    if (filters.workMode != null) {
+      for (final cat in workModeCategories) {
+        if (workModeCategoryToValue(cat) == filters.workMode) {
+          _workMode = cat;
+          break;
+        }
+      }
+    }
+    _sortBy = filters.sortBy;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -388,9 +441,8 @@ class _ServiceFilterSheetState extends ConsumerState<_ServiceFilterSheet> {
                   TextButton(
                     onPressed: () {
                       setState(() {
-                        _priceRange = const RangeValues(0, 5000);
-                        _pricingType = 'Todos';
-                        _remoteOnly = false;
+                        _jobType = 'Todos';
+                        _workMode = 'Todos';
                         _sortBy = 'recent';
                       });
                     },
@@ -407,33 +459,9 @@ class _ServiceFilterSheetState extends ConsumerState<_ServiceFilterSheet> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Price range
+                  // Job type
                   Text(
-                    'Faixa de Preço',
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  RangeSlider(
-                    values: _priceRange,
-                    min: 0,
-                    max: 5000,
-                    divisions: 50,
-                    labels: RangeLabels(
-                      'R\$ ${_priceRange.start.round()}',
-                      'R\$ ${_priceRange.end.round()}',
-                    ),
-                    onChanged: (values) {
-                      setState(() => _priceRange = values);
-                    },
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  // Pricing type
-                  Text(
-                    'Tipo de Precificação',
+                    'Tipo de Vaga',
                     style: theme.textTheme.titleSmall?.copyWith(
                       fontWeight: FontWeight.w600,
                     ),
@@ -442,26 +470,24 @@ class _ServiceFilterSheetState extends ConsumerState<_ServiceFilterSheet> {
                   Wrap(
                     spacing: 8,
                     runSpacing: 8,
-                    children: pricingTypeOptions.map((type) {
-                      final isSelected = type == _pricingType;
+                    children: jobTypeCategories.map((type) {
+                      final isSelected = type == _jobType;
                       return ChoiceChip(
                         label: Text(type),
                         selected: isSelected,
                         showCheckmark: false,
                         onSelected: (selected) {
-                          if (selected) {
-                            setState(() => _pricingType = type);
-                          }
+                          if (selected) setState(() => _jobType = type);
                         },
                         backgroundColor: theme.colorScheme.surface,
-                        selectedColor: theme.colorScheme.primary,
+                        selectedColor: AppColors.primary,
                         labelStyle: TextStyle(
                           color: isSelected ? Colors.white : theme.colorScheme.onSurface,
                           fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
                         ),
                         side: BorderSide(
                           color: isSelected
-                              ? theme.colorScheme.primary
+                              ? AppColors.primary
                               : theme.colorScheme.outline.withAlpha(50),
                         ),
                       );
@@ -470,15 +496,39 @@ class _ServiceFilterSheetState extends ConsumerState<_ServiceFilterSheet> {
 
                   const SizedBox(height: 24),
 
-                  // Remote only
-                  CheckboxListTile(
-                    value: _remoteOnly,
-                    onChanged: (value) {
-                      setState(() => _remoteOnly = value ?? false);
-                    },
-                    title: const Text('Apenas serviços remotos'),
-                    contentPadding: EdgeInsets.zero,
-                    controlAffinity: ListTileControlAffinity.leading,
+                  // Work mode
+                  Text(
+                    'Modo de Trabalho',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: workModeCategories.map((mode) {
+                      final isSelected = mode == _workMode;
+                      return ChoiceChip(
+                        label: Text(mode),
+                        selected: isSelected,
+                        showCheckmark: false,
+                        onSelected: (selected) {
+                          if (selected) setState(() => _workMode = mode);
+                        },
+                        backgroundColor: theme.colorScheme.surface,
+                        selectedColor: AppColors.primary,
+                        labelStyle: TextStyle(
+                          color: isSelected ? Colors.white : theme.colorScheme.onSurface,
+                          fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                        ),
+                        side: BorderSide(
+                          color: isSelected
+                              ? AppColors.primary
+                              : theme.colorScheme.outline.withAlpha(50),
+                        ),
+                      );
+                    }).toList(),
                   ),
 
                   const SizedBox(height: 24),
@@ -496,9 +546,8 @@ class _ServiceFilterSheetState extends ConsumerState<_ServiceFilterSheet> {
                     runSpacing: 8,
                     children: {
                       'recent': 'Mais recentes',
-                      'rating': 'Melhor avaliados',
-                      'popular': 'Mais populares',
-                      'price_asc': 'Menor preço',
+                      'price_desc': 'Maior salário',
+                      'price_asc': 'Menor salário',
                     }.entries.map((e) {
                       final isSelected = _sortBy == e.key;
                       return ChoiceChip(
@@ -509,14 +558,14 @@ class _ServiceFilterSheetState extends ConsumerState<_ServiceFilterSheet> {
                           if (selected) setState(() => _sortBy = e.key);
                         },
                         backgroundColor: theme.colorScheme.surface,
-                        selectedColor: theme.colorScheme.primary,
+                        selectedColor: AppColors.primary,
                         labelStyle: TextStyle(
                           color: isSelected ? Colors.white : theme.colorScheme.onSurface,
                           fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
                         ),
                         side: BorderSide(
                           color: isSelected
-                              ? theme.colorScheme.primary
+                              ? AppColors.primary
                               : theme.colorScheme.outline.withAlpha(50),
                         ),
                       );
@@ -532,17 +581,22 @@ class _ServiceFilterSheetState extends ConsumerState<_ServiceFilterSheet> {
               child: SizedBox(
                 width: double.infinity,
                 child: FilledButton(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                  ),
                   onPressed: () {
-                    // Apply filters
-                    final filters = ref.read(serviceFiltersProvider.notifier);
-                    filters.state = filters.state.copyWith(
-                      minPrice: _priceRange.start,
-                      maxPrice: _priceRange.end,
-                      pricingType: _pricingType != 'Todos' ? pricingTypeToApi(_pricingType) : null,
-                      isRemote: _remoteOnly ? true : null,
+                    final jobTypeValue = _jobType != 'Todos' ? jobTypeCategoryToValue(_jobType) : null;
+                    final workModeValue = _workMode != 'Todos' ? workModeCategoryToValue(_workMode) : null;
+
+                    ref.read(jobFiltersProvider.notifier).state = JobFilters(
+                      jobType: jobTypeValue,
+                      workMode: workModeValue,
                       sortBy: _sortBy,
                     );
-                    ref.invalidate(filteredServicesProvider);
+
+                    ref.invalidate(featuredJobsProvider);
+                    ref.invalidate(recentJobsProvider);
+                    ref.read(paginatedJobsProvider.notifier).refresh();
                     Navigator.pop(context);
                   },
                   child: const Text('Aplicar filtros'),

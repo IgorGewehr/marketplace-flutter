@@ -6,6 +6,7 @@ import '../../data/datasources/mp_card_tokenizer.dart';
 import '../../data/models/address_model.dart';
 import '../../data/models/freight_option_model.dart';
 import '../../data/models/order_model.dart';
+import '../../data/models/product_model.dart';
 import '../../domain/repositories/order_repository.dart';
 import '../../domain/repositories/shipping_repository.dart';
 import 'address_provider.dart';
@@ -252,10 +253,24 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
       // Extract tenantId from cart
       final tenantId = cart.items.isNotEmpty ? cart.items.first.tenantId : '';
 
-      // Build freight items from cart
-      final freightItems = cart.items.map((item) => FreightItemRequest(
-        quantity: item.quantity,
-      )).toList();
+      // Build freight items from cart with product shipping data from cache
+      final storage = ref.read(localStorageProvider);
+      final freightItems = cart.items.map((item) {
+        final cachedJson = storage.getCachedProduct(item.productId);
+        final product = cachedJson != null ? ProductModel.fromJson(cachedJson) : null;
+        return FreightItemRequest(
+          quantity: item.quantity,
+          weight: product?.weight,
+          dimensions: product?.dimensions != null
+              ? {
+                  'width': product!.dimensions!.width,
+                  'height': product.dimensions!.height,
+                  'length': product.dimensions!.length,
+                }
+              : null,
+          shippingPolicy: product?.shippingPolicy,
+        );
+      }).toList();
 
       final result = await shippingRepo.calculateFreight(
         zipCode: state.selectedAddress!.zipCode,

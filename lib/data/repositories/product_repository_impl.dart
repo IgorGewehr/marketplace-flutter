@@ -23,6 +23,8 @@ class ProductRepositoryImpl implements ProductRepository {
     double? maxPrice,
     String? sortBy,
     String? sortOrder,
+    String? productType,
+    String? listingType,
   }) async {
     final response = await _apiClient.get<Map<String, dynamic>>(
       ApiConstants.marketplaceProducts,
@@ -36,6 +38,8 @@ class ProductRepositoryImpl implements ProductRepository {
         if (maxPrice != null) 'maxPrice': maxPrice,
         if (sortBy != null) 'sortBy': sortBy,
         if (sortOrder != null) 'sortOrder': sortOrder,
+        if (productType != null) 'productType': productType,
+        if (listingType != null) 'listingType': listingType,
       },
     );
 
@@ -192,5 +196,117 @@ class ProductRepositoryImpl implements ProductRepository {
         [];
 
     return images;
+  }
+
+  @override
+  Future<List<ProductModel>> getFeaturedJobs({int limit = 10}) async {
+    final response = await _apiClient.get<Map<String, dynamic>>(
+      ApiConstants.marketplaceJobsFeatured,
+      queryParameters: {'limit': limit},
+    );
+
+    return (response['products'] as List<dynamic>?)
+            ?.map((p) => ProductModel.fromJson(p as Map<String, dynamic>))
+            .toList() ??
+        [];
+  }
+
+  @override
+  Future<List<ProductModel>> getRecentJobs({int limit = 20}) async {
+    final response = await _apiClient.get<Map<String, dynamic>>(
+      ApiConstants.marketplaceJobsRecent,
+      queryParameters: {'limit': limit},
+    );
+
+    return (response['products'] as List<dynamic>?)
+            ?.map((p) => ProductModel.fromJson(p as Map<String, dynamic>))
+            .toList() ??
+        [];
+  }
+
+  @override
+  Future<ProductListResponse> getJobs({
+    int page = 1,
+    int limit = 20,
+    String? jobType,
+    String? workMode,
+    String? sortBy,
+    String? search,
+  }) async {
+    final response = await _apiClient.get<Map<String, dynamic>>(
+      ApiConstants.marketplaceProducts,
+      queryParameters: {
+        'page': page,
+        'limit': limit,
+        'listingType': 'job',
+        if (jobType != null) 'jobType': jobType,
+        if (workMode != null) 'workMode': workMode,
+        if (sortBy != null) 'sortBy': sortBy,
+        if (search != null) 'search': search,
+      },
+    );
+
+    return ProductListResponse.fromJson(response);
+  }
+
+  @override
+  Future<List<ProductModel>> getFeaturedRentals({int limit = 10}) async {
+    final response = await _apiClient.get<Map<String, dynamic>>(
+      ApiConstants.marketplaceRentalsFeatured,
+      queryParameters: {'limit': limit},
+    );
+
+    return (response['products'] as List<dynamic>?)
+            ?.map((p) => ProductModel.fromJson(p as Map<String, dynamic>))
+            .toList() ??
+        [];
+  }
+
+  @override
+  Future<List<ProductModel>> getRecentRentals({int limit = 10}) async {
+    final response = await _apiClient.get<Map<String, dynamic>>(
+      ApiConstants.marketplaceRentalsRecent,
+      queryParameters: {'limit': limit},
+    );
+
+    return (response['products'] as List<dynamic>?)
+            ?.map((p) => ProductModel.fromJson(p as Map<String, dynamic>))
+            .toList() ??
+        [];
+  }
+
+  @override
+  Future<ProductListResponse> getRentals({
+    int page = 1,
+    int limit = 20,
+    String? rentalType,
+    String? rentalPeriod,
+    double? minPrice,
+    double? maxPrice,
+    String? city,
+    int? bedrooms,
+    double? minArea,
+    String? sortBy,
+    String? search,
+  }) async {
+    final response = await _apiClient.get<Map<String, dynamic>>(
+      ApiConstants.marketplaceRentals,
+      queryParameters: {
+        'page': page,
+        'limit': limit,
+        'productType': 'rental',
+        if (rentalType != null) 'rentalType': rentalType,
+        if (rentalPeriod != null) 'rentalPeriod': rentalPeriod,
+        if (search != null) 'search': search,
+        if (minPrice != null) 'minPrice': minPrice,
+        if (maxPrice != null) 'maxPrice': maxPrice,
+        if (city != null) 'city': city,
+        if (bedrooms != null) 'bedrooms': bedrooms,
+        if (minArea != null) 'minArea': minArea,
+        if (sortBy != null) 'sortBy': sortBy,
+      },
+    );
+
+    return ProductListResponse.fromJson(response);
   }
 }

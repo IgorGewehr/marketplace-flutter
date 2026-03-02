@@ -102,7 +102,7 @@ router.post("/orders", async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    // Fetch all products to validate prices server-side (prevent cart price manipulation)
+    // Fetch all products ONCE to validate prices, check rental/shipping, and build freight items
     const productIds = [...new Set(cartItems.map(({ data }) => data.productId as string))];
     const productPriceMap = new Map<string, {
       price: number;
@@ -110,6 +110,10 @@ router.post("/orders", async (req: Request, res: Response): Promise<void> => {
       name: string;
       variants?: Record<string, unknown>[];
       trackInventory: boolean;
+      productType?: string;
+      shippingPolicy: string;
+      weight?: number;
+      dimensions?: { width: number; height: number; length: number };
     }>();
 
     for (const productId of productIds) {
@@ -125,7 +129,22 @@ router.post("/orders", async (req: Request, res: Response): Promise<void> => {
         name: productData.name || "Produto",
         variants: Array.isArray(productData.variants) ? productData.variants as Record<string, unknown>[] : undefined,
         trackInventory: productData.trackInventory !== false,
+        productType: productData.productType || undefined,
+        shippingPolicy: productData.shippingPolicy || "delivery",
+        weight: productData.weight || undefined,
+        dimensions: productData.dimensions || undefined,
       });
+    }
+
+    // Reject rental items — rentals cannot be purchased through the cart
+    for (const [, product] of productPriceMap) {
+      if (product.productType === "rental") {
+        res.status(400).json({
+          error: "Itens de aluguel não podem ser comprados pelo carrinho. Entre em contato com o anunciante.",
+          code: "RENTAL_CART_NOT_ALLOWED",
+        });
+        return;
+      }
     }
 
     for (const { data: item } of cartItems) {
@@ -186,23 +205,11 @@ router.post("/orders", async (req: Request, res: Response): Promise<void> => {
     let freightBuyerZoneId: string | null = null;
     let freightZoneDistance: number | null = null;
 
-    // Check if ALL items are pickup_only (skip freight calculation)
-    const allPickupOnly = items.every((item) => {
-      const productId = item.productId as string;
-      const product = productPriceMap.get(productId);
-      // Fetch shippingPolicy from product doc (already fetched above)
-      return false; // Will be resolved below
-    });
-
-    // Re-check shipping policies from Firestore
-    let hasPickupOnlyItems = false;
+    // Check shipping policies using cached product data (no extra Firestore reads)
     let allItemsPickupOnly = true;
     for (const item of items) {
-      const productDoc = await db.collection("products").doc(item.productId as string).get();
-      const shippingPolicy = productDoc.data()?.shippingPolicy || "delivery";
-      if (shippingPolicy === "pickup_only") {
-        hasPickupOnlyItems = true;
-      } else {
+      const product = productPriceMap.get(item.productId as string);
+      if (product?.shippingPolicy !== "pickup_only") {
         allItemsPickupOnly = false;
       }
     }
@@ -214,18 +221,16 @@ router.post("/orders", async (req: Request, res: Response): Promise<void> => {
       // Buyer is out of delivery area — seller arranges delivery
       deliveryFee = 0;
     } else if (deliveryTier && deliveryZoneId) {
-      // Calculate freight server-side and validate against client
-      const freightItems = [];
-      for (const item of items) {
-        const productDoc = await db.collection("products").doc(item.productId as string).get();
-        const pData = productDoc.data() || {};
-        freightItems.push({
-          weight: pData.weight || undefined,
-          dimensions: pData.dimensions || undefined,
+      // Calculate freight server-side and validate against client (using cached product data)
+      const freightItems = items.map((item) => {
+        const product = productPriceMap.get(item.productId as string);
+        return {
+          weight: product?.weight || undefined,
+          dimensions: product?.dimensions || undefined,
           quantity: (item.quantity as number) || 1,
-          shippingPolicy: pData.shippingPolicy || "delivery",
-        });
-      }
+          shippingPolicy: product?.shippingPolicy || "delivery",
+        };
+      });
 
       const addressCity = deliveryAddress?.city || "";
       const addressZip = deliveryAddress?.zipCode || "";
@@ -294,6 +299,15 @@ router.post("/orders", async (req: Request, res: Response): Promise<void> => {
     const platformFeeAmount = Math.round((subtotal - discount) * (platformFeePercentage / 100) * 100) / 100;
     const sellerAmount = Math.round((subtotal - discount - platformFeeAmount) * 100) / 100;
 
+    // Calculate total weight for logistics (used by delivery management system)
+    let totalWeight = 0;
+    for (const item of items) {
+      const product = productPriceMap.get(item.productId as string);
+      if (product?.weight && product.shippingPolicy !== "pickup_only") {
+        totalWeight += product.weight * ((item.quantity as number) || 1);
+      }
+    }
+
     // Generate order number
     const orderNumber = `RDB-${Date.now().toString(36).toUpperCase()}`;
 
@@ -339,6 +353,7 @@ router.post("/orders", async (req: Request, res: Response): Promise<void> => {
       sellerZoneId: freightSellerZoneId,
       buyerZoneId: freightBuyerZoneId,
       zoneDistance: freightZoneDistance,
+      totalWeight: totalWeight > 0 ? totalWeight : null,
       paymentSplit: {
         platformFeeAmount,
         platformFeePercentage,
@@ -1295,19 +1310,11 @@ router.patch("/orders/:id/status", async (req: Request, res: Response): Promise<
       updatedAt: now,
     };
 
-    // Handle 'ready' status — mark sellerReadyAt and dispatch delivery
+    // Handle 'ready' status — mark sellerReadyAt
+    // Note: delivery dispatch is handled by the logistics system (compre-aqui-entregas)
+    // which reads orders directly from Firestore via real-time listeners.
     if (newStatus === "ready") {
       updateData.sellerReadyAt = now;
-
-      // Dispatch delivery job (fire-and-forget — imported lazily)
-      import("../services/delivery-dispatcher").then(({ dispatchDeliveryJob }) => {
-        const orderWithUpdates = { ...data, sellerReadyAt: now };
-        dispatchDeliveryJob(db, orderId, orderWithUpdates).catch((err: unknown) => {
-          functions.logger.error("Failed to dispatch delivery job", { orderId, error: String(err) });
-        });
-      }).catch(() => {
-        functions.logger.warn("delivery-dispatcher module not available yet", { orderId });
-      });
     }
 
     // Handle cancellation with refund

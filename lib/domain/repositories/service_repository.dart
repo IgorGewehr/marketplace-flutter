@@ -145,6 +145,11 @@ class CreateServiceRequest {
   final String? experience;
   final bool acceptsQuote;
   final bool instantBooking;
+  final bool scheduleEnabled;
+  final int slotDurationMinutes;
+  final int breakBetweenMinutes;
+  final List<String> availableDays;
+  final Map<String, String>? serviceHours;
 
   const CreateServiceRequest({
     required this.name,
@@ -168,6 +173,11 @@ class CreateServiceRequest {
     this.experience,
     this.acceptsQuote = true,
     this.instantBooking = false,
+    this.scheduleEnabled = false,
+    this.slotDurationMinutes = 60,
+    this.breakBetweenMinutes = 0,
+    this.availableDays = const [],
+    this.serviceHours,
   });
 
   Map<String, dynamic> toJson() {
@@ -193,6 +203,11 @@ class CreateServiceRequest {
       if (experience != null) 'experience': experience,
       'acceptsQuote': acceptsQuote,
       'instantBooking': instantBooking,
+      'scheduleEnabled': scheduleEnabled,
+      'slotDurationMinutes': slotDurationMinutes,
+      'breakBetweenMinutes': breakBetweenMinutes,
+      'availableDays': availableDays,
+      if (serviceHours != null) 'serviceHours': serviceHours,
     };
   }
 }
@@ -222,6 +237,11 @@ class UpdateServiceRequest {
   final String? status;
   final bool? acceptsQuote;
   final bool? instantBooking;
+  final bool? scheduleEnabled;
+  final int? slotDurationMinutes;
+  final int? breakBetweenMinutes;
+  final List<String>? availableDays;
+  final Map<String, String>? serviceHours;
 
   const UpdateServiceRequest({
     this.name,
@@ -247,6 +267,11 @@ class UpdateServiceRequest {
     this.status,
     this.acceptsQuote,
     this.instantBooking,
+    this.scheduleEnabled,
+    this.slotDurationMinutes,
+    this.breakBetweenMinutes,
+    this.availableDays,
+    this.serviceHours,
   });
 
   Map<String, dynamic> toJson() {
@@ -274,6 +299,11 @@ class UpdateServiceRequest {
       if (status != null) 'status': status,
       if (acceptsQuote != null) 'acceptsQuote': acceptsQuote,
       if (instantBooking != null) 'instantBooking': instantBooking,
+      if (scheduleEnabled != null) 'scheduleEnabled': scheduleEnabled,
+      if (slotDurationMinutes != null) 'slotDurationMinutes': slotDurationMinutes,
+      if (breakBetweenMinutes != null) 'breakBetweenMinutes': breakBetweenMinutes,
+      if (availableDays != null) 'availableDays': availableDays,
+      if (serviceHours != null) 'serviceHours': serviceHours,
     };
   }
 }
