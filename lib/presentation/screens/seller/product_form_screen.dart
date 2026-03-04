@@ -15,6 +15,7 @@ import '../../providers/auth_providers.dart';
 import '../../providers/mercadopago_provider.dart';
 import '../../providers/my_products_provider.dart';
 import '../../providers/products_provider.dart';
+import '../../providers/subscription_provider.dart';
 import '../../widgets/seller/photo_picker_grid.dart';
 import '../../widgets/seller/variant_manager.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -589,6 +590,9 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
   Widget build(BuildContext context) {
     final categoriesAsync = ref.watch(categoryModelsProvider);
     final progress = _filledSections / _totalRequiredSections;
+    final canCreateRentals = ref.watch(canCreateRentalsProvider);
+    final canCreateJobs = ref.watch(canCreateJobsProvider);
+    final hasLockedTypes = !canCreateRentals || !canCreateJobs;
 
     // B3: Gate - require MP connection for new products (skip for jobs)
     final isMpConnected = ref.watch(isMpConnectedProvider);
@@ -788,27 +792,37 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     SegmentedButton<String>(
-                      segments: const [
-                        ButtonSegment(
+                      segments: [
+                        const ButtonSegment(
                           value: 'product',
                           label: Text('Produto'),
                           icon: Icon(Icons.shopping_bag_outlined, size: 18),
                         ),
                         ButtonSegment(
                           value: 'rental',
-                          label: Text('Aluguel'),
-                          icon: Icon(Icons.vpn_key_rounded, size: 18),
+                          label: const Text('Aluguel'),
+                          icon: Icon(
+                            canCreateRentals ? Icons.vpn_key_rounded : Icons.lock_outlined,
+                            size: 18,
+                          ),
+                          enabled: canCreateRentals,
                         ),
                         ButtonSegment(
                           value: 'job',
-                          label: Text('Vaga'),
-                          icon: Icon(Icons.work_outlined, size: 18),
+                          label: const Text('Vaga'),
+                          icon: Icon(
+                            canCreateJobs ? Icons.work_outlined : Icons.lock_outlined,
+                            size: 18,
+                          ),
+                          enabled: canCreateJobs,
                         ),
                       ],
                       selected: {_announcementType},
                       onSelectionChanged: (value) {
+                        final type = value.first;
+                        if (type == 'rental' && !canCreateRentals) return;
+                        if (type == 'job' && !canCreateJobs) return;
                         setState(() {
-                          final type = value.first;
                           if (type == 'job') {
                             _listingType = 'job';
                             _productType = 'product';
@@ -820,6 +834,38 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                         });
                       },
                     ),
+                    if (hasLockedTypes) ...[
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withValues(alpha: 0.06),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: AppColors.primary.withValues(alpha: 0.15),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.info_outline,
+                              size: 16,
+                              color: AppColors.primary.withValues(alpha: 0.7),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Atualize seu plano para desbloquear alugueis e vagas de emprego.',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                     if (_isRental) ...[
                       const SizedBox(height: 16),
                       Text(

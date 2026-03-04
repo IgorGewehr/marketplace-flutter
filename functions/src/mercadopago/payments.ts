@@ -102,6 +102,10 @@ router.post("/orders", async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
+    // Fetch tenant data for seller info embedded in order (used by logistics/delivery system)
+    const sellerTenantDoc = await db.collection("tenants").doc(tenantId).get();
+    const sellerTenantData = sellerTenantDoc.exists ? sellerTenantDoc.data() : null;
+
     // Fetch all products ONCE to validate prices, check rental/shipping, and build freight items
     const productIds = [...new Set(cartItems.map(({ data }) => data.productId as string))];
     const productPriceMap = new Map<string, {
@@ -354,6 +358,18 @@ router.post("/orders", async (req: Request, res: Response): Promise<void> => {
       buyerZoneId: freightBuyerZoneId,
       zoneDistance: freightZoneDistance,
       totalWeight: totalWeight > 0 ? totalWeight : null,
+      seller: {
+        tenantId,
+        name: sellerTenantData?.name || sellerTenantData?.displayName || null,
+        address: sellerTenantData?.address || null,
+        phone: sellerTenantData?.phone || null,
+      },
+      buyer: {
+        userId: uid,
+        name: userData.displayName || userData.name || null,
+        address: deliveryAddress || null,
+        phone: userData.phone || null,
+      },
       paymentSplit: {
         platformFeeAmount,
         platformFeePercentage,
@@ -1563,6 +1579,69 @@ router.post("/payments/link", async (req: Request, res: Response): Promise<void>
   } catch (error) {
     functions.logger.error("Error creating payment link", error);
     res.status(500).json({ error: "Erro ao gerar link de pagamento" });
+  }
+});
+
+/**
+ * PATCH /api/orders/:id/confirm-delivery
+ * Buyer confirms they received the order.
+ * Sets deliveryConfirmedAt, which triggers the 24h payment release hold.
+ */
+router.post("/orders/:id/confirm-delivery", async (req: Request, res: Response): Promise<void> => {
+  const authReq = req as AuthenticatedRequest;
+  const uid = authReq.uid;
+  const orderId = String(req.params.id);
+
+  try {
+    const db = admin.firestore();
+    const orderRef = db.collection("orders").doc(orderId);
+    const orderDoc = await orderRef.get();
+
+    if (!orderDoc.exists) {
+      res.status(404).json({ error: "Pedido não encontrado" });
+      return;
+    }
+
+    const data = orderDoc.data()!;
+
+    // Only the buyer can confirm delivery
+    if (data.buyerUserId !== uid) {
+      res.status(403).json({ error: "Acesso negado" });
+      return;
+    }
+
+    // Order must be in a deliverable state
+    const confirmableStatuses = ["shipped", "out_for_delivery", "delivered"];
+    if (!confirmableStatuses.includes(data.status)) {
+      res.status(400).json({ error: "Este pedido não pode ser confirmado no status atual" });
+      return;
+    }
+
+    // Prevent double-confirmation
+    if (data.deliveryConfirmedAt) {
+      res.json(serializeOrder(data));
+      return;
+    }
+
+    const now = admin.firestore.Timestamp.now();
+    await orderRef.update({
+      deliveryConfirmedAt: now,
+      updatedAt: now,
+      statusHistory: admin.firestore.FieldValue.arrayUnion({
+        status: "confirmed_delivery",
+        timestamp: now,
+        note: "Recebimento confirmado pelo comprador",
+        userId: uid,
+      }),
+    });
+
+    functions.logger.info("Buyer confirmed delivery", { orderId, uid });
+
+    const updatedDoc = await orderRef.get();
+    res.json(serializeOrder(updatedDoc.data()!));
+  } catch (error) {
+    functions.logger.error("Error confirming delivery", error);
+    res.status(500).json({ error: "Erro ao confirmar recebimento" });
   }
 });
 

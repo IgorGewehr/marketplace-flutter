@@ -1,9 +1,12 @@
+import 'dart:io';
+
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:in_app_update/in_app_update.dart';
 
 import 'app.dart'; // Compre Aqui - Marketplace do Meio Oeste
 import 'core/config/app_config.dart';
@@ -37,6 +40,9 @@ void main() async {
 
   AppConfig.logger.i('Compre Aqui app starting...');
 
+  // Check for mandatory app updates (Android only)
+  await _checkForImmediateUpdate();
+
   // Set preferred orientations
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
@@ -64,4 +70,17 @@ void main() async {
       child: const CompreAquiApp(),
     ),
   );
+}
+
+Future<void> _checkForImmediateUpdate() async {
+  if (!Platform.isAndroid) return;
+  try {
+    final info = await InAppUpdate.checkForUpdate();
+    if (info.updateAvailability == UpdateAvailability.updateAvailable &&
+        info.immediateUpdateAllowed) {
+      await InAppUpdate.performImmediateUpdate();
+    }
+  } catch (_) {
+    // Silently ignore — debug build, sideloaded, or no Play Store
+  }
 }

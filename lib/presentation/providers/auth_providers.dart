@@ -18,6 +18,7 @@ import 'orders_provider.dart';
 import 'products_provider.dart';
 import 'seller_mode_provider.dart';
 import 'seller_orders_provider.dart';
+import 'subscription_provider.dart';
 import 'wallet_provider.dart';
 
 /// Auth Status enum for router and UI
@@ -324,6 +325,9 @@ class AuthNotifier extends Notifier<AsyncValue<void>> {
 
     // Follows (locally persisted set of followed tenant IDs)
     ref.invalidate(followsProvider);
+
+    // Subscription plan
+    ref.invalidate(currentSellerSubscriptionProvider);
   }
 
   /// Clear error state

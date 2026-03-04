@@ -141,6 +141,14 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   @override
+  Future<void> updateServiceFavorites(List<String> favoriteIds) async {
+    await _apiClient.patch<void>(
+      ApiConstants.authMe,
+      data: {'favoriteServiceIds': favoriteIds},
+    );
+  }
+
+  @override
   Future<void> signOut() async {
     await _firebaseAuth.signOut();
   }

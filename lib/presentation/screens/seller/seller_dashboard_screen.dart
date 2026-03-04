@@ -11,6 +11,7 @@ import '../../providers/auth_providers.dart';
 import '../../providers/seller_mode_provider.dart';
 import '../../providers/seller_orders_provider.dart';
 import '../../providers/tenant_provider.dart';
+import '../../providers/subscription_provider.dart';
 import '../../providers/wallet_provider.dart';
 import '../../widgets/shared/shimmer_loading.dart';
 import '../../widgets/seller/stat_card.dart';
@@ -67,6 +68,52 @@ class SellerDashboardScreen extends ConsumerWidget {
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
                           color: Colors.white,
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(width: 8),
+                  Builder(
+                    builder: (context) {
+                      final planName = ref.watch(currentPlanNameProvider);
+                      final IconData planIcon;
+                      final Color iconColor;
+                      switch (planName) {
+                        case 'Pro':
+                          planIcon = Icons.workspace_premium_rounded;
+                          iconColor = Colors.amber;
+                        case 'Basic':
+                          planIcon = Icons.verified_rounded;
+                          iconColor = Colors.lightBlueAccent;
+                        default:
+                          planIcon = Icons.circle_outlined;
+                          iconColor = Colors.white60;
+                      }
+                      return Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.18),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.35),
+                            width: 1,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(planIcon, size: 13, color: iconColor),
+                            const SizedBox(width: 4),
+                            Text(
+                              planName,
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                                letterSpacing: 0.3,
+                              ),
+                            ),
+                          ],
                         ),
                       );
                     },
@@ -163,6 +210,106 @@ class SellerDashboardScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 16),
 
+                  // Subscription plan card
+                  Builder(builder: (context) {
+                    final sub = ref.watch(currentSellerSubscriptionProvider).valueOrNull;
+                    final planName = sub?.planLabel ?? 'Free';
+                    final isPro = sub?.isPro ?? false;
+                    final isBasic = sub?.isBasic ?? false;
+
+                    final List<Color> gradientColors;
+                    final IconData planIcon;
+                    final String planSubtitle;
+                    if (isPro) {
+                      gradientColors = [const Color(0xFFB8860B), const Color(0xFFD4A017)];
+                      planIcon = Icons.workspace_premium_rounded;
+                      planSubtitle = 'Frete grátis · Serviços · Vagas · Aluguéis';
+                    } else if (isBasic) {
+                      gradientColors = [const Color(0xFF1565C0), const Color(0xFF1E88E5)];
+                      planIcon = Icons.verified_rounded;
+                      planSubtitle = 'Serviços · Vagas · Aluguéis';
+                    } else {
+                      gradientColors = [const Color(0xFF546E7A), const Color(0xFF78909C)];
+                      planIcon = Icons.store_outlined;
+                      planSubtitle = 'Apenas produtos físicos';
+                    }
+
+                    return Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: gradientColors,
+                          begin: Alignment.centerLeft,
+                          end: Alignment.centerRight,
+                        ),
+                        borderRadius: BorderRadius.circular(14),
+                        boxShadow: [
+                          BoxShadow(
+                            color: gradientColors.last.withValues(alpha: 0.35),
+                            blurRadius: 12,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Icon(planIcon, color: Colors.white, size: 22),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Plano $planName',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  planSubtitle,
+                                  style: TextStyle(
+                                    color: Colors.white.withValues(alpha: 0.8),
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (!isPro)
+                            TextButton(
+                              onPressed: () {},
+                              style: TextButton.styleFrom(
+                                backgroundColor: Colors.white.withValues(alpha: 0.2),
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                minimumSize: Size.zero,
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(20),
+                                  side: BorderSide(color: Colors.white.withValues(alpha: 0.5)),
+                                ),
+                              ),
+                              child: const Text(
+                                'Upgrade',
+                                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ).animate().fadeIn(delay: 280.ms, duration: 400.ms).slideY(begin: 0.06, curve: Curves.easeOut);
+                  }),
+                  const SizedBox(height: 16),
+
                   // My Products quick-access card
                   Material(
                     borderRadius: BorderRadius.circular(12),
@@ -202,7 +349,49 @@ class SellerDashboardScreen extends ConsumerWidget {
                         ),
                       ),
                     ),
-                  ).animate().fadeIn(delay: 280.ms, duration: 400.ms).slideY(begin: 0.06, curve: Curves.easeOut),
+                  ).animate().fadeIn(delay: 340.ms, duration: 400.ms).slideY(begin: 0.06, curve: Curves.easeOut),
+                  const SizedBox(height: 10),
+
+                  // My Jobs quick-access card
+                  Material(
+                    borderRadius: BorderRadius.circular(12),
+                    color: Colors.blue.withAlpha(18),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(12),
+                      onTap: () => context.push('/seller/jobs'),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.work_outline_rounded,
+                              size: 20,
+                              color: Colors.blue,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                'Minhas Vagas',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.blue,
+                                ),
+                              ),
+                            ),
+                            Icon(
+                              Icons.arrow_forward_rounded,
+                              size: 18,
+                              color: Colors.blue,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ).animate().fadeIn(delay: 400.ms, duration: 400.ms).slideY(begin: 0.06, curve: Curves.easeOut),
                   const SizedBox(height: 10),
 
                   // Back to shopping shortcut

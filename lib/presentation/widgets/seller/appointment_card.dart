@@ -10,6 +10,7 @@ class AppointmentCard extends StatelessWidget {
   final VoidCallback? onCancel;
   final VoidCallback? onComplete;
   final VoidCallback? onNoShow;
+  final VoidCallback? onReschedule;
   final VoidCallback? onTap;
 
   const AppointmentCard({
@@ -19,6 +20,7 @@ class AppointmentCard extends StatelessWidget {
     this.onCancel,
     this.onComplete,
     this.onNoShow,
+    this.onReschedule,
     this.onTap,
   });
 
@@ -189,6 +191,15 @@ class AppointmentCard extends StatelessWidget {
                         icon: Icons.person_off_outlined,
                         color: Colors.grey,
                         onPressed: onNoShow,
+                      ),
+                      const SizedBox(width: 8),
+                    ],
+                    if (onReschedule != null) ...[
+                      _ActionButton(
+                        label: 'Reagendar',
+                        icon: Icons.schedule_rounded,
+                        color: Colors.blue,
+                        onPressed: onReschedule,
                       ),
                       const SizedBox(width: 8),
                     ],

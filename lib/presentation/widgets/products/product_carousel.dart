@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:shimmer/shimmer.dart';
 
 import '../../../data/models/product_model.dart';
@@ -58,7 +59,10 @@ class ProductCarousel extends StatelessWidget {
               width: cardWidth,
               child: ProductCard(product: product),
             ),
-          );
+          )
+              .animate(delay: Duration(milliseconds: index * 80))
+              .fadeIn(duration: 300.ms, curve: Curves.easeOut)
+              .slideX(begin: 0.1, end: 0, duration: 300.ms, curve: Curves.easeOut);
         },
       ),
     );

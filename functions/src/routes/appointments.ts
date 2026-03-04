@@ -81,13 +81,15 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    // Check time is within service hours
+    // Check time is within service hours (compare as minutes to avoid string comparison bugs)
     const serviceHours = service.serviceHours || {};
     const dayHours = serviceHours[dayOfWeek];
     if (dayHours) {
       const [hoursStart, hoursEnd] = dayHours.split("-");
       if (hoursStart && hoursEnd) {
-        if (startTime < hoursStart || startTime >= hoursEnd) {
+        const timeToMin = (t: string) => { const [hh, mm] = t.split(":").map(Number); return hh * 60 + mm; };
+        const requestMin = timeToMin(startTime);
+        if (requestMin < timeToMin(hoursStart) || requestMin >= timeToMin(hoursEnd)) {
           res.status(400).json({ error: "Horário fora do período de atendimento" });
           return;
         }
@@ -102,58 +104,73 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
     const endM = (endMinutes % 60).toString().padStart(2, "0");
     const endTime = `${endH}:${endM}`;
 
-    // Check for conflicting appointments
-    const conflictsSnap = await db
-      .collection("appointments")
-      .where("serviceId", "==", serviceId)
-      .where("date", "==", date)
-      .where("status", "in", ["pending", "confirmed"])
-      .get();
-
-    const hasConflict = conflictsSnap.docs.some((doc) => {
-      const apt = doc.data();
-      // Check time overlap
-      return startTime < apt.endTime && endTime > apt.startTime;
-    });
-
-    if (hasConflict) {
-      res.status(409).json({ error: "Horário já reservado" });
-      return;
-    }
-
-    // Get buyer info
+    // Get buyer info (before transaction to avoid nested reads)
     const userDoc = await db.collection("users").doc(uid).get();
     const userData = userDoc.data() || {};
     const buyerName = userData.displayName || userData.name || "Comprador";
 
-    const now = admin.firestore.Timestamp.now();
     const appointmentId = uuidv4();
     const tenantId = service.tenantId;
+    const now = admin.firestore.Timestamp.now();
 
-    const appointmentData = {
-      id: appointmentId,
-      serviceId,
-      serviceName: service.name || "",
-      tenantId,
-      buyerUserId: uid,
-      buyerName,
-      date,
-      startTime,
-      endTime,
-      status: "pending",
-      notes: notes || null,
-      chatId: null as string | null,
-      createdAt: now,
-      updatedAt: now,
-    };
+    // Use transaction to atomically check conflicts + create appointment
+    const appointmentData = await db.runTransaction(async (tx) => {
+      // Check for conflicting appointments within transaction
+      const conflictsSnap = await tx.get(
+        db
+          .collection("appointments")
+          .where("serviceId", "==", serviceId)
+          .where("date", "==", date)
+          .where("status", "in", ["pending", "confirmed"])
+      );
 
-    await db.collection("appointments").doc(appointmentId).set(appointmentData);
+      // Time comparison using minutes to avoid string comparison issues
+      const toMinutes = (t: string) => {
+        const [hh, mm] = t.split(":").map(Number);
+        return hh * 60 + mm;
+      };
+      const startMin = toMinutes(startTime);
+      const endMin = toMinutes(endTime);
+
+      const hasConflict = conflictsSnap.docs.some((doc) => {
+        const apt = doc.data();
+        const aptStartMin = toMinutes(apt.startTime);
+        const aptEndMin = toMinutes(apt.endTime);
+        return startMin < aptEndMin && endMin > aptStartMin;
+      });
+
+      if (hasConflict) {
+        throw new Error("CONFLICT");
+      }
+
+      const data = {
+        id: appointmentId,
+        serviceId,
+        serviceName: service.name || "",
+        tenantId,
+        buyerUserId: uid,
+        buyerName,
+        date,
+        startTime,
+        endTime,
+        status: "pending",
+        notes: notes || null,
+        chatId: null as string | null,
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      tx.set(db.collection("appointments").doc(appointmentId), data);
+      return data;
+    });
+
+    if (!appointmentData) return;
 
     // Create or find chat between buyer and tenant, send auto message
     try {
       const chatId = await getOrCreateChat(db, uid, tenantId);
       if (chatId) {
-        appointmentData.chatId = chatId;
+        (appointmentData as Record<string, unknown>).chatId = chatId;
         await db.collection("appointments").doc(appointmentId).update({ chatId });
 
         const displayDate = `${date.split("-")[2]}/${date.split("-")[1]}/${date.split("-")[0]}`;
@@ -216,6 +233,10 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
 
     res.status(201).json(serializeTimestamps(appointmentData));
   } catch (error) {
+    if (error instanceof Error && error.message === "CONFLICT") {
+      res.status(409).json({ error: "Horário já reservado" });
+      return;
+    }
     functions.logger.error("Error creating appointment", error);
     res.status(500).json({ error: "Erro ao criar agendamento" });
   }
@@ -418,6 +439,145 @@ router.patch("/:id", async (req: Request, res: Response): Promise<void> => {
   }
 });
 
+/**
+ * PATCH /api/appointments/:id/reschedule
+ * Reschedule an appointment to a new date/time.
+ *
+ * Body: date (YYYY-MM-DD), startTime (HH:mm)
+ */
+router.patch("/:id/reschedule", async (req: Request, res: Response): Promise<void> => {
+  const authReq = req as AuthenticatedRequest;
+  const uid = authReq.uid;
+  const appointmentId = String(req.params.id);
+  const { date, startTime } = req.body;
+
+  if (!date || !startTime) {
+    res.status(400).json({ error: "date e startTime são obrigatórios" });
+    return;
+  }
+
+  const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+  const timeRegex = /^\d{2}:\d{2}$/;
+  if (!dateRegex.test(date)) {
+    res.status(400).json({ error: "Formato de data inválido. Use YYYY-MM-DD" });
+    return;
+  }
+  if (!timeRegex.test(startTime)) {
+    res.status(400).json({ error: "Formato de horário inválido. Use HH:mm" });
+    return;
+  }
+
+  try {
+    const db = admin.firestore();
+    const appointmentRef = db.collection("appointments").doc(appointmentId);
+    const appointmentDoc = await appointmentRef.get();
+
+    if (!appointmentDoc.exists) {
+      res.status(404).json({ error: "Agendamento não encontrado" });
+      return;
+    }
+
+    const appointment = appointmentDoc.data()!;
+    const tenantId = await getTenantForUser(uid);
+    const isSeller = tenantId === appointment.tenantId;
+    const isBuyer = uid === appointment.buyerUserId;
+
+    if (!isSeller && !isBuyer) {
+      res.status(403).json({ error: "Acesso negado" });
+      return;
+    }
+
+    // Can only reschedule pending or confirmed appointments
+    if (!["pending", "confirmed"].includes(appointment.status)) {
+      res.status(400).json({ error: "Só é possível reagendar agendamentos pendentes ou confirmados" });
+      return;
+    }
+
+    // Calculate new endTime based on service slot duration
+    const serviceDoc = await db.collection("services").doc(appointment.serviceId).get();
+    const slotMinutes = serviceDoc.exists ? (serviceDoc.data()!.slotDurationMinutes || 60) : 60;
+
+    const [hh, mm] = startTime.split(":").map(Number);
+    const endMinutes = hh * 60 + mm + slotMinutes;
+    const endTime = `${String(Math.floor(endMinutes / 60)).padStart(2, "0")}:${String(endMinutes % 60).padStart(2, "0")}`;
+
+    // Check for conflicts at the new time (within transaction)
+    const now = admin.firestore.Timestamp.now();
+    await db.runTransaction(async (tx) => {
+      const conflictsSnap = await tx.get(
+        db.collection("appointments")
+          .where("serviceId", "==", appointment.serviceId)
+          .where("date", "==", date)
+          .where("status", "in", ["pending", "confirmed"])
+      );
+
+      const newStartMin = hh * 60 + mm;
+      const newEndMin = endMinutes;
+
+      for (const doc of conflictsSnap.docs) {
+        if (doc.id === appointmentId) continue; // skip self
+        const existing = doc.data();
+        const [eh, em] = existing.startTime.split(":").map(Number);
+        const existingStart = eh * 60 + em;
+        const [eeh, eem] = existing.endTime.split(":").map(Number);
+        const existingEnd = eeh * 60 + eem;
+
+        if (newStartMin < existingEnd && newEndMin > existingStart) {
+          throw new Error("CONFLICT");
+        }
+      }
+
+      tx.update(appointmentRef, {
+        date,
+        startTime,
+        endTime,
+        status: "pending", // Reset to pending after reschedule
+        updatedAt: now,
+      });
+    });
+
+    // Send chat message about reschedule
+    try {
+      const chatId = appointment.chatId;
+      if (chatId) {
+        const messageText = `📅 Agendamento reagendado\nServiço: ${appointment.serviceName}\nNova data: ${date}\nNovo horário: ${startTime} - ${endTime}`;
+        const messageId = uuidv4();
+        await db
+          .collection("chats")
+          .doc(chatId)
+          .collection("messages")
+          .doc(messageId)
+          .set({
+            id: messageId,
+            senderId: uid,
+            text: messageText,
+            type: "system",
+            createdAt: now,
+          });
+
+        await db.collection("chats").doc(chatId).update({
+          lastMessage: messageText.substring(0, 100),
+          lastMessageAt: now,
+          updatedAt: now,
+        });
+      }
+    } catch (chatError) {
+      functions.logger.warn("Failed to send reschedule chat message", { chatError });
+    }
+
+    const updatedDoc = await appointmentRef.get();
+    functions.logger.info("Appointment rescheduled", { uid, appointmentId, date, startTime });
+    res.json(serializeTimestamps(updatedDoc.data()!));
+  } catch (error) {
+    if (error instanceof Error && error.message === "CONFLICT") {
+      res.status(409).json({ error: "Conflito de horário — este horário já está ocupado" });
+      return;
+    }
+    functions.logger.error("Error rescheduling appointment", error);
+    res.status(500).json({ error: "Erro ao reagendar" });
+  }
+});
+
 // ============================================================================
 // Helpers
 // ============================================================================
@@ -438,6 +598,7 @@ function serializeTimestamps(data: admin.firestore.DocumentData): Record<string,
 
 /**
  * Get or create a chat between a buyer and a tenant.
+ * Uses a lock document to prevent duplicate chat creation from concurrent requests.
  */
 async function getOrCreateChat(
   db: admin.firestore.Firestore,
@@ -463,10 +624,29 @@ async function getOrCreateChat(
   const ownerId = tenantData.ownerUserId || tenantData.ownerId;
   if (!ownerId) return null;
 
-  // Create new chat
+  // Use a deterministic lock key to prevent duplicate chats
+  const lockKey = `chat_${buyerUid}_${tenantId}`;
+  const lockRef = db.collection("idempotency_keys").doc(lockKey);
   const chatId = uuidv4();
   const now = admin.firestore.Timestamp.now();
 
+  try {
+    // Attempt to acquire lock via atomic create
+    await lockRef.create({ createdAt: now, chatId });
+  } catch {
+    // Lock already exists — another request is creating/created the chat.
+    // Re-query for the chat that was (or is being) created.
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    const retrySnap = await db
+      .collection("chats")
+      .where("participantIds", "array-contains", buyerUid)
+      .where("tenantId", "==", tenantId)
+      .limit(1)
+      .get();
+    return retrySnap.empty ? null : retrySnap.docs[0].id;
+  }
+
+  // Create new chat (we hold the lock)
   await db.collection("chats").doc(chatId).set({
     id: chatId,
     tenantId,

@@ -25,6 +25,7 @@ import reviewsRouter from "./routes/reviews";
 import shippingRouter from "./routes/shipping";
 import appointmentsRouter from "./routes/appointments";
 import deliveryWebhookRouter from "./routes/delivery-webhook";
+import jobApplicationsRouter from "./routes/job-applications";
 import { releaseHeldPayments } from "./scheduled/release-payments";
 
 // Initialize Firebase Admin
@@ -77,6 +78,16 @@ const chatLimiter = rateLimit({
   message: { error: "Limite de mensagens atingido." },
 });
 app.use("/api/chats", chatLimiter);
+
+// Stricter rate limit for appointment booking
+const appointmentLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000,
+  max: 20, // 20 appointment actions per minute per IP
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Limite de agendamentos atingido. Tente novamente em instantes." },
+});
+app.use("/api/appointments", appointmentLimiter);
 
 // Stricter rate limit for public (unauthenticated) browsing endpoints
 const publicBrowseLimiter = rateLimit({
@@ -195,6 +206,9 @@ app.use("/api/appointments", appointmentsRouter);
 
 // Shipping freight calculation (authenticated)
 app.use("/api/shipping", shippingRouter);
+
+// Job applications
+app.use("/api/job-applications", jobApplicationsRouter);
 
 // ============================================================================
 // Error handler

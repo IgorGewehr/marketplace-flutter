@@ -137,7 +137,7 @@ router.get("/me", async (req: Request, res: Response): Promise<void> => {
 router.patch("/me", async (req: Request, res: Response): Promise<void> => {
   const authReq = req as AuthenticatedRequest;
   const uid = authReq.uid;
-  const { displayName, phone, photoURL, cpfCnpj, favoriteProductIds } = req.body;
+  const { displayName, phone, photoURL, cpfCnpj, favoriteProductIds, favoriteServiceIds } = req.body;
 
   try {
     const db = admin.firestore();
@@ -162,6 +162,9 @@ router.patch("/me", async (req: Request, res: Response): Promise<void> => {
     }
     if (favoriteProductIds !== undefined && Array.isArray(favoriteProductIds)) {
       updateData.favoriteProductIds = favoriteProductIds;
+    }
+    if (favoriteServiceIds !== undefined && Array.isArray(favoriteServiceIds)) {
+      updateData.favoriteServiceIds = favoriteServiceIds;
     }
 
     await userRef.update(updateData);
@@ -295,6 +298,15 @@ router.post("/become-seller", async (req: Request, res: Response): Promise<void>
       },
       mpConnection: {
         isConnected: false,
+      },
+      subscription: {
+        plan: "pro",
+        startedAt: now,
+        updatedAt: now,
+        updatedBy: "system_default",
+        promoExpiresAt: admin.firestore.Timestamp.fromDate(
+          new Date(Date.now() + 60 * 24 * 60 * 60 * 1000)
+        ),
       },
       createdAt: now,
       updatedAt: now,

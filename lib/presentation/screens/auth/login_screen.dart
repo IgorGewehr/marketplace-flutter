@@ -9,7 +9,6 @@ import '../../../core/utils/validators.dart';
 import '../../providers/auth_providers.dart';
 import '../../widgets/auth/auth_button.dart';
 import '../../widgets/auth/auth_text_field.dart';
-import '../../widgets/auth/social_login_buttons.dart';
 
 /// Login Screen — branded Compre aQUI experience
 class LoginScreen extends ConsumerStatefulWidget {
@@ -25,8 +24,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  bool _isGoogleLoading = false;
-
   @override
   void dispose() {
     _emailController.dispose();
@@ -44,25 +41,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
     if (success && mounted) {
       _navigateAfterLogin();
-    }
-  }
-
-  Future<void> _handleGoogleLogin() async {
-    setState(() => _isGoogleLoading = true);
-
-    try {
-      final success =
-          await ref.read(authNotifierProvider.notifier).signInWithGoogle();
-
-      if (!mounted) return;
-      setState(() => _isGoogleLoading = false);
-
-      if (success) {
-        _navigateAfterLogin();
-      }
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _isGoogleLoading = false);
     }
   }
 
@@ -254,29 +232,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         AuthButton(
                           text: 'Entrar',
                           onPressed: isLoading ? null : _handleLogin,
-                          isLoading: isLoading && !_isGoogleLoading,
+                          isLoading: isLoading,
                         )
                             .animate()
                             .fadeIn(delay: 400.ms, duration: 400.ms)
                             .slideY(begin: 0.15, end: 0),
-
-                        const SizedBox(height: 28),
-
-                        // Divider
-                        const AuthDivider()
-                            .animate()
-                            .fadeIn(delay: 500.ms, duration: 400.ms),
-
-                        const SizedBox(height: 28),
-
-                        // Google login
-                        SocialLoginButtons(
-                          onGooglePressed: isLoading ? null : _handleGoogleLogin,
-                          isLoading: _isGoogleLoading,
-                        )
-                            .animate()
-                            .fadeIn(delay: 600.ms, duration: 400.ms)
-                            .slideY(begin: 0.1, end: 0),
 
                         const SizedBox(height: 32),
 

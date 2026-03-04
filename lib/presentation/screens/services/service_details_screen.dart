@@ -1,13 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../providers/auth_providers.dart';
 import '../../providers/chat_provider.dart';
+import '../../providers/review_provider.dart';
 import '../../providers/services_provider.dart';
 import '../../widgets/products/image_carousel.dart';
+import '../../widgets/reviews/review_tile.dart';
+import '../../widgets/reviews/reviews_bottom_sheet.dart';
 import '../../widgets/services/booking_section.dart';
 import '../../widgets/shared/loading_overlay.dart';
 
@@ -115,6 +121,7 @@ class _ServiceDetailsScreenState extends ConsumerState<ServiceDetailsScreen>
                 actions: [
                   IconButton(
                     onPressed: () {
+                      HapticFeedback.lightImpact();
                       ref.read(favoriteServiceIdsProvider.notifier).toggleFavorite(service.id);
                     },
                     icon: Container(
@@ -135,7 +142,10 @@ class _ServiceDetailsScreenState extends ConsumerState<ServiceDetailsScreen>
                   ),
                   IconButton(
                     onPressed: () {
-                      // Share service
+                      HapticFeedback.lightImpact();
+                      Share.share(
+                        '${service.name} — ${service.pricingDisplay}\nConfira este serviço!',
+                      );
                     },
                     icon: Container(
                       padding: const EdgeInsets.all(8),
@@ -171,7 +181,7 @@ class _ServiceDetailsScreenState extends ConsumerState<ServiceDetailsScreen>
                           Expanded(
                             child: Text(
                               service.name,
-                              style: theme.textTheme.titleLarge?.copyWith(
+                              style: theme.textTheme.headlineMedium?.copyWith(
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
@@ -207,7 +217,7 @@ class _ServiceDetailsScreenState extends ConsumerState<ServiceDetailsScreen>
                               ),
                             ),
                         ],
-                      ),
+                      ).animate().fadeIn(duration: 300.ms).slideY(begin: 0.1, end: 0),
                       const SizedBox(height: 12),
 
                       // Rating and stats
@@ -246,7 +256,7 @@ class _ServiceDetailsScreenState extends ConsumerState<ServiceDetailsScreen>
                             ),
                           ],
                         ],
-                      ),
+                      ).animate().fadeIn(duration: 300.ms, delay: 100.ms),
                       const SizedBox(height: 16),
 
                       // Price
@@ -272,7 +282,7 @@ class _ServiceDetailsScreenState extends ConsumerState<ServiceDetailsScreen>
                                 children: [
                                   Text(
                                     service.pricingDisplay,
-                                    style: theme.textTheme.titleLarge?.copyWith(
+                                    style: theme.textTheme.headlineMedium?.copyWith(
                                       fontWeight: FontWeight.bold,
                                       color: theme.colorScheme.primary,
                                     ),
@@ -289,7 +299,7 @@ class _ServiceDetailsScreenState extends ConsumerState<ServiceDetailsScreen>
                             ),
                           ],
                         ),
-                      ),
+                      ).animate().fadeIn(duration: 300.ms, delay: 150.ms).slideY(begin: 0.05, end: 0),
                       const SizedBox(height: 24),
 
                       // Tabs
@@ -320,6 +330,10 @@ class _ServiceDetailsScreenState extends ConsumerState<ServiceDetailsScreen>
                           ],
                         ),
                       ),
+
+                      // Reviews section
+                      const SizedBox(height: 8),
+                      _ServiceReviewsSection(tenantId: service.tenantId, serviceName: service.name),
 
                       // Booking section (when schedule is enabled)
                       if (service.scheduleEnabled)
@@ -388,9 +402,14 @@ class _ServiceDetailsScreenState extends ConsumerState<ServiceDetailsScreen>
                   child: FilledButton(
                     onPressed: _isNavigatingToChat
                         ? null
-                        : (service.scheduleEnabled || service.instantBooking
-                            ? _contactProvider
-                            : _requestQuote),
+                        : () {
+                            HapticFeedback.mediumImpact();
+                            if (service.scheduleEnabled || service.instantBooking) {
+                              _contactProvider();
+                            } else {
+                              _requestQuote();
+                            }
+                          },
                     style: FilledButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       backgroundColor: theme.colorScheme.primary,
@@ -745,6 +764,82 @@ class _StatCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _ServiceReviewsSection extends ConsumerWidget {
+  final String tenantId;
+  final String serviceName;
+
+  const _ServiceReviewsSection({required this.tenantId, required this.serviceName});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final reviewsAsync = ref.watch(sellerReviewsProvider(tenantId));
+
+    final reviews = reviewsAsync.valueOrNull ?? [];
+    final hasReviews = reviews.isNotEmpty;
+    final avg = hasReviews
+        ? reviews.fold(0.0, (sum, r) => sum + r.rating) / reviews.length
+        : 0.0;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(
+              'Avaliações',
+              style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+            ),
+            const Spacer(),
+            if (hasReviews)
+              TextButton(
+                onPressed: () => showReviewsBottomSheet(
+                  context,
+                  targetLabel: serviceName,
+                  reviews: reviews,
+                  averageRating: avg,
+                ),
+                child: const Text('Ver todas'),
+              ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        ReviewsSummaryButton(
+          averageRating: double.parse(avg.toStringAsFixed(1)),
+          totalReviews: reviews.length,
+          onTap: hasReviews
+              ? () => showReviewsBottomSheet(
+                    context,
+                    targetLabel: serviceName,
+                    reviews: reviews,
+                    averageRating: avg,
+                  )
+              : null,
+        ),
+        if (hasReviews) ...[
+          const SizedBox(height: 14),
+          ...reviews.take(2).toList().asMap().entries.map((e) {
+            return ReviewTile(review: e.value, index: e.key);
+          }),
+        ] else ...[
+          const SizedBox(height: 12),
+          reviewsAsync.isLoading
+              ? const SizedBox(
+                  height: 80,
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              : Text(
+                  'Seja o primeiro a avaliar este prestador!',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+        ],
+      ],
     );
   }
 }

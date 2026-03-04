@@ -7,6 +7,7 @@ import 'package:shimmer/shimmer.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../data/models/appointment_model.dart';
 import '../../providers/appointment_provider.dart';
+import '../../providers/subscription_provider.dart';
 import '../../widgets/seller/appointment_card.dart';
 import '../../widgets/shared/app_feedback.dart';
 
@@ -15,6 +16,51 @@ class SellerAgendaScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final canUseAgenda = ref.watch(canUseAgendaProvider);
+    if (!canUseAgenda) {
+      return Scaffold(
+        backgroundColor: AppColors.background,
+        appBar: AppBar(
+          backgroundColor: AppColors.primary,
+          foregroundColor: Colors.white,
+          title: const Text('Agenda'),
+        ),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.lock_outlined,
+                  size: 64,
+                  color: AppColors.textSecondary.withValues(alpha: 0.4),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Recurso indisponível',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'A agenda de serviços está disponível nos planos Basic e Pro. Atualize seu plano para desbloquear.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     final filter = ref.watch(sellerAppointmentFilterProvider);
     final appointmentsAsync = ref.watch(filteredSellerAppointmentsProvider);
 
@@ -148,6 +194,9 @@ class SellerAgendaScreen extends ConsumerWidget {
                                 onNoShow: apt.isConfirmed
                                     ? () => _updateStatus(context, ref, apt, 'no_show')
                                     : null,
+                                onReschedule: (apt.isPending || apt.isConfirmed)
+                                    ? () => _showRescheduleDialog(context, ref, apt)
+                                    : null,
                                 onTap: apt.chatId != null
                                     ? () => context.push('/chats/${apt.chatId}')
                                     : null,
@@ -201,6 +250,56 @@ class SellerAgendaScreen extends ConsumerWidget {
     } catch (e) {
       if (context.mounted) {
         AppFeedback.showError(context, 'Erro ao atualizar agendamento');
+      }
+    }
+  }
+
+  Future<void> _showRescheduleDialog(
+    BuildContext context,
+    WidgetRef ref,
+    AppointmentModel appointment,
+  ) async {
+    DateTime selectedDate = DateTime.tryParse(appointment.date) ?? DateTime.now();
+    TimeOfDay selectedTime = TimeOfDay(
+      hour: int.tryParse(appointment.startTime.split(':')[0]) ?? 9,
+      minute: int.tryParse(appointment.startTime.split(':')[1]) ?? 0,
+    );
+
+    final date = await showDatePicker(
+      context: context,
+      initialDate: selectedDate,
+      firstDate: DateTime.now(),
+      lastDate: DateTime.now().add(const Duration(days: 90)),
+      helpText: 'Selecione a nova data',
+    );
+    if (date == null || !context.mounted) return;
+    selectedDate = date;
+
+    final time = await showTimePicker(
+      context: context,
+      initialTime: selectedTime,
+      helpText: 'Selecione o novo horário',
+    );
+    if (time == null || !context.mounted) return;
+    selectedTime = time;
+
+    final newDate =
+        '${selectedDate.year}-${selectedDate.month.toString().padLeft(2, '0')}-${selectedDate.day.toString().padLeft(2, '0')}';
+    final newTime =
+        '${selectedTime.hour.toString().padLeft(2, '0')}:${selectedTime.minute.toString().padLeft(2, '0')}';
+
+    try {
+      await ref.read(sellerAppointmentsProvider.notifier).reschedule(
+            appointment.id,
+            newDate,
+            newTime,
+          );
+      if (context.mounted) {
+        AppFeedback.showSuccess(context, 'Agendamento reagendado para $newDate às $newTime');
+      }
+    } catch (e) {
+      if (context.mounted) {
+        AppFeedback.showError(context, 'Erro ao reagendar');
       }
     }
   }

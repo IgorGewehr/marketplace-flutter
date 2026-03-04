@@ -9,6 +9,7 @@ import '../../../data/models/service_model.dart';
 import '../../../domain/repositories/service_repository.dart';
 import '../../providers/my_services_provider.dart';
 import '../../providers/products_provider.dart';
+import '../../providers/subscription_provider.dart';
 import '../../widgets/seller/photo_picker_grid.dart';
 import '../../widgets/shared/app_feedback.dart';
 
@@ -375,6 +376,55 @@ class _ServiceFormScreenState extends ConsumerState<ServiceFormScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final canCreateServices = ref.watch(canCreateServicesProvider);
+    if (!canCreateServices && !_isEditing) {
+      return Scaffold(
+        backgroundColor: AppColors.background,
+        appBar: AppBar(
+          backgroundColor: AppColors.primary,
+          foregroundColor: Colors.white,
+          title: const Text('Novo Serviço'),
+          leading: IconButton(
+            icon: const Icon(Icons.close),
+            onPressed: () => context.pop(),
+          ),
+        ),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.lock_outlined,
+                  size: 64,
+                  color: AppColors.textSecondary.withValues(alpha: 0.4),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Recurso indisponível',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Cadastro de serviços está disponível nos planos Basic e Pro. Atualize seu plano para desbloquear.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     return PopScope(
       canPop: !_hasUnsavedChanges,
       onPopInvokedWithResult: (didPop, _) async {

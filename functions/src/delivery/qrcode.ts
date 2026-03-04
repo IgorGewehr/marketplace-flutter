@@ -125,19 +125,25 @@ router.post("/confirm", async (req: Request, res: Response): Promise<void> => {
     const orderNumber = orderData.orderNumber || orderId.substring(0, 8);
     const sellerAmount = orderData.paymentSplit?.sellerAmount || 0;
 
-    const notifId = uuidv4();
-    await db.collection("notifications").doc(notifId).set({
-      id: notifId,
-      userId: tenantId,
-      title: "Entrega confirmada!",
-      body: `Pedido #${orderNumber} entregue. R$ ${sellerAmount.toFixed(2)} será liberado em ${holdHours}h.`,
-      type: "delivery_confirmed",
-      data: { orderId },
-      isRead: false,
-      createdAt: now,
-    });
+    // Resolve actual seller user ID from tenant (tenantId ≠ seller's auth uid)
+    const tenantDoc = await db.collection("tenants").doc(tenantId).get();
+    const sellerUserId = tenantDoc.data()?.ownerId || tenantDoc.data()?.ownerUserId;
 
-    // Send FCM
+    if (sellerUserId) {
+      const notifId = uuidv4();
+      await db.collection("notifications").doc(notifId).set({
+        id: notifId,
+        userId: sellerUserId,
+        title: "Entrega confirmada!",
+        body: `Pedido #${orderNumber} entregue. R$ ${sellerAmount.toFixed(2)} será liberado em ${holdHours}h.`,
+        type: "delivery_confirmed",
+        data: { orderId },
+        isRead: false,
+        createdAt: now,
+      });
+    }
+
+    // Send FCM — use fcmTokens array (consistent with rest of the codebase)
     try {
       const usersSnap = await db
         .collection("users")
@@ -146,16 +152,21 @@ router.post("/confirm", async (req: Request, res: Response): Promise<void> => {
         .get();
 
       if (!usersSnap.empty) {
-        const fcmToken = usersSnap.docs[0].data().fcmToken;
-        if (fcmToken) {
-          await admin.messaging().send({
-            token: fcmToken,
-            notification: {
-              title: "Entrega confirmada!",
-              body: `Pedido #${orderNumber} entregue. Pagamento será liberado em ${holdHours}h.`,
-            },
-            data: { type: "delivery_confirmed", orderId },
-          });
+        const sellerData = usersSnap.docs[0].data();
+        const fcmTokens: string[] = sellerData.fcmTokens || (sellerData.fcmToken ? [sellerData.fcmToken] : []);
+        for (const token of fcmTokens) {
+          try {
+            await admin.messaging().send({
+              token,
+              notification: {
+                title: "Entrega confirmada!",
+                body: `Pedido #${orderNumber} entregue. Pagamento será liberado em ${holdHours}h.`,
+              },
+              data: { type: "delivery_confirmed", orderId },
+              android: { priority: "high" },
+              apns: { payload: { aps: { sound: "default" } } },
+            });
+          } catch { /* token may be invalid */ }
         }
       }
     } catch (pushError) {

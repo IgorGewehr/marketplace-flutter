@@ -147,14 +147,55 @@ class _MyProductCardState extends State<MyProductCard> {
                               ],
                             ),
 
-                            // Price
-                            Text(
-                              Formatters.currency(product.price),
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.sellerAccent,
-                              ),
+                            // Listing type badge + Price
+                            Row(
+                              children: [
+                                if (product.isJob || product.isRental)
+                                  Container(
+                                    margin: const EdgeInsets.only(right: 8),
+                                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                                    decoration: BoxDecoration(
+                                      color: product.isJob
+                                          ? AppColors.sellerAccent.withAlpha(20)
+                                          : Colors.blue.withAlpha(20),
+                                      borderRadius: BorderRadius.circular(6),
+                                      border: Border.all(
+                                        color: product.isJob
+                                            ? AppColors.sellerAccent.withAlpha(60)
+                                            : Colors.blue.withAlpha(60),
+                                      ),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          product.isJob ? Icons.work_outline_rounded : Icons.home_outlined,
+                                          size: 12,
+                                          color: product.isJob ? AppColors.sellerAccent : Colors.blue,
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          product.isJob ? 'Vaga' : 'Aluguel',
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w600,
+                                            color: product.isJob ? AppColors.sellerAccent : Colors.blue,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                Expanded(
+                                  child: Text(
+                                    Formatters.currency(product.price),
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.sellerAccent,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
 
                             // Status + stats
@@ -359,7 +400,29 @@ class _MoreMenu extends StatelessWidget {
         elevation: 4,
         onSelected: (value) {
           if (value == 'duplicate') onDuplicate?.call();
-          if (value == 'delete') onDelete?.call();
+          if (value == 'delete') {
+            showDialog(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                title: const Text('Excluir produto?'),
+                content: const Text('Esta ação não pode ser desfeita.'),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    child: const Text('Cancelar'),
+                  ),
+                  FilledButton(
+                    style: FilledButton.styleFrom(backgroundColor: Colors.red),
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      onDelete?.call();
+                    },
+                    child: const Text('Excluir'),
+                  ),
+                ],
+              ),
+            );
+          }
         },
         itemBuilder: (_) => [
           PopupMenuItem(

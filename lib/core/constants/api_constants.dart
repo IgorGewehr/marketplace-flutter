@@ -119,6 +119,12 @@ class ApiConstants {
   static String appointmentById(String id) => '/api/appointments/$id';
   static String serviceSlots(String serviceId) => '/api/marketplace/services/$serviceId/slots';
 
+  // === Job Applications Endpoints ===
+  static const String jobApplications = '/api/job-applications';
+  static String jobApplicationById(String id) => '/api/job-applications/$id';
+  static String jobApplicationsByJob(String jobId) => '/api/job-applications/job/$jobId';
+  static String jobApplicationStatus(String id) => '/api/job-applications/$id/status';
+
   // === Shipping Endpoints ===
   static const String shippingCalculate = '/api/shipping/calculate';
   static const String shippingZones = '/api/shipping/zones';

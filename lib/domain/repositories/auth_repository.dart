@@ -46,6 +46,9 @@ abstract class AuthRepository {
   /// Update favoriteProductIds list on the server
   Future<void> updateFavorites(List<String> favoriteIds);
 
+  /// Update favoriteServiceIds list on the server
+  Future<void> updateServiceFavorites(List<String> favoriteIds);
+
   /// Sign out
   Future<void> signOut();
 

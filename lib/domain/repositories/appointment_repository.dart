@@ -23,6 +23,9 @@ abstract class AppointmentRepository {
   /// Update appointment status
   Future<AppointmentModel> updateStatus(String id, String status);
 
+  /// Reschedule an appointment to a new date/time
+  Future<AppointmentModel> reschedule(String id, String date, String startTime);
+
   /// Get available slots for a service on a given date
   Future<AvailableSlotsResponse> getAvailableSlots(
     String serviceId,

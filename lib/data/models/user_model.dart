@@ -22,6 +22,7 @@ class UserModel {
   final UserPreferences? preferences;
   final String? role; // owner, admin, employee (for seller/full types)
   final List<String> favoriteProductIds;
+  final List<String> favoriteServiceIds;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -42,6 +43,7 @@ class UserModel {
     this.preferences,
     this.role,
     this.favoriteProductIds = const [],
+    this.favoriteServiceIds = const [],
     required this.createdAt,
     required this.updatedAt,
   });
@@ -100,6 +102,8 @@ class UserModel {
       role: json['role'] as String?,
       favoriteProductIds:
           (json['favoriteProductIds'] as List<dynamic>?)?.cast<String>() ?? [],
+      favoriteServiceIds:
+          (json['favoriteServiceIds'] as List<dynamic>?)?.cast<String>() ?? [],
       createdAt: parseFirestoreDate(json['createdAt']) ?? DateTime.now(),
       updatedAt: parseFirestoreDate(json['updatedAt']) ?? DateTime.now(),
     );
@@ -123,6 +127,7 @@ class UserModel {
       if (preferences != null) 'preferences': preferences!.toJson(),
       if (role != null) 'role': role,
       'favoriteProductIds': favoriteProductIds,
+      'favoriteServiceIds': favoriteServiceIds,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
     };
@@ -145,6 +150,7 @@ class UserModel {
     UserPreferences? preferences,
     String? role,
     List<String>? favoriteProductIds,
+    List<String>? favoriteServiceIds,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -165,6 +171,7 @@ class UserModel {
       preferences: preferences ?? this.preferences,
       role: role ?? this.role,
       favoriteProductIds: favoriteProductIds ?? this.favoriteProductIds,
+      favoriteServiceIds: favoriteServiceIds ?? this.favoriteServiceIds,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );

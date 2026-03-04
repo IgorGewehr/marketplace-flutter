@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/models/service_model.dart';
+import 'auth_providers.dart';
 import 'core_providers.dart';
 
 /// Service categories provider - fetches from API
@@ -264,24 +265,57 @@ final favoriteServiceIdsProvider = StateNotifierProvider<FavoriteServicesNotifie
 
 class FavoriteServicesNotifier extends StateNotifier<Set<String>> {
   final Ref _ref;
+  bool _initialLoadComplete = false;
+  final Set<String> _pendingToggles = {};
 
   FavoriteServicesNotifier(this._ref) : super({}) {
     _loadFavorites();
   }
 
-  void _loadFavorites() {
+  Future<void> _loadFavorites() async {
     try {
       final storage = _ref.read(localStorageProvider);
       final localFavorites = storage.loadServiceFavoriteIds();
-      if (localFavorites.isNotEmpty) {
-        state = localFavorites;
+
+      // Merge with server favorites when user is authenticated
+      final user = _ref.read(currentUserProvider).valueOrNull;
+      final Set<String> loaded;
+      if (user != null && user.favoriteServiceIds.isNotEmpty) {
+        loaded = {...localFavorites, ...user.favoriteServiceIds};
+        await storage.saveServiceFavoriteIds(loaded);
+      } else if (localFavorites.isNotEmpty) {
+        loaded = localFavorites;
+      } else {
+        loaded = {};
       }
+
+      state = state.union(loaded);
     } catch (_) {
       // Silent fail, start with empty favorites
+    }
+
+    _initialLoadComplete = true;
+
+    if (_pendingToggles.isNotEmpty) {
+      final pending = Set<String>.from(_pendingToggles);
+      _pendingToggles.clear();
+      for (final id in pending) {
+        await toggleFavorite(id);
+      }
     }
   }
 
   Future<void> toggleFavorite(String serviceId) async {
+    if (!_initialLoadComplete) {
+      if (_pendingToggles.contains(serviceId)) {
+        _pendingToggles.remove(serviceId);
+      } else {
+        _pendingToggles.add(serviceId);
+      }
+      return;
+    }
+
+    final previousState = {...state};
     final newState = {...state};
 
     if (newState.contains(serviceId)) {
@@ -290,13 +324,25 @@ class FavoriteServicesNotifier extends StateNotifier<Set<String>> {
       newState.add(serviceId);
     }
 
+    // Optimistic update: persist locally immediately
     state = newState;
     await _ref.read(localStorageProvider).saveServiceFavoriteIds(newState);
+
+    // Sync to server — revert on failure
+    try {
+      final authRepo = _ref.read(authRepositoryProvider);
+      await authRepo.updateServiceFavorites(newState.toList());
+    } catch (_) {
+      state = previousState;
+      await _ref.read(localStorageProvider).saveServiceFavoriteIds(previousState);
+    }
   }
 
   bool isFavorite(String serviceId) => state.contains(serviceId);
 
   void clearFavorites() {
+    _initialLoadComplete = true;
+    _pendingToggles.clear();
     state = {};
     _ref.read(localStorageProvider).saveServiceFavoriteIds({});
   }

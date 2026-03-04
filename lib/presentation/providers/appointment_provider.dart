@@ -43,6 +43,15 @@ class SellerAppointmentsNotifier extends AutoDisposeAsyncNotifier<List<Appointme
         apt.id == id ? updated : apt,
     ]);
   }
+
+  Future<void> reschedule(String id, String date, String startTime) async {
+    final repo = ref.read(appointmentRepositoryProvider);
+    final updated = await repo.reschedule(id, date, startTime);
+    state = AsyncData([
+      for (final apt in state.valueOrNull ?? [])
+        apt.id == id ? updated : apt,
+    ]);
+  }
 }
 
 // ============================================================================

@@ -67,6 +67,15 @@ class AppointmentRepositoryImpl implements AppointmentRepository {
   }
 
   @override
+  Future<AppointmentModel> reschedule(String id, String date, String startTime) async {
+    final response = await _apiClient.patch<Map<String, dynamic>>(
+      '${ApiConstants.appointmentById(id)}/reschedule',
+      data: {'date': date, 'startTime': startTime},
+    );
+    return AppointmentModel.fromJson(response);
+  }
+
+  @override
   Future<AvailableSlotsResponse> getAvailableSlots(
     String serviceId,
     String date,

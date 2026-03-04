@@ -34,6 +34,10 @@ service cloud.firestore {
              getUserData().role in ['owner', 'admin'];
     }
 
+    function isLogisticsUser() {
+      return request.auth != null && request.auth.token.logistics == true;
+    }
+
     // ===========================================================================
     // Users Collection
     // ===========================================================================
@@ -131,6 +135,15 @@ service cloud.firestore {
       // Sellers can read orders for their tenant
       allow read: if isTenantMember(resource.data.tenantId) ||
                      isTenantMember(resource.data.sellerId);
+
+      // Logistics users can read/update orders for dispatch and delivery tracking
+      allow read: if isLogisticsUser();
+      allow update: if isLogisticsUser() &&
+                       request.resource.data.diff(resource.data).affectedKeys()
+                         .hasOnly(['status', 'statusHistory', 'updatedAt',
+                                   'assignedDriverId', 'driverName', 'driverPhone',
+                                   'deliveryStatus', 'deliveryDispatchedAt',
+                                   'collectedAt', 'deliveredAt', 'sellerReadyAt']);
 
       // Orders are created exclusively via Cloud Functions (Admin SDK).
       // No client-side creation allowed — server validates prices, stock, and payment.
@@ -431,6 +444,93 @@ service cloud.firestore {
     match /pickup_points/{pointId} {
       allow read: if true;
       allow write: if false;
+    }
+
+    // ===========================================================================
+    // Services Collection
+    // ===========================================================================
+
+    match /services/{serviceId} {
+      // Public read for active services
+      allow read: if resource.data.status == 'active';
+
+      // Tenant members can read their own services (any status)
+      allow read: if isTenantMember(resource.data.tenantId);
+
+      // Sellers can create services for their own tenant
+      allow create: if isSeller() &&
+                       request.resource.data.tenantId == getUserData().tenantId;
+
+      // Tenant members can update their services
+      allow update: if isTenantMember(resource.data.tenantId);
+
+      // Tenant admins can delete services
+      allow delete: if isTenantAdmin(resource.data.tenantId);
+    }
+
+    // ===========================================================================
+    // Service Categories Collection
+    // ===========================================================================
+
+    match /service_categories/{categoryId} {
+      // Public read for active categories
+      allow read: if resource.data.isActive == true;
+
+      // No client write (managed by admin only)
+      allow write: if false;
+    }
+
+    // ===========================================================================
+    // Appointments Collection
+    // ===========================================================================
+
+    match /appointments/{appointmentId} {
+      // Buyers can read their own appointments
+      allow read: if isAuthenticated() &&
+                     resource.data.buyerUserId == request.auth.uid;
+
+      // Sellers can read appointments for their tenant
+      allow read: if isTenantMember(resource.data.tenantId);
+
+      // Appointments are created exclusively via Cloud Functions (Admin SDK).
+      // Server validates service availability, time slots, and conflicts.
+      allow create: if false;
+
+      // Status updates handled via Cloud Functions only (validates transitions).
+      allow update: if false;
+
+      // No deletion
+      allow delete: if false;
+    }
+
+    match /job_applications/{applicationId} {
+      // Applicants can read their own applications
+      allow read: if isAuthenticated() &&
+                     resource.data.applicantUserId == request.auth.uid;
+
+      // Sellers can read applications for their jobs
+      allow read: if isTenantMember(resource.data.tenantId);
+
+      // All mutations via Cloud Functions only
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // ===========================================================================
+    // Drivers Collection (managed by logistics system)
+    // ===========================================================================
+
+    match /drivers/{driverId} {
+      allow read, write: if isLogisticsUser();
+    }
+
+    // ===========================================================================
+    // Vehicles Collection (managed by logistics system)
+    // ===========================================================================
+
+    match /vehicles/{vehicleId} {
+      allow read, write: if isLogisticsUser();
     }
 
     // ===========================================================================

@@ -191,11 +191,17 @@ export async function calculateFreightForItems(params: {
   const { zipCode, city, subtotal, items, tenantId } = params;
   const db = admin.firestore();
 
-  // 1. Filter items: only delivery items count for freight
-  const deliveryItems = items.filter((item) => item.shippingPolicy !== "pickup_only");
-  const pickupOnlyCount = items.length - deliveryItems.length;
+  // 1. Filter items: only delivery items count for zone-based freight
+  // pickup_only → excluded (only store pickup available)
+  // seller_arranges → excluded from zone calc (returns "a combinar" option instead)
+  const deliveryItems = items.filter(
+    (item) => item.shippingPolicy !== "pickup_only" && item.shippingPolicy !== "seller_arranges",
+  );
+  const pickupOnlyCount = items.filter((item) => item.shippingPolicy === "pickup_only").length;
+  const sellerArrangesCount = items.filter((item) => item.shippingPolicy === "seller_arranges").length;
   const hasMixedCart = pickupOnlyCount > 0 && deliveryItems.length > 0;
-  const allPickupOnly = deliveryItems.length === 0;
+  const allPickupOnly = deliveryItems.length === 0 && sellerArrangesCount === 0;
+  const allSellerArranges = deliveryItems.length === 0 && sellerArrangesCount > 0 && pickupOnlyCount === 0;
 
   // If all items are pickup_only, no freight needed
   if (allPickupOnly) {
@@ -206,13 +212,47 @@ export async function calculateFreightForItems(params: {
     };
   }
 
+  // If all items are seller_arranges, return a single "a combinar" option
+  if (allSellerArranges) {
+    return {
+      options: [{
+        zoneId: "seller_arranges",
+        zoneName: "A combinar",
+        tier: "seller_arranges",
+        tierLabel: TIER_LABELS.seller_arranges,
+        price: 0,
+        estimatedDelivery: "A combinar com o vendedor",
+        estimatedDeliveryDate: null,
+        requiresVan: false,
+        available: true,
+        breakdown: {
+          basePrice: 0, weightSurcharge: 0, volumeSurcharge: 0,
+          tierPremium: 0, freeDeliveryDiscount: 0, pickupDiscount: 0,
+        },
+        isFreeDelivery: false,
+      }],
+      hasMixedCart: false,
+      pickupOnlyCount: 0,
+    };
+  }
+
   // 2. Resolve seller zone from tenantId
   let sellerZone: { id: string; data: admin.firestore.DocumentData } | null = null;
   let sellerCity = "";
+  let sellerPlan = "";
   if (tenantId) {
     const tenantDoc = await db.collection("tenants").doc(tenantId).get();
     if (tenantDoc.exists) {
       const tenantData = tenantDoc.data()!;
+      sellerPlan = tenantData.subscription?.plan || "";
+      const promoExpiresAt = tenantData.subscription?.promoExpiresAt;
+      if (sellerPlan === "pro" && promoExpiresAt) {
+        const expiresDate = promoExpiresAt.toDate ? promoExpiresAt.toDate() : new Date(promoExpiresAt);
+        if (expiresDate < new Date()) {
+          sellerPlan = "basic"; // Promo expired
+          functions.logger.info("Pro promo expired for tenant", { tenantId });
+        }
+      }
       const sellerAddress = tenantData.address || {};
       const sellerZip = sellerAddress.zipCode || "";
       sellerCity = (sellerAddress.city || "").toLowerCase().trim();
@@ -350,6 +390,72 @@ export async function calculateFreightForItems(params: {
       sellerZoneName,
       buyerZoneId,
       zoneDistance: 0,
+      hasMixedCart,
+      pickupOnlyCount,
+    };
+  }
+
+  // 4c. Pro plan: always free delivery
+  if (sellerPlan === "pro") {
+    const estimatedDelivery = getEstimatedDeliveryLabel("scheduled", zoneDistance);
+    const estimatedDate = calculateEstimatedDeliveryDate("scheduled", zoneDistance);
+
+    const proFreeOptions: FreightOption[] = [
+      {
+        zoneId: buyerZoneId,
+        zoneName: buyerZoneData.name || city,
+        tier: "scheduled",
+        tierLabel: TIER_LABELS.scheduled,
+        price: 0,
+        estimatedDelivery,
+        estimatedDeliveryDate: estimatedDate ? estimatedDate.toISOString() : null,
+        requiresVan: false,
+        available: true,
+        breakdown: {
+          basePrice: 0,
+          weightSurcharge: 0,
+          volumeSurcharge: 0,
+          tierPremium: 0,
+          freeDeliveryDiscount: 0,
+          pickupDiscount: 0,
+        },
+        isFreeDelivery: true,
+        sellerZoneId,
+        sellerZoneName,
+        zoneDistance,
+      },
+      {
+        zoneId: sellerZoneId,
+        zoneName: sellerZoneName,
+        tier: "pickup_point",
+        tierLabel: "Retirar na loja",
+        price: 0,
+        estimatedDelivery: "Disponível após confirmação",
+        estimatedDeliveryDate: null,
+        requiresVan: false,
+        available: true,
+        breakdown: {
+          basePrice: 0,
+          weightSurcharge: 0,
+          volumeSurcharge: 0,
+          tierPremium: 0,
+          freeDeliveryDiscount: 0,
+          pickupDiscount: 0,
+        },
+        isFreeDelivery: true,
+        sellerZoneId,
+        sellerZoneName,
+        zoneDistance: 0,
+      },
+    ];
+
+    return {
+      options: proFreeOptions,
+      freeDeliveryMessage: "Frete grátis - Vendedor Pro!",
+      sellerZoneId,
+      sellerZoneName,
+      buyerZoneId,
+      zoneDistance,
       hasMixedCart,
       pickupOnlyCount,
     };

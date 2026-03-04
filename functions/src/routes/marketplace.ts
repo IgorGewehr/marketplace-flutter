@@ -952,6 +952,9 @@ router.get("/tenants/:id", async (req: Request, res: Response): Promise<void> =>
       isActive: data.isActive !== false,
       isVerified: data.isVerified || false,
       marketplace,
+      subscription: {
+        plan: (data.subscription?.plan as string | undefined) || "free",
+      },
       createdAt: data.createdAt,
       updatedAt: data.updatedAt,
     }));

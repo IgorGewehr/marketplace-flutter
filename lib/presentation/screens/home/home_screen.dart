@@ -16,7 +16,6 @@ import '../../widgets/home/home_header.dart';
 import '../../widgets/home/promo_banner_carousel.dart';
 import '../../widgets/home/quick_access_buttons.dart';
 import '../../widgets/home/section_header.dart';
-import '../../widgets/jobs/job_card.dart';
 import '../../widgets/products/product_card.dart';
 import '../../widgets/products/product_carousel.dart';
 import '../../widgets/services/service_card.dart';
@@ -125,7 +124,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ),
               ),
 
-              const SliverToBoxAdapter(child: SizedBox(height: 24)),
+              const SliverToBoxAdapter(child: SizedBox(height: 32)),
 
               // Category-filtered carousel (only when a specific category is selected)
               SliverToBoxAdapter(
@@ -293,9 +292,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               actionLabel: 'Ver todos',
               onActionPressed: () => context.push(AppRouter.services),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
             SizedBox(
-              height: 220,
+              height: 240,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -304,7 +303,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 itemBuilder: (context, index) {
                   return SizedBox(
                     width: 200,
-                    child: ServiceCard(service: services[index]),
+                    child: ServiceCard(service: services[index])
+                        .animate(delay: Duration(milliseconds: index * 80))
+                        .fadeIn(duration: 300.ms, curve: Curves.easeOut)
+                        .slideX(begin: 0.1, end: 0, duration: 300.ms, curve: Curves.easeOut),
                   );
                 },
               ),
@@ -382,16 +384,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Column(
-                children: jobs.take(3).map((job) => Padding(
+                children: jobs.take(3).toList().asMap().entries.map((entry) => Padding(
                   padding: const EdgeInsets.only(bottom: 12),
                   child: SizedBox(
                     height: 120,
-                    child: _JobListTile(job: job),
+                    child: _JobListTile(job: entry.value),
                   ),
-                )).toList(),
+                )
+                    .animate(delay: Duration(milliseconds: entry.key * 80))
+                    .fadeIn(duration: 300.ms, curve: Curves.easeOut)
+                    .slideY(begin: 0.08, end: 0, duration: 300.ms, curve: Curves.easeOut),
+                ).toList(),
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 32),
           ],
         );
       },
@@ -532,7 +538,7 @@ class _SearchBar extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Semantics(
-      label: 'Buscar produtos',
+      label: 'Buscar no marketplace',
       button: true,
       child: GestureDetector(
       onTap: onTap,
@@ -562,7 +568,7 @@ class _SearchBar extends StatelessWidget {
             const SizedBox(width: 12),
             Expanded(
               child: Text(
-                'Buscar produtos...',
+                'Buscar no marketplace...',
                 style: theme.textTheme.bodyMedium?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                 ),

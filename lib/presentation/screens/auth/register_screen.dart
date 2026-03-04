@@ -10,7 +10,6 @@ import '../../providers/auth_providers.dart';
 import '../../widgets/shared/app_feedback.dart';
 import '../../widgets/auth/auth_button.dart';
 import '../../widgets/auth/auth_text_field.dart';
-import '../../widgets/auth/social_login_buttons.dart';
 
 /// Register Screen — branded Compre aQUI experience
 class RegisterScreen extends ConsumerStatefulWidget {
@@ -27,7 +26,6 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   bool _acceptedTerms = false;
-  bool _isGoogleLoading = false;
 
   @override
   void dispose() {
@@ -74,25 +72,6 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         e.toString(),
         title: 'Erro ao criar conta',
       );
-    }
-  }
-
-  Future<void> _handleGoogleRegister() async {
-    setState(() => _isGoogleLoading = true);
-
-    try {
-      final success =
-          await ref.read(authNotifierProvider.notifier).signInWithGoogle();
-
-      if (!mounted) return;
-      setState(() => _isGoogleLoading = false);
-
-      if (success) {
-        context.go(AppRouter.home);
-      }
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _isGoogleLoading = false);
     }
   }
 
@@ -203,24 +182,6 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     key: _formKey,
                     child: Column(
                       children: [
-                        // Google sign-up first (quick option)
-                        SocialLoginButtons(
-                          onGooglePressed:
-                              isLoading ? null : _handleGoogleRegister,
-                          isLoading: _isGoogleLoading,
-                        )
-                            .animate()
-                            .fadeIn(delay: 200.ms, duration: 400.ms)
-                            .slideY(begin: 0.1, end: 0),
-
-                        const SizedBox(height: 24),
-
-                        const AuthDivider(text: 'ou cadastre com email')
-                            .animate()
-                            .fadeIn(delay: 300.ms, duration: 400.ms),
-
-                        const SizedBox(height: 24),
-
                         // Name field
                         AuthTextField(
                           controller: _nameController,
@@ -317,7 +278,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                         AuthButton(
                           text: 'Criar conta',
                           onPressed: isLoading ? null : _handleRegister,
-                          isLoading: isLoading && !_isGoogleLoading,
+                          isLoading: isLoading,
                         )
                             .animate()
                             .fadeIn(delay: 600.ms, duration: 400.ms)

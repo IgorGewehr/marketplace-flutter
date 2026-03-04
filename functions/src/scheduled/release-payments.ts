@@ -53,8 +53,13 @@ export async function releaseHeldPayments(): Promise<void> {
       // Skip if already confirmed or already released
       if (orderData.deliveryConfirmedAt || orderData.paymentReleasedAt) continue;
 
-      // Only auto-confirm orders that have actually been shipped/delivered
-      if (!["shipped", "delivered", "out_for_delivery"].includes(orderData.status)) {
+      // Only auto-confirm orders that have actually been shipped/delivered,
+      // or pickup orders that are in "ready" status (buyer picked up but didn't scan QR)
+      const isPickupOrder = orderData.deliveryType === "pickup" || orderData.deliveryType === "pickup_in_person";
+      const isConfirmableStatus = ["shipped", "delivered", "out_for_delivery"].includes(orderData.status) ||
+        (isPickupOrder && orderData.status === "ready");
+
+      if (!isConfirmableStatus) {
         functions.logger.info(`Skipping auto-confirm for order ${orderDoc.id} with status ${orderData.status}`);
         continue;
       }

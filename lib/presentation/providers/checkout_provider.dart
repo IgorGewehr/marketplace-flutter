@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/config/app_config.dart';
@@ -258,6 +259,10 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
       final freightItems = cart.items.map((item) {
         final cachedJson = storage.getCachedProduct(item.productId);
         final product = cachedJson != null ? ProductModel.fromJson(cachedJson) : null;
+        // If product has no weight and requires delivery, log warning
+        if (product?.weight == null && product?.shippingPolicy != 'pickup_only') {
+          debugPrint('[CheckoutProvider] WARNING: product ${item.productId} has no weight set');
+        }
         return FreightItemRequest(
           quantity: item.quantity,
           weight: product?.weight,

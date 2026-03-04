@@ -27,6 +27,7 @@ import '../../presentation/screens/orders/order_details_screen.dart';
 import '../../data/models/product_model.dart';
 import '../../presentation/screens/seller/seller_dashboard_screen.dart';
 import '../../presentation/screens/seller/seller_agenda_screen.dart';
+import '../../presentation/screens/seller/seller_jobs_screen.dart';
 import '../../presentation/screens/seller/my_products_screen.dart';
 import '../../presentation/screens/seller/product_form_screen.dart';
 import '../../presentation/screens/seller/seller_orders_screen.dart';
@@ -48,6 +49,7 @@ import '../../presentation/screens/services/services_screen.dart';
 import '../../presentation/screens/services/service_details_screen.dart';
 import '../../presentation/screens/shipping/delivery_zones_screen.dart';
 import '../../presentation/screens/rentals/rentals_screen.dart';
+import '../../presentation/screens/rentals/rental_details_screen.dart';
 import '../../presentation/screens/jobs/jobs_screen.dart';
 import '../../presentation/screens/jobs/job_details_screen.dart';
 
@@ -136,6 +138,7 @@ class AppRouter {
   static const sellerProductNew = '/seller/products/new';
   static const sellerProductEdit = '/seller/products/:id/edit';
   static const sellerAgenda = '/seller/agenda';
+  static const sellerJobs = '/seller/jobs';
   static const sellerOrders = '/seller/orders';
   static const sellerOrderDetails = '/seller/orders/:id';
   static const sellerWallet = '/seller/wallet';
@@ -151,6 +154,7 @@ class AppRouter {
   static const services = '/services';
   static const serviceDetails = '/service/:id';
   static const rentals = '/rentals';
+  static const rentalDetails = '/rental/:id';
   static const jobs = '/jobs';
   static const jobDetails = '/job/:id';
   static const sellerProfile = '/seller-profile/:id';
@@ -397,6 +401,15 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         parentNavigatorKey: _rootNavigatorKey,
+        path: AppRouter.rentalDetails,
+        pageBuilder: (context, state) => _slidePage(
+          context: context,
+          state: state,
+          child: RentalDetailsScreen(productId: state.pathParameters['id']!),
+        ),
+      ),
+      GoRoute(
+        parentNavigatorKey: _rootNavigatorKey,
         path: AppRouter.jobs,
         pageBuilder: (context, state) => _slidePage(
           context: context,
@@ -520,6 +533,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: AppRouter.sellerAgenda,
             builder: (context, state) => const SellerAgendaScreen(),
+          ),
+          GoRoute(
+            path: AppRouter.sellerJobs,
+            builder: (context, state) => const SellerJobsScreen(),
           ),
           GoRoute(
             path: AppRouter.sellerOrders,

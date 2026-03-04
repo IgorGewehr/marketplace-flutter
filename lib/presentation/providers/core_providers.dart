@@ -19,8 +19,10 @@ import '../../data/repositories/mercadopago_repository_impl.dart';
 import '../../data/repositories/review_repository_impl.dart';
 import '../../data/repositories/shipping_repository_impl.dart';
 import '../../data/repositories/appointment_repository_impl.dart';
+import '../../data/repositories/job_application_repository_impl.dart';
 import '../../domain/repositories/address_repository.dart';
 import '../../domain/repositories/appointment_repository.dart';
+import '../../domain/repositories/job_application_repository.dart';
 import '../../domain/repositories/review_repository.dart';
 import '../../domain/repositories/shipping_repository.dart';
 import '../../domain/repositories/auth_repository.dart';
@@ -156,6 +158,13 @@ final shippingRepositoryProvider = Provider<ShippingRepository>((ref) {
 /// Appointment Repository Provider
 final appointmentRepositoryProvider = Provider<AppointmentRepository>((ref) {
   return AppointmentRepositoryImpl(
+    ref.watch(apiClientProvider),
+  );
+});
+
+/// Job Application Repository Provider
+final jobApplicationRepositoryProvider = Provider<JobApplicationRepository>((ref) {
+  return JobApplicationRepositoryImpl(
     ref.watch(apiClientProvider),
   );
 });

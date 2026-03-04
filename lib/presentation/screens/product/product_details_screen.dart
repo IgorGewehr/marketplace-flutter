@@ -183,16 +183,28 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
     return Scaffold(
       backgroundColor: theme.colorScheme.surface,
       body: productAsync.when(
-        loading: () => const Center(child: LoadingIndicator()),
+        loading: () => _ProductDetailsSkeleton(),
         error: (error, _) => Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Text('Erro ao carregar produto'),
+              const Icon(Icons.error_outline_rounded, size: 56, color: AppColors.textHint),
               const SizedBox(height: 16),
-              FilledButton(
+              const Text(
+                'Erro ao carregar produto',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Verifique sua conexão e tente novamente.',
+                style: TextStyle(color: AppColors.textSecondary),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              FilledButton.icon(
                 onPressed: () => ref.invalidate(productDetailProvider(widget.productId)),
-                child: const Text('Tentar novamente'),
+                icon: const Icon(Icons.refresh_rounded, size: 18),
+                label: const Text('Tentar novamente'),
               ),
             ],
           ),
@@ -1044,7 +1056,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                   Padding(
                     padding: const EdgeInsets.only(top: 4),
                     child: Text(
-                      'Este produto esta indisponivel no momento',
+                      'Este produto está indisponível no momento',
                       style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                       textAlign: TextAlign.center,
                     ),
@@ -1353,6 +1365,71 @@ class _GlassIconButton extends StatelessWidget {
           ),
           child: Icon(icon, color: iconColor, size: 20),
         ),
+      ),
+    );
+  }
+}
+
+// ────────────────────────────────────────────────────────────
+
+/// Shimmer skeleton displayed while product details are loading.
+class _ProductDetailsSkeleton extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+
+    return SingleChildScrollView(
+      physics: const NeverScrollableScrollPhysics(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Image placeholder (~300px)
+          ShimmerBox(
+            width: screenWidth,
+            height: 300,
+            borderRadius: BorderRadius.zero,
+          ),
+
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Title line 1
+                ShimmerBox(width: screenWidth, height: 20),
+                const SizedBox(height: 8),
+                // Title line 2
+                ShimmerBox(width: screenWidth * 0.6, height: 20),
+                const SizedBox(height: 20),
+
+                // Price placeholder
+                const ShimmerBox(width: 120, height: 28),
+                const SizedBox(height: 24),
+
+                // Seller info row
+                Row(
+                  children: [
+                    // Avatar circle
+                    const ShimmerBox(
+                      width: 40,
+                      height: 40,
+                      borderRadius: BorderRadius.all(Radius.circular(20)),
+                    ),
+                    const SizedBox(width: 12),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: const [
+                        ShimmerBox(width: 140, height: 14),
+                        SizedBox(height: 6),
+                        ShimmerBox(width: 90, height: 12),
+                      ],
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

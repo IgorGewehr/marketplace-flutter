@@ -41,7 +41,7 @@ class _RentalCardState extends State<RentalCard> {
         onTapUp: (_) {
           setState(() => _isPressed = false);
           HapticFeedback.selectionClick();
-          context.push('/product/${rental.id}');
+          context.push('/rental/${rental.id}');
         },
         onTapCancel: () => setState(() => _isPressed = false),
         child: Container(

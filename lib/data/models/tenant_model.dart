@@ -19,6 +19,7 @@ class TenantModel {
   final AddressModel? address;
   final TenantSettings? settings;
   final TenantMarketplace? marketplace;
+  final TenantSubscription? subscription;
   final List<String> memberIds;
   final String ownerUserId;
   final bool isActive;
@@ -41,6 +42,7 @@ class TenantModel {
     this.address,
     this.settings,
     this.marketplace,
+    this.subscription,
     this.memberIds = const [],
     required this.ownerUserId,
     this.isActive = true,
@@ -57,6 +59,10 @@ class TenantModel {
 
   /// Get display name (tradeName or name)
   String get displayName => tradeName ?? name;
+
+  /// Get current subscription (fallback to free if absent)
+  TenantSubscription get currentSubscription =>
+      subscription ?? const TenantSubscription(plan: 'free');
 
   /// Check if marketplace is active
   bool get isMarketplaceActive => marketplace?.isActive ?? false;
@@ -90,6 +96,9 @@ class TenantModel {
       marketplace: json['marketplace'] is Map<String, dynamic>
           ? TenantMarketplace.fromJson(json['marketplace'] as Map<String, dynamic>)
           : null,
+      subscription: json['subscription'] is Map<String, dynamic>
+          ? TenantSubscription.fromJson(json['subscription'] as Map<String, dynamic>)
+          : null,
       memberIds: (json['memberIds'] as List<dynamic>?)?.cast<String>() ?? [],
       ownerUserId: json['ownerUserId'] as String? ?? '',
       isActive: json['isActive'] as bool? ?? true,
@@ -115,6 +124,7 @@ class TenantModel {
       if (address != null) 'address': address!.toJson(),
       if (settings != null) 'settings': settings!.toJson(),
       if (marketplace != null) 'marketplace': marketplace!.toJson(),
+      if (subscription != null) 'subscription': subscription!.toJson(),
       'memberIds': memberIds,
       'ownerUserId': ownerUserId,
       'isActive': isActive,
@@ -139,6 +149,7 @@ class TenantModel {
     AddressModel? address,
     TenantSettings? settings,
     TenantMarketplace? marketplace,
+    TenantSubscription? subscription,
     List<String>? memberIds,
     String? ownerUserId,
     bool? isActive,
@@ -161,6 +172,7 @@ class TenantModel {
       address: address ?? this.address,
       settings: settings ?? this.settings,
       marketplace: marketplace ?? this.marketplace,
+      subscription: subscription ?? this.subscription,
       memberIds: memberIds ?? this.memberIds,
       ownerUserId: ownerUserId ?? this.ownerUserId,
       isActive: isActive ?? this.isActive,
@@ -286,6 +298,63 @@ class BusinessHours {
       'close': close,
       if (breakStart != null) 'breakStart': breakStart,
       if (breakEnd != null) 'breakEnd': breakEnd,
+    };
+  }
+}
+
+class TenantSubscription {
+  final String plan; // 'free', 'basic', 'pro'
+  final DateTime? startedAt;
+  final DateTime? updatedAt;
+  final String? updatedBy;
+  final DateTime? promoExpiresAt;
+
+  const TenantSubscription({
+    this.plan = 'free',
+    this.startedAt,
+    this.updatedAt,
+    this.updatedBy,
+    this.promoExpiresAt,
+  });
+
+  bool get isFree => plan == 'free';
+  bool get isBasic => plan == 'basic';
+  bool get isPro => plan == 'pro';
+
+  bool get canCreateRentals => isBasic || isPro;
+  bool get canCreateJobs => isBasic || isPro;
+  bool get canCreateServices => isBasic || isPro;
+  bool get canUseAgenda => isBasic || isPro;
+  bool get hasFreeShipping => isPro;
+
+  String get planLabel {
+    switch (plan) {
+      case 'pro':
+        return 'Pro';
+      case 'basic':
+        return 'Basic';
+      default:
+        return 'Free';
+    }
+  }
+
+  factory TenantSubscription.fromJson(Map<String, dynamic> json) {
+    return TenantSubscription(
+      plan: json['plan'] as String? ?? 'free',
+      startedAt: parseFirestoreDate(json['startedAt']),
+      updatedAt: parseFirestoreDate(json['updatedAt']),
+      updatedBy: json['updatedBy'] as String?,
+      promoExpiresAt: parseFirestoreDate(json['promoExpiresAt']),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'plan': plan,
+      if (startedAt != null) 'startedAt': startedAt!.toIso8601String(),
+      if (updatedAt != null) 'updatedAt': updatedAt!.toIso8601String(),
+      if (updatedBy != null) 'updatedBy': updatedBy,
+      if (promoExpiresAt != null) 'promoExpiresAt': promoExpiresAt!.toIso8601String(),
     };
   }
 }

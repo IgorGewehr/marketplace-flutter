@@ -85,6 +85,56 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
     return;
   }
 
+  // Validate string lengths
+  if (typeof name !== "string" || name.length > 200) {
+    res.status(400).json({ error: "Nome deve ter no máximo 200 caracteres" });
+    return;
+  }
+  if (description && typeof description === "string" && description.length > 5000) {
+    res.status(400).json({ error: "Descrição deve ter no máximo 5000 caracteres" });
+    return;
+  }
+
+  // Validate basePrice
+  const parsedBasePrice = parseFloat(basePrice);
+  if (isNaN(parsedBasePrice) || parsedBasePrice < 0) {
+    res.status(400).json({ error: "Preço base deve ser um número positivo" });
+    return;
+  }
+
+  // Validate minPrice/maxPrice
+  const parsedMinPrice = minPrice ? parseFloat(minPrice) : null;
+  const parsedMaxPrice = maxPrice ? parseFloat(maxPrice) : null;
+  if (parsedMinPrice !== null && (isNaN(parsedMinPrice) || parsedMinPrice < 0)) {
+    res.status(400).json({ error: "Preço mínimo inválido" });
+    return;
+  }
+  if (parsedMaxPrice !== null && (isNaN(parsedMaxPrice) || parsedMaxPrice < 0)) {
+    res.status(400).json({ error: "Preço máximo inválido" });
+    return;
+  }
+  if (parsedMinPrice !== null && parsedMaxPrice !== null && parsedMinPrice > parsedMaxPrice) {
+    res.status(400).json({ error: "Preço mínimo não pode ser maior que o máximo" });
+    return;
+  }
+
+  // Validate tags array limit
+  if (tags && Array.isArray(tags) && tags.length > 20) {
+    res.status(400).json({ error: "Máximo de 20 tags permitidas" });
+    return;
+  }
+
+  // Validate serviceHours format (HH:mm-HH:mm)
+  if (serviceHours && typeof serviceHours === "object") {
+    const timeRangeRegex = /^\d{2}:\d{2}-\d{2}:\d{2}$/;
+    for (const [day, hours] of Object.entries(serviceHours)) {
+      if (hours && typeof hours === "string" && !timeRangeRegex.test(hours)) {
+        res.status(400).json({ error: `Formato de horário inválido para ${day}. Use HH:mm-HH:mm` });
+        return;
+      }
+    }
+  }
+
   try {
     const tenantId = await getTenantForUser(uid);
     if (!tenantId) {
@@ -93,14 +143,25 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
     }
 
     const db = admin.firestore();
+
+    // Plan validation: free plan cannot create services
+    const tenantDoc = await db.collection("tenants").doc(tenantId).get();
+    const tenantData = tenantDoc.data() || {};
+    const sellerPlan = tenantData.subscription?.plan || "free";
+
+    if (sellerPlan === "free") {
+      res.status(403).json({ error: "Plano Free não permite criar serviços. Faça upgrade para Basic ou Pro." });
+      return;
+    }
+
     const now = admin.firestore.Timestamp.now();
     const serviceId = uuidv4();
 
     const serviceData: Record<string, unknown> = {
       id: serviceId,
       tenantId,
-      name,
-      description: description || "",
+      name: name.trim(),
+      description: description ? String(description).substring(0, 5000) : "",
       shortDescription: shortDescription || null,
       categoryId: categoryId || "",
       subcategoryId: subcategoryId || null,
@@ -108,9 +169,9 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
       images: images || [],
       portfolioImages: portfolioImages || [],
       pricingType: pricingType || "fixed",
-      basePrice: parseFloat(basePrice) || 0,
-      minPrice: minPrice ? parseFloat(minPrice) : null,
-      maxPrice: maxPrice ? parseFloat(maxPrice) : null,
+      basePrice: parsedBasePrice,
+      minPrice: parsedMinPrice,
+      maxPrice: parsedMaxPrice,
       isAvailable: isAvailable ?? true,
       availableDays: availableDays || [],
       serviceHours: serviceHours || null,
@@ -197,10 +258,38 @@ router.patch("/:id", async (req: Request, res: Response): Promise<void> => {
       if (req.body[field] !== undefined) {
         let value = req.body[field];
         if (field === "basePrice" || field === "minPrice" || field === "maxPrice") {
-          value = value !== null ? parseFloat(value) : null;
+          if (value !== null) {
+            const parsed = parseFloat(value);
+            if (isNaN(parsed) || parsed < 0) {
+              res.status(400).json({ error: `${field} deve ser um número positivo` });
+              return;
+            }
+            value = parsed;
+          } else {
+            value = null;
+          }
+        }
+        if (field === "name" && typeof value === "string") {
+          if (value.length > 200) {
+            res.status(400).json({ error: "Nome deve ter no máximo 200 caracteres" });
+            return;
+          }
+          value = value.trim();
+        }
+        if (field === "description" && typeof value === "string" && value.length > 5000) {
+          res.status(400).json({ error: "Descrição deve ter no máximo 5000 caracteres" });
+          return;
         }
         updateData[field] = value;
       }
+    }
+
+    // Cross-field validation: minPrice <= maxPrice
+    const finalMin = updateData.minPrice !== undefined ? updateData.minPrice : serviceDoc.data()!.minPrice;
+    const finalMax = updateData.maxPrice !== undefined ? updateData.maxPrice : serviceDoc.data()!.maxPrice;
+    if (finalMin != null && finalMax != null && Number(finalMin) > Number(finalMax)) {
+      res.status(400).json({ error: "Preço mínimo não pode ser maior que o máximo" });
+      return;
     }
 
     await serviceRef.update(updateData);

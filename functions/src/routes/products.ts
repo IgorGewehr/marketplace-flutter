@@ -97,11 +97,32 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
     }
 
     const db = admin.firestore();
-    const now = admin.firestore.Timestamp.now();
-    const productId = uuidv4();
 
     const isRental = productType === "rental";
     const isJobListing = listingType === "job";
+
+    // Plan validation: free plan cannot create rentals or job listings
+    const tenantDoc = await db.collection("tenants").doc(tenantId).get();
+    const tenantData = tenantDoc.data() || {};
+    const sellerPlan = tenantData.subscription?.plan || "free";
+
+    if (isRental && sellerPlan === "free") {
+      res.status(403).json({ error: "Plano Free não permite criar aluguéis. Faça upgrade para Basic ou Pro." });
+      return;
+    }
+    if (isJobListing && sellerPlan === "free") {
+      res.status(403).json({ error: "Plano Free não permite criar vagas. Faça upgrade para Basic ou Pro." });
+      return;
+    }
+
+    // Weight warning: log if delivery product has no weight
+    if (shippingPolicy === "delivery" && (!weight || parseFloat(weight) <= 0)) {
+      functions.logger.warn("Product created without weight", { tenantId });
+    }
+
+    const now = admin.firestore.Timestamp.now();
+    const productId = uuidv4();
+
     const skipInventory = isRental || isJobListing;
 
     const productData: Record<string, unknown> = {
