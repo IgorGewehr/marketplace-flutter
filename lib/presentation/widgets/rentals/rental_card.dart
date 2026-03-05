@@ -2,23 +2,25 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../data/models/product_model.dart';
+import '../../providers/rentals_provider.dart';
 
 /// Card widget for rental listings — differentiated from ProductCard
-class RentalCard extends StatefulWidget {
+class RentalCard extends ConsumerStatefulWidget {
   final ProductModel rental;
 
   const RentalCard({super.key, required this.rental});
 
   @override
-  State<RentalCard> createState() => _RentalCardState();
+  ConsumerState<RentalCard> createState() => _RentalCardState();
 }
 
-class _RentalCardState extends State<RentalCard> {
+class _RentalCardState extends ConsumerState<RentalCard> {
   bool _isPressed = false;
 
   String _rentalTypeBadge(ProductModel rental) {
@@ -31,6 +33,7 @@ class _RentalCardState extends State<RentalCard> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final rental = widget.rental;
+    final isFavorite = ref.watch(isRentalFavoriteProvider(rental.id));
 
     return AnimatedScale(
       scale: _isPressed ? 0.96 : 1.0,
@@ -105,6 +108,37 @@ class _RentalCardState extends State<RentalCard> {
                           ),
                         ),
                       ).animate().fadeIn(duration: 400.ms).slideX(begin: -0.2, curve: Curves.easeOut),
+                    ),
+
+                    // Favorite button (top-right)
+                    Positioned(
+                      top: 6,
+                      right: 6,
+                      child: GestureDetector(
+                        onTap: () {
+                          HapticFeedback.lightImpact();
+                          ref.read(favoriteRentalIdsProvider.notifier).toggleFavorite(rental.id);
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withAlpha(220),
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withAlpha(20),
+                                blurRadius: 4,
+                                offset: const Offset(0, 1),
+                              ),
+                            ],
+                          ),
+                          child: Icon(
+                            isFavorite ? Icons.favorite : Icons.favorite_border,
+                            size: 16,
+                            color: isFavorite ? Colors.red : AppColors.textSecondary,
+                          ),
+                        ),
+                      ),
                     ),
                   ],
                 ),

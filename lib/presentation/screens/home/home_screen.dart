@@ -255,7 +255,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final rentalsAsync = ref.watch(featuredRentalsProvider);
 
     return rentalsAsync.when(
-      loading: () => const SizedBox.shrink(),
+      loading: () => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SectionHeader(
+            title: 'Aluguéis em Destaque',
+            actionLabel: 'Ver todos',
+            onActionPressed: () => context.push(AppRouter.rentals),
+          ),
+          const SizedBox(height: 16),
+          const ProductCarousel(isLoading: true),
+          const SizedBox(height: 32),
+        ],
+      ),
       error: (_, __) => const SizedBox.shrink(),
       data: (rentals) {
         if (rentals.isEmpty) return const SizedBox.shrink();
@@ -280,7 +292,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final servicesAsync = ref.watch(featuredServicesProvider);
 
     return servicesAsync.when(
-      loading: () => const SizedBox.shrink(),
+      loading: () => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SectionHeader(
+            title: 'Serviços em Destaque',
+            actionLabel: 'Ver todos',
+            onActionPressed: () => context.push(AppRouter.services),
+          ),
+          const SizedBox(height: 16),
+          const ProductCarousel(isLoading: true),
+          const SizedBox(height: 32),
+        ],
+      ),
       error: (_, __) => const SizedBox.shrink(),
       data: (services) {
         if (services.isEmpty) return const SizedBox.shrink();
@@ -368,7 +392,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final jobsAsync = ref.watch(recentJobsProvider);
 
     return jobsAsync.when(
-      loading: () => const SizedBox.shrink(),
+      loading: () => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SectionHeader(
+            title: 'Vagas de Emprego',
+            actionLabel: 'Ver todas',
+            onActionPressed: () => context.push(AppRouter.jobs),
+          ),
+          const SizedBox(height: 12),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16),
+            child: ShimmerLoading(itemCount: 3, isGrid: false, height: 80),
+          ),
+          const SizedBox(height: 32),
+        ],
+      ),
       error: (_, __) => const SizedBox.shrink(),
       data: (jobs) {
         if (jobs.isEmpty) return const SizedBox.shrink();
@@ -386,10 +425,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               child: Column(
                 children: jobs.take(3).toList().asMap().entries.map((entry) => Padding(
                   padding: const EdgeInsets.only(bottom: 12),
-                  child: SizedBox(
-                    height: 120,
-                    child: _JobListTile(job: entry.value),
-                  ),
+                  child: _JobListTile(job: entry.value),
                 )
                     .animate(delay: Duration(milliseconds: entry.key * 80))
                     .fadeIn(duration: 300.ms, curve: Curves.easeOut)
@@ -620,7 +656,8 @@ class _JobListTile extends StatelessWidget {
           ],
         ),
         clipBehavior: Clip.antiAlias,
-        child: Row(
+        child: IntrinsicHeight(
+          child: Row(
           children: [
             // Left: icon/image
             Container(
@@ -628,13 +665,11 @@ class _JobListTile extends StatelessWidget {
               color: typeColor.withAlpha(20),
               child: Center(
                 child: job.images.isNotEmpty
-                    ? ClipRRect(
-                        child: Image.network(
-                          job.images.first.url,
-                          width: 80,
-                          height: double.infinity,
-                          fit: BoxFit.cover,
-                        ),
+                    ? Image.network(
+                        job.images.first.url,
+                        width: 80,
+                        height: double.infinity,
+                        fit: BoxFit.cover,
                       )
                     : Icon(Icons.work_rounded, size: 32, color: typeColor.withAlpha(150)),
               ),
@@ -719,6 +754,7 @@ class _JobListTile extends StatelessWidget {
               ),
             ),
           ],
+        ),
         ),
       ),
     );

@@ -8,8 +8,12 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../data/models/service_model.dart';
 import '../../providers/follows_provider.dart';
+import '../../providers/jobs_provider.dart';
 import '../../providers/products_provider.dart';
+import '../../providers/rentals_provider.dart';
+import '../../providers/services_provider.dart';
 import '../../widgets/home/section_header.dart';
 import '../../widgets/products/product_carousel.dart';
 import '../../widgets/search/search_filters_sheet.dart';
@@ -655,69 +659,89 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     if (state.products.isEmpty) {
       final theme = Theme.of(context);
       final filters = ref.read(productFiltersProvider);
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                filters.followedOnly
-                    ? Icons.people_outline_rounded
-                    : Icons.search_off_rounded,
-                size: 80,
-                color: AppColors.border,
-              ).animate().scale(duration: 600.ms, curve: Curves.elasticOut),
-              const SizedBox(height: 16),
-              Text(
-                filters.followedOnly
-                    ? 'Nenhum produto dos vendedores seguidos'
-                    : 'Nenhum produto encontrado',
-                style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-                textAlign: TextAlign.center,
-              ).animate().fadeIn(delay: 300.ms, duration: 400.ms),
-              if (filters.followedOnly) ...[
-                const SizedBox(height: 8),
-                Text(
-                  'Siga vendedores na tela de perfil deles para ver os produtos aqui.',
-                  style: theme.textTheme.bodySmall
-                      ?.copyWith(color: AppColors.textSecondary),
-                  textAlign: TextAlign.center,
-                ).animate().fadeIn(delay: 500.ms, duration: 400.ms),
-              ] else if (query != null && query.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                Text(
-                  'para "$query"',
-                  style: theme.textTheme.bodySmall
-                      ?.copyWith(color: AppColors.textSecondary),
-                  textAlign: TextAlign.center,
-                ).animate().fadeIn(delay: 500.ms, duration: 400.ms),
-              ],
-              const SizedBox(height: 24),
-              FilledButton.icon(
-                icon: const Icon(Icons.tune_rounded),
-                label: const Text('Ajustar filtros'),
-                onPressed: _showFilters,
-              )
-                  .animate()
-                  .fadeIn(delay: 700.ms, duration: 400.ms)
-                  .slideY(begin: 0.3, delay: 700.ms, duration: 400.ms),
-            ],
-          ),
+      final hasQuery = query != null && query.isNotEmpty;
+
+      return SingleChildScrollView(
+        child: Column(
+          children: [
+            // Cross-type results when there are no products but a query exists
+            if (hasQuery && !filters.followedOnly)
+              _CrossTypeSearchSection(query: query!),
+
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.all(32),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      filters.followedOnly
+                          ? Icons.people_outline_rounded
+                          : Icons.search_off_rounded,
+                      size: 80,
+                      color: AppColors.border,
+                    ).animate().scale(duration: 600.ms, curve: Curves.elasticOut),
+                    const SizedBox(height: 16),
+                    Text(
+                      filters.followedOnly
+                          ? 'Nenhum produto dos vendedores seguidos'
+                          : 'Nenhum produto encontrado',
+                      style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                      textAlign: TextAlign.center,
+                    ).animate().fadeIn(delay: 300.ms, duration: 400.ms),
+                    if (filters.followedOnly) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        'Siga vendedores na tela de perfil deles para ver os produtos aqui.',
+                        style: theme.textTheme.bodySmall
+                            ?.copyWith(color: AppColors.textSecondary),
+                        textAlign: TextAlign.center,
+                      ).animate().fadeIn(delay: 500.ms, duration: 400.ms),
+                    ] else if (hasQuery) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        'para "$query"',
+                        style: theme.textTheme.bodySmall
+                            ?.copyWith(color: AppColors.textSecondary),
+                        textAlign: TextAlign.center,
+                      ).animate().fadeIn(delay: 500.ms, duration: 400.ms),
+                    ],
+                    const SizedBox(height: 24),
+                    FilledButton.icon(
+                      icon: const Icon(Icons.tune_rounded),
+                      label: const Text('Ajustar filtros'),
+                      onPressed: _showFilters,
+                    )
+                        .animate()
+                        .fadeIn(delay: 700.ms, duration: 400.ms)
+                        .slideY(begin: 0.3, delay: 700.ms, duration: 400.ms),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
       );
     }
 
     final theme = Theme.of(context);
+    final hasQuery = query != null && query.isNotEmpty;
 
     return RefreshIndicator(
       color: AppColors.primary,
       onRefresh: () => ref.read(filteredProductsProvider.notifier).refresh(),
       child: ListView.builder(
         padding: const EdgeInsets.only(top: 4, bottom: 24),
-        itemCount: state.products.length + 2,
+        itemCount: state.products.length + 2 + (hasQuery ? 1 : 0),
         itemBuilder: (context, index) {
-          if (index == 0) {
+          // Cross-type search results section (when query is present)
+          if (hasQuery && index == 0) {
+            return _CrossTypeSearchSection(query: query!);
+          }
+
+          final adjustedIndex = hasQuery ? index - 1 : index;
+
+          if (adjustedIndex == 0) {
             return Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Text(
@@ -727,7 +751,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             );
           }
 
-          final productIndex = index - 1;
+          final productIndex = adjustedIndex - 1;
 
           if (productIndex < state.products.length) {
             return SearchProductListCard(product: state.products[productIndex])
@@ -755,6 +779,147 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           }
           return const SizedBox.shrink();
         },
+      ),
+    );
+  }
+}
+
+// ─── Cross-type search section ────────────────────────────────────────────────
+
+class _CrossTypeSearchSection extends ConsumerWidget {
+  final String query;
+
+  const _CrossTypeSearchSection({required this.query});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final rentalsAsync = ref.watch(rentalSearchProvider(query));
+    final servicesAsync = ref.watch(serviceSearchProvider(query));
+    final jobsAsync = ref.watch(jobSearchProvider(query));
+
+    final rentals = rentalsAsync.valueOrNull ?? [];
+    final services = servicesAsync.valueOrNull ?? [];
+    final jobs = jobsAsync.valueOrNull ?? [];
+
+    if (rentals.isEmpty && services.isEmpty && jobs.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final theme = Theme.of(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (rentals.isNotEmpty) ...[
+          _CrossTypeSectionHeader(
+            icon: Icons.vpn_key_rounded,
+            label: 'Aluguéis',
+            color: const Color(0xFF0077B6),
+            onSeeAll: () => context.push(AppRouter.rentals),
+          ),
+          ...rentals.map((r) => ListTile(
+                dense: true,
+                leading: const Icon(Icons.home_outlined, color: Color(0xFF0077B6)),
+                title: Text(r.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+                subtitle: Text(
+                  r.rentalPriceDisplay ?? 'R\$ ${r.price.toStringAsFixed(2)}',
+                  style: TextStyle(color: theme.colorScheme.primary, fontSize: 12),
+                ),
+                trailing: const Icon(Icons.chevron_right, size: 18),
+                onTap: () => context.push('/rental/${r.id}'),
+              )),
+          const Divider(height: 8),
+        ],
+        if (services.isNotEmpty) ...[
+          _CrossTypeSectionHeader(
+            icon: Icons.build_rounded,
+            label: 'Serviços',
+            color: const Color(0xFF2E7D32),
+            onSeeAll: () => context.push(AppRouter.services),
+          ),
+          ...services.map((s) => ListTile(
+                dense: true,
+                leading: const Icon(Icons.handyman_outlined, color: Color(0xFF2E7D32)),
+                title: Text(s.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+                subtitle: Text(
+                  _servicePrice(s),
+                  style: const TextStyle(color: Color(0xFF2E7D32), fontSize: 12),
+                ),
+                trailing: const Icon(Icons.chevron_right, size: 18),
+                onTap: () => context.push('/service/${s.id}'),
+              )),
+          const Divider(height: 8),
+        ],
+        if (jobs.isNotEmpty) ...[
+          _CrossTypeSectionHeader(
+            icon: Icons.work_rounded,
+            label: 'Vagas',
+            color: const Color(0xFF4A2C8F),
+            onSeeAll: () => context.push(AppRouter.jobs),
+          ),
+          ...jobs.map((j) => ListTile(
+                dense: true,
+                leading: const Icon(Icons.work_outline, color: Color(0xFF4A2C8F)),
+                title: Text(j.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+                subtitle: Text(
+                  j.companyName ?? 'Empresa não informada',
+                  style: const TextStyle(fontSize: 12),
+                ),
+                trailing: const Icon(Icons.chevron_right, size: 18),
+                onTap: () => context.push('/job/${j.id}'),
+              )),
+          const Divider(height: 8),
+        ],
+      ],
+    );
+  }
+
+  String _servicePrice(MarketplaceServiceModel s) {
+    final price = s.minPrice ?? s.basePrice;
+    return 'A partir de R\$ ${price.toStringAsFixed(price.truncateToDouble() == price ? 0 : 2)}';
+  }
+}
+
+class _CrossTypeSectionHeader extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  final VoidCallback onSeeAll;
+
+  const _CrossTypeSectionHeader({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.onSeeAll,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 8, 4),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: color),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              fontSize: 13,
+              color: color,
+            ),
+          ),
+          const Spacer(),
+          TextButton(
+            onPressed: onSeeAll,
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            child: const Text('Ver todos', style: TextStyle(fontSize: 12)),
+          ),
+        ],
       ),
     );
   }

@@ -344,20 +344,18 @@ class _ConfirmationDialog extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 24),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
+            OverflowBar(
+              alignment: MainAxisAlignment.end,
+              spacing: 8,
               children: [
                 TextButton(
                   onPressed: () => Navigator.of(context).pop(false),
                   child: Text(cancelText),
                 ),
-                const SizedBox(width: 8),
-                ElevatedButton(
+                FilledButton(
                   onPressed: () => Navigator.of(context).pop(true),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: isDangerous
-                        ? AppColors.error
-                        : Theme.of(context).primaryColor,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: isDangerous ? AppColors.error : AppColors.primary,
                     foregroundColor: Colors.white,
                   ),
                   child: Text(confirmText),

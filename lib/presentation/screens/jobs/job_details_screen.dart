@@ -71,19 +71,27 @@ class _JobDetailsBody extends StatelessWidget {
     }
   }
 
-  Future<void> _launchEmail(String email) async {
+  Future<void> _launchEmail(BuildContext context, String email) async {
     final uri = Uri(scheme: 'mailto', path: email, queryParameters: {
       'subject': 'Candidatura: ${job.name}',
     });
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri);
+    } else if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Não foi possível abrir o app de e-mail')),
+      );
     }
   }
 
-  Future<void> _launchPhone(String phone) async {
+  Future<void> _launchPhone(BuildContext context, String phone) async {
     final uri = Uri(scheme: 'tel', path: phone);
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri);
+    } else if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Não foi possível fazer a ligação')),
+      );
     }
   }
 
@@ -384,7 +392,7 @@ class _JobDetailsBody extends StatelessWidget {
                         subtitle: const Text('Toque para enviar e-mail', style: TextStyle(fontSize: 11)),
                         onTap: () {
                           HapticFeedback.lightImpact();
-                          _launchEmail(job.contactEmail!);
+                          _launchEmail(context, job.contactEmail!);
                         },
                       ),
                     if (hasPhone)
@@ -396,7 +404,7 @@ class _JobDetailsBody extends StatelessWidget {
                         subtitle: const Text('Toque para ligar', style: TextStyle(fontSize: 11)),
                         onTap: () {
                           HapticFeedback.lightImpact();
-                          _launchPhone(job.contactPhone!);
+                          _launchPhone(context, job.contactPhone!);
                         },
                       ),
                   ],
@@ -472,7 +480,7 @@ class _JobBottomBar extends ConsumerWidget {
               child: IconButton(
                 onPressed: () {
                   HapticFeedback.mediumImpact();
-                  _launchWhatsApp(job.contactPhone!, job.name);
+                  _launchWhatsApp(context, job.contactPhone!, job.name);
                 },
                 icon: const Icon(
                   Icons.chat,
@@ -512,12 +520,19 @@ class _JobBottomBar extends ConsumerWidget {
     );
   }
 
-  static void _launchWhatsApp(String phone, String jobTitle) {
+  static Future<void> _launchWhatsApp(BuildContext context, String phone, String jobTitle) async {
     final cleanPhone = phone.replaceAll(RegExp(r'[^\d+]'), '');
     final message = Uri.encodeComponent(
       'Olá! Vi a vaga "$jobTitle" e gostaria de mais informações.',
     );
-    launchUrl(Uri.parse('https://wa.me/$cleanPhone?text=$message'));
+    final uri = Uri.parse('https://wa.me/$cleanPhone?text=$message');
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri);
+    } else if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('WhatsApp não encontrado neste dispositivo')),
+      );
+    }
   }
 
   static void _showApplySheet(BuildContext context, WidgetRef ref, ProductModel job) {

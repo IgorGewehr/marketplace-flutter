@@ -9,6 +9,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 class LocalStorageService {
   static const String _favoritesBox = 'favorites';
   static const String _serviceFavoritesBox = 'service_favorites';
+  static const String _rentalFavoritesBox = 'rental_favorites';
   static const String _followsBox = 'follows';
   static const String _cartBox = 'cart_box_v2';
   static const String _settingsBox = 'settings_box';
@@ -18,6 +19,7 @@ class LocalStorageService {
 
   late final Box<String> favoritesBox;
   late final Box<String> serviceFavoritesBox;
+  late final Box<String> rentalFavoritesBox;
   late final Box<String> followsBox;
   late final Box cartBox;
   late final Box settingsBox;
@@ -48,6 +50,7 @@ class LocalStorageService {
 
     favoritesBox = await Hive.openBox<String>(_favoritesBox);
     serviceFavoritesBox = await Hive.openBox<String>(_serviceFavoritesBox);
+    rentalFavoritesBox = await Hive.openBox<String>(_rentalFavoritesBox);
     followsBox = await Hive.openBox<String>(_followsBox);
     cartBox = await Hive.openBox(_cartBox, encryptionCipher: cipher);
     settingsBox = await Hive.openBox(_settingsBox);
@@ -91,6 +94,19 @@ class LocalStorageService {
     await serviceFavoritesBox.clear();
     for (final id in ids) {
       await serviceFavoritesBox.add(id);
+    }
+  }
+
+  // ===== Rental Favorites =====
+
+  Set<String> loadRentalFavoriteIds() {
+    return rentalFavoritesBox.values.toSet();
+  }
+
+  Future<void> saveRentalFavoriteIds(Set<String> ids) async {
+    await rentalFavoritesBox.clear();
+    for (final id in ids) {
+      await rentalFavoritesBox.add(id);
     }
   }
 

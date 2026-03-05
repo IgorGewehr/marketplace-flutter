@@ -27,6 +27,7 @@ import '../../presentation/screens/orders/order_details_screen.dart';
 import '../../data/models/product_model.dart';
 import '../../presentation/screens/seller/seller_dashboard_screen.dart';
 import '../../presentation/screens/seller/seller_agenda_screen.dart';
+import '../../presentation/screens/seller/service_form_screen.dart';
 import '../../presentation/screens/seller/seller_jobs_screen.dart';
 import '../../presentation/screens/seller/my_products_screen.dart';
 import '../../presentation/screens/seller/product_form_screen.dart';
@@ -138,6 +139,7 @@ class AppRouter {
   static const sellerProductNew = '/seller/products/new';
   static const sellerProductEdit = '/seller/products/:id/edit';
   static const sellerAgenda = '/seller/agenda';
+  static const sellerServiceNew = '/seller/services/new';
   static const sellerJobs = '/seller/jobs';
   static const sellerOrders = '/seller/orders';
   static const sellerOrderDetails = '/seller/orders/:id';
@@ -533,6 +535,11 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: AppRouter.sellerAgenda,
             builder: (context, state) => const SellerAgendaScreen(),
+          ),
+          GoRoute(
+            parentNavigatorKey: _rootNavigatorKey,
+            path: AppRouter.sellerServiceNew,
+            builder: (context, state) => const _PopSafeWrapper(child: ServiceFormScreen()),
           ),
           GoRoute(
             path: AppRouter.sellerJobs,

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:shimmer/shimmer.dart';
 
 import '../../../core/theme/app_colors.dart';
@@ -11,6 +12,7 @@ import '../../../data/models/tenant_model.dart';
 import '../../providers/auth_providers.dart';
 import '../../providers/chat_provider.dart';
 import '../../providers/products_provider.dart';
+import '../../providers/rentals_provider.dart';
 import '../../providers/tenant_provider.dart';
 import '../../widgets/products/image_carousel.dart';
 import '../../widgets/shared/loading_overlay.dart';
@@ -92,10 +94,37 @@ class _RentalDetailsScreenState extends ConsumerState<RentalDetailsScreen> {
                   icon: const Icon(Icons.arrow_back),
                 ),
                 actions: [
+                  // Favorite button
                   IconButton(
                     onPressed: () {
                       HapticFeedback.lightImpact();
-                      // Share rental
+                      ref.read(favoriteRentalIdsProvider.notifier).toggleFavorite(rental.id);
+                    },
+                    icon: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withAlpha(230),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        ref.watch(isRentalFavoriteProvider(rental.id))
+                            ? Icons.favorite
+                            : Icons.favorite_border,
+                        color: ref.watch(isRentalFavoriteProvider(rental.id))
+                            ? Colors.red
+                            : AppColors.textSecondary,
+                      ),
+                    ),
+                  ),
+                  // Share button
+                  IconButton(
+                    onPressed: () {
+                      HapticFeedback.lightImpact();
+                      final period = rental.rentalInfo?.periodDisplayFull ?? '';
+                      final price = rental.rentalPriceDisplay ?? 'R\$ ${rental.price.toStringAsFixed(2)}';
+                      Share.share(
+                        '${rental.name} — $price/$period\n\nVeja este anúncio no NexMarket!',
+                      );
                     },
                     icon: Container(
                       padding: const EdgeInsets.all(8),

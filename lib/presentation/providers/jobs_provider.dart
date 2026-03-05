@@ -109,6 +109,14 @@ final recentJobsProvider = FutureProvider.autoDispose<List<ProductModel>>((ref) 
   return repository.getRecentJobs(limit: 20);
 });
 
+/// Search jobs by query — used by cross-type search in search screen
+final jobSearchProvider = FutureProvider.autoDispose.family<List<ProductModel>, String>((ref, query) async {
+  if (query.isEmpty) return [];
+  final repository = ref.read(productRepositoryProvider);
+  final response = await repository.getJobs(search: query, limit: 5);
+  return response.products;
+});
+
 /// Paginated jobs for jobs screen
 final paginatedJobsProvider =
     StateNotifierProvider.autoDispose<PaginatedJobsNotifier, PaginatedJobsState>((ref) {

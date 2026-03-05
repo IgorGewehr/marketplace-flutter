@@ -592,7 +592,8 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     final progress = _filledSections / _totalRequiredSections;
     final canCreateRentals = ref.watch(canCreateRentalsProvider);
     final canCreateJobs = ref.watch(canCreateJobsProvider);
-    final hasLockedTypes = !canCreateRentals || !canCreateJobs;
+    final canCreateServices = ref.watch(canCreateServicesProvider);
+    final hasLockedTypes = !canCreateRentals || !canCreateJobs || !canCreateServices;
 
     // B3: Gate - require MP connection for new products (skip for jobs)
     final isMpConnected = ref.watch(isMpConnectedProvider);
@@ -787,7 +788,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
               _SectionCard(
                 icon: Icons.dashboard_outlined,
                 title: 'Tipo de Anúncio',
-                subtitle: 'Produto à venda, aluguel ou vaga de emprego',
+                subtitle: 'Produto, aluguel, serviço ou vaga de emprego',
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -808,6 +809,15 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                           enabled: canCreateRentals,
                         ),
                         ButtonSegment(
+                          value: 'service',
+                          label: const Text('Serviço'),
+                          icon: Icon(
+                            canCreateServices ? Icons.handyman_outlined : Icons.lock_outlined,
+                            size: 18,
+                          ),
+                          enabled: canCreateServices,
+                        ),
+                        ButtonSegment(
                           value: 'job',
                           label: const Text('Vaga'),
                           icon: Icon(
@@ -822,6 +832,11 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                         final type = value.first;
                         if (type == 'rental' && !canCreateRentals) return;
                         if (type == 'job' && !canCreateJobs) return;
+                        if (type == 'service') {
+                          if (!canCreateServices) return;
+                          context.push(AppRouter.sellerServiceNew);
+                          return;
+                        }
                         setState(() {
                           if (type == 'job') {
                             _listingType = 'job';
@@ -855,7 +870,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
-                                'Atualize seu plano para desbloquear alugueis e vagas de emprego.',
+                                'Atualize seu plano para desbloquear alugueis, serviços e vagas de emprego.',
                                 style: TextStyle(
                                   fontSize: 12,
                                   color: AppColors.textSecondary,

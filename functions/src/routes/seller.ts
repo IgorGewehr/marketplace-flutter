@@ -45,6 +45,9 @@ router.get("/profile", async (req: Request, res: Response): Promise<void> => {
       mpConnection: data.mpConnection
         ? { isConnected: data.mpConnection.isConnected || false }
         : { isConnected: false },
+      subscription: {
+        plan: (data.subscription?.plan as string | undefined) || "free",
+      },
     });
   } catch (error) {
     functions.logger.error("Error fetching seller profile", error);

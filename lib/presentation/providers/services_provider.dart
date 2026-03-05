@@ -354,6 +354,14 @@ final isServiceFavoriteProvider = Provider.family<bool, String>((ref, serviceId)
   return favorites.contains(serviceId);
 });
 
+/// Search services by query — used by cross-type search in search screen
+final serviceSearchProvider = FutureProvider.autoDispose.family<List<MarketplaceServiceModel>, String>((ref, query) async {
+  if (query.isEmpty) return [];
+  final repository = ref.read(serviceRepositoryProvider);
+  final response = await repository.search(query: query, limit: 5);
+  return response.services;
+});
+
 /// Pricing type filter options
 final pricingTypeOptions = [
   'Todos',

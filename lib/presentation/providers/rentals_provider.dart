@@ -253,3 +253,55 @@ final filteredRentalsProvider = FutureProvider.autoDispose<List<ProductModel>>((
   );
   return response.products;
 });
+
+/// Search rentals by query — used by cross-type search in search screen
+final rentalSearchProvider = FutureProvider.autoDispose.family<List<ProductModel>, String>((ref, query) async {
+  if (query.isEmpty) return [];
+  final repository = ref.read(productRepositoryProvider);
+  final response = await repository.getRentals(search: query, limit: 5);
+  return response.products;
+});
+
+// ─── Rental Favorites ────────────────────────────────────────────────────────
+
+/// Favorite rental IDs with Hive local storage persistence (Hive-only, no server sync)
+final favoriteRentalIdsProvider =
+    StateNotifierProvider<FavoriteRentalIdsNotifier, Set<String>>((ref) {
+  return FavoriteRentalIdsNotifier(ref);
+});
+
+class FavoriteRentalIdsNotifier extends StateNotifier<Set<String>> {
+  final Ref _ref;
+
+  FavoriteRentalIdsNotifier(this._ref) : super({}) {
+    _loadFavorites();
+  }
+
+  Future<void> _loadFavorites() async {
+    try {
+      final ids = _ref.read(localStorageProvider).loadRentalFavoriteIds();
+      state = ids;
+    } catch (_) {}
+  }
+
+  Future<void> toggleFavorite(String rentalId) async {
+    final newState = {...state};
+    if (newState.contains(rentalId)) {
+      newState.remove(rentalId);
+    } else {
+      newState.add(rentalId);
+    }
+    state = newState;
+    await _ref.read(localStorageProvider).saveRentalFavoriteIds(newState);
+  }
+
+  void clearFavorites() {
+    state = {};
+    _ref.read(localStorageProvider).saveRentalFavoriteIds({});
+  }
+}
+
+/// Check if a rental is favorite
+final isRentalFavoriteProvider = Provider.family<bool, String>((ref, rentalId) {
+  return ref.watch(favoriteRentalIdsProvider).contains(rentalId);
+});
