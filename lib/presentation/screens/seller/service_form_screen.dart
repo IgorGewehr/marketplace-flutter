@@ -1,6 +1,8 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -457,40 +459,32 @@ class _ServiceFormScreenState extends ConsumerState<ServiceFormScreen> {
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
         elevation: 0,
-        title: Text(
-          _isEditing ? 'Editar Serviço' : 'Novo Serviço',
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-          ),
+        title: Row(
+          children: [
+            Icon(
+              _isEditing ? Icons.edit_outlined : Icons.handyman_outlined,
+              size: 20,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              _isEditing ? 'Editar Serviço' : 'Novo Serviço',
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
         ),
         leading: IconButton(
           icon: const Icon(Icons.close),
           onPressed: () => context.pop(),
         ),
-        actions: [
-          TextButton(
-            onPressed: _isLoading ? null : _saveService,
-            child: _isLoading
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Text(
-                    'Salvar',
-                    style: TextStyle(
-                      color: AppColors.sellerAccent,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-          ),
-          const SizedBox(width: 8),
-        ],
+        actions: const [],
         bottom: _isLoading
             ? const PreferredSize(
                 preferredSize: Size.fromHeight(4),
                 child: LinearProgressIndicator(
-                  color: AppColors.sellerAccent,
+                  color: AppColors.primary,
                   minHeight: 4,
                 ),
               )
@@ -499,263 +493,315 @@ class _ServiceFormScreenState extends ConsumerState<ServiceFormScreen> {
       body: Form(
         key: _formKey,
         child: ListView(
-          padding: const EdgeInsets.all(16),
+          padding: EdgeInsets.only(
+            left: 16,
+            right: 16,
+            top: 16,
+            bottom: 16 + MediaQuery.of(context).viewInsets.bottom,
+          ),
           children: [
             // Photo Picker
-            PhotoPickerGrid(
-              initialUrls: _existingImageUrls,
-              newFiles: _newImageFiles,
-              onFilesChanged: (files) => setState(() {
-                _newImageFiles = files;
-                _hasUnsavedChanges = true;
-              }),
-              onUrlsChanged: (urls) => setState(() {
-                _existingImageUrls = urls;
-                _hasUnsavedChanges = true;
-              }),
-            ),
-            const SizedBox(height: 24),
-
-            // Basic Information Section
-            _SectionHeader(title: 'Informações Básicas'),
-            const SizedBox(height: 16),
-
-            // Name
-            TextFormField(
-              controller: _nameController,
-              decoration: const InputDecoration(
-                labelText: 'Nome do serviço *',
-                hintText: 'Ex: Desenvolvimento de Sites',
+            _SectionCard(
+              icon: Icons.camera_alt_outlined,
+              title: 'Fotos do Serviço',
+              subtitle: 'Adicione até 5 fotos do seu trabalho',
+              animationIndex: 0,
+              child: PhotoPickerGrid(
+                initialUrls: _existingImageUrls,
+                newFiles: _newImageFiles,
+                onFilesChanged: (files) => setState(() {
+                  _newImageFiles = files;
+                  _hasUnsavedChanges = true;
+                }),
+                onUrlsChanged: (urls) => setState(() {
+                  _existingImageUrls = urls;
+                  _hasUnsavedChanges = true;
+                }),
               ),
-              onChanged: (_) => setState(() => _hasUnsavedChanges = true),
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Informe o nome do serviço';
-                }
-                return null;
-              },
             ),
             const SizedBox(height: 16),
 
-            // Short Description
-            TextFormField(
-              controller: _shortDescriptionController,
-              decoration: const InputDecoration(
-                labelText: 'Descrição curta',
-                hintText: 'Breve resumo do serviço',
-              ),
-              maxLines: 2,
-              maxLength: 150,
-              onChanged: (_) => setState(() => _hasUnsavedChanges = true),
-            ),
-            const SizedBox(height: 16),
-
-            // Description
-            TextFormField(
-              controller: _descriptionController,
-              decoration: const InputDecoration(
-                labelText: 'Descrição completa *',
-                hintText: 'Descreva seu serviço detalhadamente...',
-                alignLabelWithHint: true,
-              ),
-              maxLines: 6,
-              onChanged: (_) => setState(() => _hasUnsavedChanges = true),
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Informe a descrição';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 16),
-
-            // Category — dynamic from API with hardcoded fallback
-            _buildCategoryDropdown(),
-            const SizedBox(height: 24),
-
-            // Pricing Section
-            _SectionHeader(title: 'Precificação'),
-            const SizedBox(height: 16),
-
-            // Pricing Type
-            DropdownButtonFormField<String>(
-              value: _pricingType,
-              decoration: const InputDecoration(
-                labelText: 'Tipo de precificação *',
-              ),
-              items: const [
-                DropdownMenuItem(value: 'hourly', child: Text('Por hora')),
-                DropdownMenuItem(value: 'project', child: Text('Por projeto')),
-                DropdownMenuItem(value: 'monthly', child: Text('Mensal')),
-                DropdownMenuItem(value: 'fixed', child: Text('Preço fixo')),
-                DropdownMenuItem(value: 'on_demand', child: Text('Sob demanda')),
-              ],
-              onChanged: (value) {
-                if (value != null) {
-                  setState(() {
-                    _pricingType = value;
-                    _hasUnsavedChanges = true;
-                  });
-                }
-              },
-            ),
-            const SizedBox(height: 16),
-
-            // Base Price
-            TextFormField(
-              controller: _basePriceController,
-              decoration: InputDecoration(
-                labelText: 'Preço base *',
-                prefixText: 'R\$ ',
-                hintText: _pricingType == 'hourly' ? 'Valor por hora' : 'Valor inicial',
-              ),
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              onChanged: (_) => setState(() => _hasUnsavedChanges = true),
-              validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return 'Informe o preço';
-                }
-                final price = double.tryParse(value.replaceAll(',', '.'));
-                if (price == null || price <= 0) {
-                  return 'Preço inválido';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 16),
-
-            // Price range (for project-based)
-            if (_pricingType == 'project') ...[
-              Row(
+            _SectionCard(
+              icon: Icons.info_outline,
+              title: 'Informações Básicas',
+              subtitle: 'Nome, descrição e categoria do serviço',
+              animationIndex: 1,
+              child: Column(
                 children: [
-                  Expanded(
-                    child: TextFormField(
-                      controller: _minPriceController,
-                      decoration: const InputDecoration(
-                        labelText: 'Preço mínimo',
-                        prefixText: 'R\$ ',
-                      ),
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      onChanged: (_) => setState(() => _hasUnsavedChanges = true),
+                  TextFormField(
+                    controller: _nameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Nome do serviço *',
+                      hintText: 'Ex: Desenvolvimento de Sites',
+                      prefixIcon: Icon(Icons.handyman_outlined),
+                    ),
+                    onChanged: (_) => setState(() => _hasUnsavedChanges = true),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Informe o nome do serviço';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _shortDescriptionController,
+                    decoration: const InputDecoration(
+                      labelText: 'Descrição curta',
+                      hintText: 'Breve resumo do serviço',
+                      prefixIcon: Icon(Icons.short_text),
+                    ),
+                    maxLines: 2,
+                    maxLength: 150,
+                    onChanged: (_) => setState(() => _hasUnsavedChanges = true),
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _descriptionController,
+                    decoration: const InputDecoration(
+                      labelText: 'Descrição completa *',
+                      hintText: 'Descreva seu serviço detalhadamente...',
+                      prefixIcon: Icon(Icons.description_outlined),
+                      alignLabelWithHint: true,
+                    ),
+                    maxLines: 6,
+                    onChanged: (_) => setState(() => _hasUnsavedChanges = true),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Informe a descrição';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  _buildCategoryDropdown(),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            _SectionCard(
+              icon: Icons.attach_money,
+              title: 'Precificação',
+              subtitle: 'Defina como você cobra pelo serviço',
+              animationIndex: 2,
+              child: Column(
+                children: [
+                  DropdownButtonFormField<String>(
+                    value: _pricingType,
+                    decoration: const InputDecoration(
+                      labelText: 'Tipo de precificação *',
+                      prefixIcon: Icon(Icons.price_change_outlined),
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: 'hourly', child: Text('Por hora')),
+                      DropdownMenuItem(value: 'project', child: Text('Por projeto')),
+                      DropdownMenuItem(value: 'monthly', child: Text('Mensal')),
+                      DropdownMenuItem(value: 'fixed', child: Text('Preço fixo')),
+                      DropdownMenuItem(value: 'on_demand', child: Text('Sob demanda')),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) {
+                        setState(() {
+                          _pricingType = value;
+                          _hasUnsavedChanges = true;
+                        });
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _basePriceController,
+                    decoration: InputDecoration(
+                      labelText: 'Preço base *',
+                      prefixText: 'R\$ ',
+                      prefixIcon: const Icon(Icons.attach_money),
+                      hintText: _pricingType == 'hourly' ? 'Valor por hora' : 'Valor inicial',
+                    ),
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    onChanged: (_) => setState(() => _hasUnsavedChanges = true),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Informe o preço';
+                      }
+                      final price = double.tryParse(value.replaceAll(',', '.'));
+                      if (price == null || price <= 0) {
+                        return 'Preço inválido';
+                      }
+                      return null;
+                    },
+                  ),
+                  if (_pricingType == 'project') ...[
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            controller: _minPriceController,
+                            decoration: const InputDecoration(
+                              labelText: 'Preço mínimo',
+                              prefixText: 'R\$ ',
+                            ),
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            onChanged: (_) => setState(() => _hasUnsavedChanges = true),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: TextFormField(
+                            controller: _maxPriceController,
+                            decoration: const InputDecoration(
+                              labelText: 'Preço máximo',
+                              prefixText: 'R\$ ',
+                            ),
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            onChanged: (_) => setState(() => _hasUnsavedChanges = true),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            _SectionCard(
+              icon: Icons.place_outlined,
+              title: 'Tipo de Atendimento',
+              subtitle: 'Como você atende seus clientes',
+              animationIndex: 3,
+              child: Column(
+                children: [
+                  CheckboxListTile(
+                    value: _isRemote,
+                    onChanged: (value) => setState(() {
+                      _isRemote = value ?? false;
+                      _hasUnsavedChanges = true;
+                    }),
+                    title: const Text('Atendimento remoto'),
+                    subtitle: const Text('Trabalho pode ser feito à distância'),
+                    controlAffinity: ListTileControlAffinity.leading,
+                    contentPadding: EdgeInsets.zero,
+                    activeColor: AppColors.primary,
+                  ),
+                  CheckboxListTile(
+                    value: _isOnSite,
+                    onChanged: (value) => setState(() {
+                      _isOnSite = value ?? false;
+                      _hasUnsavedChanges = true;
+                    }),
+                    title: const Text('Atendimento presencial'),
+                    subtitle: const Text('Atende no local do cliente'),
+                    controlAffinity: ListTileControlAffinity.leading,
+                    contentPadding: EdgeInsets.zero,
+                    activeColor: AppColors.primary,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            _SectionCard(
+              icon: Icons.playlist_add_check_outlined,
+              title: 'Informações Adicionais',
+              subtitle: 'Experiência, requisitos e certificações',
+              animationIndex: 4,
+              child: Column(
+                children: [
+                  TextFormField(
+                    controller: _experienceController,
+                    decoration: const InputDecoration(
+                      labelText: 'Experiência',
+                      hintText: 'Ex: 5 anos de experiência',
+                      prefixIcon: Icon(Icons.workspace_premium_outlined),
+                    ),
+                    onChanged: (_) => setState(() => _hasUnsavedChanges = true),
+                  ),
+                  const SizedBox(height: 20),
+                  _ListField(
+                    title: 'Requisitos',
+                    items: _requirements,
+                    onAdd: () => _showAddItemDialog(
+                      'Adicionar Requisito',
+                      (item) => setState(() {
+                        _requirements.add(item);
+                        _hasUnsavedChanges = true;
+                      }),
+                    ),
+                    onRemove: (index) => setState(() {
+                      _requirements.removeAt(index);
+                      _hasUnsavedChanges = true;
+                    }),
+                  ),
+                  const SizedBox(height: 20),
+                  _ListField(
+                    title: 'O que está incluso',
+                    items: _includes,
+                    onAdd: () => _showAddItemDialog(
+                      'Adicionar Item Incluso',
+                      (item) => setState(() {
+                        _includes.add(item);
+                        _hasUnsavedChanges = true;
+                      }),
+                    ),
+                    onRemove: (index) => setState(() {
+                      _includes.removeAt(index);
+                      _hasUnsavedChanges = true;
+                    }),
+                  ),
+                  const SizedBox(height: 20),
+                  _ListField(
+                    title: 'Certificações',
+                    items: _certifications,
+                    onAdd: () => _showAddItemDialog(
+                      'Adicionar Certificação',
+                      (item) => setState(() {
+                        _certifications.add(item);
+                        _hasUnsavedChanges = true;
+                      }),
+                    ),
+                    onRemove: (index) => setState(() {
+                      _certifications.removeAt(index);
+                      _hasUnsavedChanges = true;
+                    }),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Agendamento section
+            Padding(
+              padding: const EdgeInsets.only(left: 4, bottom: 12),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withAlpha(20),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(
+                      Icons.event_available_outlined,
+                      color: AppColors.primary,
+                      size: 20,
                     ),
                   ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: TextFormField(
-                      controller: _maxPriceController,
-                      decoration: const InputDecoration(
-                        labelText: 'Preço máximo',
-                        prefixText: 'R\$ ',
-                      ),
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      onChanged: (_) => setState(() => _hasUnsavedChanges = true),
+                  const SizedBox(width: 12),
+                  const Text(
+                    'Agendamento',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary,
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
-            ],
-
-            const SizedBox(height: 24),
-
-            // Service Delivery Section
-            _SectionHeader(title: 'Tipo de Atendimento'),
-            const SizedBox(height: 16),
-
-            CheckboxListTile(
-              value: _isRemote,
-              onChanged: (value) => setState(() {
-                _isRemote = value ?? false;
-                _hasUnsavedChanges = true;
-              }),
-              title: const Text('Atendimento remoto'),
-              subtitle: const Text('Trabalho pode ser feito à distância'),
-              controlAffinity: ListTileControlAffinity.leading,
-            ),
-            CheckboxListTile(
-              value: _isOnSite,
-              onChanged: (value) => setState(() {
-                _isOnSite = value ?? false;
-                _hasUnsavedChanges = true;
-              }),
-              title: const Text('Atendimento presencial'),
-              subtitle: const Text('Atende no local do cliente'),
-              controlAffinity: ListTileControlAffinity.leading,
-            ),
-
-            const SizedBox(height: 24),
-
-            // Additional Info Section
-            _SectionHeader(title: 'Informações Adicionais'),
-            const SizedBox(height: 16),
-
-            // Experience
-            TextFormField(
-              controller: _experienceController,
-              decoration: const InputDecoration(
-                labelText: 'Experiência',
-                hintText: 'Ex: 5 anos de experiência',
-              ),
-              onChanged: (_) => setState(() => _hasUnsavedChanges = true),
-            ),
-            const SizedBox(height: 16),
-
-            // Lists Section (Requirements, Includes, Certifications)
-            _ListField(
-              title: 'Requisitos',
-              items: _requirements,
-              onAdd: () => _showAddItemDialog(
-                'Adicionar Requisito',
-                (item) => setState(() {
-                  _requirements.add(item);
-                  _hasUnsavedChanges = true;
-                }),
-              ),
-              onRemove: (index) => setState(() {
-                _requirements.removeAt(index);
-                _hasUnsavedChanges = true;
-              }),
-            ),
-            const SizedBox(height: 16),
-
-            _ListField(
-              title: 'O que está incluso',
-              items: _includes,
-              onAdd: () => _showAddItemDialog(
-                'Adicionar Item Incluso',
-                (item) => setState(() {
-                  _includes.add(item);
-                  _hasUnsavedChanges = true;
-                }),
-              ),
-              onRemove: (index) => setState(() {
-                _includes.removeAt(index);
-                _hasUnsavedChanges = true;
-              }),
-            ),
-            const SizedBox(height: 16),
-
-            _ListField(
-              title: 'Certificações',
-              items: _certifications,
-              onAdd: () => _showAddItemDialog(
-                'Adicionar Certificação',
-                (item) => setState(() {
-                  _certifications.add(item);
-                  _hasUnsavedChanges = true;
-                }),
-              ),
-              onRemove: (index) => setState(() {
-                _certifications.removeAt(index);
-                _hasUnsavedChanges = true;
-              }),
-            ),
-
-            const SizedBox(height: 24),
-
-            // Booking Options
-            _SectionHeader(title: 'Opções de Agendamento'),
-            const SizedBox(height: 16),
+            ).animate(delay: const Duration(milliseconds: 400))
+                .fadeIn(duration: 400.ms)
+                .slideY(begin: 0.04, end: 0, duration: 400.ms, curve: Curves.easeOutCubic),
 
             Container(
               padding: const EdgeInsets.all(16),
@@ -766,136 +812,83 @@ class _ServiceFormScreenState extends ConsumerState<ServiceFormScreen> {
               ),
               child: Column(
                 children: [
+                  // Single clear toggle for online scheduling
                   Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Expanded(
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: _scheduleEnabled
+                              ? AppColors.primary.withAlpha(25)
+                              : Colors.grey.withAlpha(25),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(
+                          _scheduleEnabled
+                              ? Icons.calendar_month
+                              : Icons.calendar_month_outlined,
+                          color: _scheduleEnabled
+                              ? AppColors.primary
+                              : AppColors.textHint,
+                          size: 22,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              'Aceita orçamentos',
+                            const Text(
+                              'Agenda online',
                               style: TextStyle(
-                                fontWeight: FontWeight.w600,
+                                fontWeight: FontWeight.w700,
                                 color: AppColors.textPrimary,
+                                fontSize: 15,
                               ),
                             ),
-                            SizedBox(height: 2),
+                            const SizedBox(height: 4),
                             Text(
-                              'Clientes podem solicitar orçamento',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: AppColors.textHint,
+                              _scheduleEnabled
+                                  ? 'Clientes podem agendar horários diretamente pelo app. Os agendamentos aparecerão na sua aba Agenda.'
+                                  : 'Desativado — clientes interessados entrarão em contato por chat ou WhatsApp para combinar horários.',
+                              style: const TextStyle(
+                                fontSize: 13,
+                                color: AppColors.textSecondary,
+                                height: 1.4,
                               ),
                             ),
                           ],
                         ),
                       ),
-                      Switch(
-                        value: _acceptsQuote,
-                        onChanged: (value) => setState(() {
-                          _acceptsQuote = value;
-                          _hasUnsavedChanges = true;
-                        }),
-                        activeColor: AppColors.sellerAccent,
-                      ),
-                    ],
-                  ),
-                  const Divider(height: 24),
-                  Row(
-                    children: [
-                      const Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Agendamento instantâneo',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.textPrimary,
-                              ),
-                            ),
-                            SizedBox(height: 2),
-                            Text(
-                              'Clientes podem agendar diretamente',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: AppColors.textHint,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Switch(
-                        value: _instantBooking,
-                        onChanged: (value) => setState(() {
-                          _instantBooking = value;
-                          _hasUnsavedChanges = true;
-                        }),
-                        activeColor: AppColors.sellerAccent,
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            // Schedule Configuration Section
-            _SectionHeader(title: 'Agendamento Online'),
-            const SizedBox(height: 16),
-
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surface,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.border),
-              ),
-              child: Column(
-                children: [
-                  Row(
-                    children: [
-                      const Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Habilitar agendamento online',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.textPrimary,
-                              ),
-                            ),
-                            SizedBox(height: 2),
-                            Text(
-                              'Clientes podem agendar horários diretamente',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: AppColors.textHint,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                      const SizedBox(width: 8),
                       Switch(
                         value: _scheduleEnabled,
-                        onChanged: (value) => setState(() {
-                          _scheduleEnabled = value;
-                          _hasUnsavedChanges = true;
-                        }),
-                        activeColor: AppColors.sellerAccent,
+                        onChanged: (value) {
+                          HapticFeedback.selectionClick();
+                          setState(() {
+                            _scheduleEnabled = value;
+                            // When enabling online scheduling, also enable instant booking
+                            if (value) {
+                              _instantBooking = true;
+                            }
+                            _hasUnsavedChanges = true;
+                          });
+                        },
+                        activeColor: AppColors.primary,
                       ),
                     ],
                   ),
 
                   if (_scheduleEnabled) ...[
-                    const Divider(height: 24),
+                    const Divider(height: 32),
 
                     // Slot duration
                     DropdownButtonFormField<int>(
                       value: _slotDurationMinutes,
                       decoration: const InputDecoration(
                         labelText: 'Duração do atendimento',
+                        prefixIcon: Icon(Icons.timer_outlined),
                       ),
                       items: const [
                         DropdownMenuItem(value: 15, child: Text('15 minutos')),
@@ -921,6 +914,7 @@ class _ServiceFormScreenState extends ConsumerState<ServiceFormScreen> {
                       value: _breakBetweenMinutes,
                       decoration: const InputDecoration(
                         labelText: 'Intervalo entre atendimentos',
+                        prefixIcon: Icon(Icons.coffee_outlined),
                       ),
                       items: const [
                         DropdownMenuItem(value: 0, child: Text('Sem intervalo')),
@@ -959,7 +953,7 @@ class _ServiceFormScreenState extends ConsumerState<ServiceFormScreen> {
             ),
             const SizedBox(height: 16),
 
-            // Active and Available toggles
+            // Accepts quotes toggle (simple, separate)
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -969,20 +963,38 @@ class _ServiceFormScreenState extends ConsumerState<ServiceFormScreen> {
               ),
               child: Row(
                 children: [
-                  const Expanded(
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: _acceptsQuote
+                          ? AppColors.info.withAlpha(25)
+                          : Colors.grey.withAlpha(25),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(
+                      Icons.request_quote_outlined,
+                      color: _acceptsQuote
+                          ? AppColors.info
+                          : AppColors.textHint,
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          'Ativo no marketplace',
+                        const Text(
+                          'Aceitar pedidos de orçamento',
                           style: TextStyle(
                             fontWeight: FontWeight.w600,
                             color: AppColors.textPrimary,
+                            fontSize: 15,
                           ),
                         ),
-                        SizedBox(height: 2),
-                        Text(
-                          'Serviço visível para clientes',
+                        const SizedBox(height: 2),
+                        const Text(
+                          'Clientes podem solicitar um orçamento antes de contratar',
                           style: TextStyle(
                             fontSize: 12,
                             color: AppColors.textHint,
@@ -992,18 +1004,128 @@ class _ServiceFormScreenState extends ConsumerState<ServiceFormScreen> {
                     ),
                   ),
                   Switch(
-                    value: _isActive,
-                    onChanged: (value) => setState(() {
-                      _isActive = value;
-                      _hasUnsavedChanges = true;
-                    }),
-                    activeColor: AppColors.secondary,
+                    value: _acceptsQuote,
+                    onChanged: (value) {
+                      HapticFeedback.selectionClick();
+                      setState(() {
+                        _acceptsQuote = value;
+                        _hasUnsavedChanges = true;
+                      });
+                    },
+                    activeColor: AppColors.info,
                   ),
                 ],
               ),
             ),
 
-            const SizedBox(height: 100),
+            // Publish toggle
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: _isActive
+                          ? AppColors.secondary.withAlpha(25)
+                          : Colors.grey.withAlpha(25),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(
+                      _isActive
+                          ? Icons.visibility
+                          : Icons.visibility_off_outlined,
+                      color: _isActive
+                          ? AppColors.secondary
+                          : AppColors.textHint,
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Publicar no marketplace',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textPrimary,
+                            fontSize: 15,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          _isActive
+                              ? 'Serviço visível para clientes'
+                              : 'Salvo como rascunho',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: AppColors.textHint,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Switch(
+                    value: _isActive,
+                    onChanged: (value) {
+                        HapticFeedback.selectionClick();
+                        setState(() {
+                          _isActive = value;
+                          _hasUnsavedChanges = true;
+                        });
+                    },
+                    activeColor: AppColors.secondary,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // Submit button
+            SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: ElevatedButton.icon(
+                onPressed: _isLoading ? null : _saveService,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  elevation: 4,
+                  shadowColor: AppColors.primary.withAlpha(80),
+                ),
+                icon: _isLoading
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.5,
+                          color: Colors.white,
+                        ),
+                      )
+                    : Icon(_isEditing ? Icons.save_outlined : Icons.rocket_launch_outlined, size: 20),
+                label: Text(
+                  _isEditing
+                      ? 'Salvar alterações'
+                      : 'Publicar serviço',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 32),
           ],
         ),
       ),
@@ -1044,7 +1166,7 @@ class _ServiceFormScreenState extends ConsumerState<ServiceFormScreen> {
                     }
                     _hasUnsavedChanges = true;
                   }),
-                  activeColor: AppColors.sellerAccent,
+                  activeColor: AppColors.primary,
                   visualDensity: VisualDensity.compact,
                 ),
               ),
@@ -1158,21 +1280,116 @@ class _ServiceFormScreenState extends ConsumerState<ServiceFormScreen> {
   }
 }
 
-class _SectionHeader extends StatelessWidget {
+class _SectionCard extends StatelessWidget {
+  final IconData icon;
   final String title;
+  final String subtitle;
+  final Widget child;
+  final bool hasError;
+  final int animationIndex;
 
-  const _SectionHeader({required this.title});
+  const _SectionCard({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.child,
+    this.hasError = false,
+    this.animationIndex = 0,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Text(
-      title,
-      style: const TextStyle(
-        fontSize: 18,
-        fontWeight: FontWeight.bold,
-        color: AppColors.textPrimary,
+    final accentColor = hasError ? AppColors.error : AppColors.primary;
+
+    Widget card = AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: hasError ? AppColors.error.withAlpha(180) : AppColors.border,
+          width: hasError ? 1.5 : 1,
+        ),
+        boxShadow: hasError
+            ? [
+                BoxShadow(
+                  color: AppColors.error.withAlpha(25),
+                  blurRadius: 12,
+                  spreadRadius: 2,
+                ),
+              ]
+            : null,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+            child: Row(
+              children: [
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 300),
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: accentColor.withAlpha(20),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    icon,
+                    color: accentColor,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: hasError ? AppColors.error : AppColors.textHint,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: child,
+          ),
+        ],
       ),
     );
+
+    if (hasError) {
+      card = card
+          .animate(autoPlay: true)
+          .shakeX(amount: 4, duration: 400.ms, curve: Curves.easeInOut);
+    } else {
+      card = card
+          .animate(delay: Duration(milliseconds: 80 * animationIndex))
+          .fadeIn(duration: 400.ms)
+          .slideY(begin: 0.04, end: 0, duration: 400.ms, curve: Curves.easeOutCubic);
+    }
+
+    return card;
   }
 }
 
@@ -1256,16 +1473,16 @@ class _TimePickerChip extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
-          color: AppColors.sellerAccent.withAlpha(15),
+          color: AppColors.primary.withAlpha(15),
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: AppColors.sellerAccent.withAlpha(40)),
+          border: Border.all(color: AppColors.primary.withAlpha(40)),
         ),
         child: Text(
           label,
           style: const TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.w500,
-            color: AppColors.sellerAccent,
+            color: AppColors.primary,
           ),
         ),
       ),

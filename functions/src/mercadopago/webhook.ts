@@ -303,6 +303,14 @@ async function processPaymentNotification(paymentId: string): Promise<void> {
           } // end else (valid sellerAmount)
         }
 
+        // Increment seller's total sales counter
+        if (tenantId) {
+          const tenantRef = db.collection("tenants").doc(tenantId);
+          transaction.update(tenantRef, {
+            "marketplaceStats.totalSales": admin.firestore.FieldValue.increment(1),
+          });
+        }
+
         notificationEvent = "approved";
       }
 

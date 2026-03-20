@@ -58,10 +58,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
 
   // Shipping fields
   String _shippingPolicy = ShippingPolicies.delivery;
-  final _weightController = TextEditingController();
-  final _widthController = TextEditingController();
-  final _heightController = TextEditingController();
-  final _lengthController = TextEditingController();
+  String? _packageSize; // small, medium, large
   bool _isPerishable = false;
 
   // Rental fields
@@ -191,12 +188,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     _variants = List.from(product.variants);
     _hasVariants = product.hasVariants;
     _shippingPolicy = product.shippingPolicy;
-    if (product.weight != null) _weightController.text = product.weight!.toString();
-    if (product.dimensions != null) {
-      _widthController.text = product.dimensions!.width.toString();
-      _heightController.text = product.dimensions!.height.toString();
-      _lengthController.text = product.dimensions!.length.toString();
-    }
+    _packageSize = product.packageSize;
     _isPerishable = product.isPerishable;
     _productType = product.productType;
     if (product.rentalInfo != null) {
@@ -259,10 +251,6 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     _priceController.dispose();
     _quantityController.dispose();
     _tagController.dispose();
-    _weightController.dispose();
-    _widthController.dispose();
-    _heightController.dispose();
-    _lengthController.dispose();
     _depositController.dispose();
     _cityController.dispose();
     _stateController.dispose();
@@ -362,6 +350,12 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
       }
     }
 
+    // Validate package size when delivery is selected
+    if (!_isRental && !_isJobListing && _shippingPolicy == ShippingPolicies.delivery && _packageSize == null) {
+      AppFeedback.showWarning(context, 'Selecione o porte do produto para calcular o frete');
+      return;
+    }
+
     if (!_formKey.currentState!.validate()) {
       final sectionIndex = _findFirstInvalidSection();
       if (sectionIndex != null) {
@@ -418,11 +412,17 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
         );
       }).toList();
 
-      // Parse shipping dimensions
-      final hasWeight = _weightController.text.isNotEmpty;
-      final hasDimensions = _widthController.text.isNotEmpty ||
-          _heightController.text.isNotEmpty ||
-          _lengthController.text.isNotEmpty;
+      // Compute weight/dimensions from package size
+      final double? weight;
+      final ProductDimensions? dimensions;
+      if (_packageSize != null && _shippingPolicy == ShippingPolicies.delivery) {
+        weight = PackageSizes.weights[_packageSize];
+        final dims = PackageSizes.dimensions[_packageSize]!;
+        dimensions = ProductDimensions(width: dims[0], height: dims[1], length: dims[2]);
+      } else {
+        weight = null;
+        dimensions = null;
+      }
 
       // Build rental info if this is a rental
       RentalInfo? rentalInfo;
@@ -490,16 +490,11 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
         tags: _tags,
         hasVariants: skipInventory ? false : _hasVariants,
         variants: skipInventory ? [] : _variants,
-        weight: hasWeight ? double.tryParse(_weightController.text) : null,
-        dimensions: hasDimensions
-            ? ProductDimensions(
-                width: double.tryParse(_widthController.text) ?? 0,
-                height: double.tryParse(_heightController.text) ?? 0,
-                length: double.tryParse(_lengthController.text) ?? 0,
-              )
-            : null,
+        weight: weight,
+        dimensions: dimensions,
         isPerishable: _isPerishable,
         shippingPolicy: skipInventory ? 'pickup_only' : _shippingPolicy,
+        packageSize: (_shippingPolicy == ShippingPolicies.delivery && !skipInventory) ? _packageSize : null,
         productType: _productType,
         rentalInfo: rentalInfo,
         location: location,
@@ -536,8 +531,8 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
       if (mounted) {
         _hasUnsavedChanges = false;
         AppFeedback.showSuccess(context, _isEditing
-            ? (_isJobListing ? 'Vaga atualizada!' : 'Produto atualizado!')
-            : (_isJobListing ? 'Vaga criada!' : 'Produto criado!'));
+            ? (_isJobListing ? 'Vaga atualizada!' : (_isRental ? 'Aluguel atualizado!' : 'Produto atualizado!'))
+            : (_isJobListing ? 'Vaga criada!' : (_isRental ? 'Aluguel criado!' : 'Produto criado!')));
         context.go(AppRouter.sellerProducts);
       }
     } catch (e) {
@@ -607,7 +602,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
         ),
         body: Center(
           child: Padding(
-            padding: const EdgeInsets.all(32),
+            padding: const EdgeInsets.all(16),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -640,7 +635,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                   icon: const Icon(Icons.link),
                   label: const Text('Conectar Mercado Pago'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.sellerAccent,
+                    backgroundColor: AppColors.primary,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(
                       horizontal: 24,
@@ -700,14 +695,14 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
             Icon(
               _isJobListing
                   ? Icons.work_outlined
-                  : (_isEditing ? Icons.edit_outlined : Icons.add_box_outlined),
+                  : (_isRental ? Icons.vpn_key_rounded : (_isEditing ? Icons.edit_outlined : Icons.add_box_outlined)),
               size: 20,
             ),
             const SizedBox(width: 8),
             Text(
-              _isJobListing
-                  ? (_isEditing ? 'Editar Vaga' : 'Nova Vaga')
-                  : (_isEditing ? 'Editar Produto' : 'Novo Produto'),
+              _isEditing
+                  ? (_isJobListing ? 'Editar Vaga' : (_isRental ? 'Editar Aluguel' : 'Editar Produto'))
+                  : (_isJobListing ? 'Nova Vaga' : (_isRental ? 'Novo Aluguel' : 'Novo Produto')),
               style: const TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
@@ -781,73 +776,78 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
         key: _formKey,
         child: ListView(
           controller: _scrollController,
-          padding: const EdgeInsets.all(16),
+          padding: EdgeInsets.only(
+            left: 16,
+            right: 16,
+            top: 16,
+            bottom: 16 + MediaQuery.of(context).viewInsets.bottom,
+          ),
           children: [
             // Section 0: Product Type selector
             if (!_isEditing)
               _SectionCard(
+                animationIndex: 0,
                 icon: Icons.dashboard_outlined,
                 title: 'Tipo de Anúncio',
                 subtitle: 'Produto, aluguel, serviço ou vaga de emprego',
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    SegmentedButton<String>(
-                      segments: [
-                        const ButtonSegment(
-                          value: 'product',
-                          label: Text('Produto'),
-                          icon: Icon(Icons.shopping_bag_outlined, size: 18),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        _TypeChip(
+                          label: 'Produto',
+                          icon: Icons.shopping_bag_outlined,
+                          selected: _announcementType == 'product',
+                          onTap: () {
+                            HapticFeedback.selectionClick();
+                            setState(() {
+                              _listingType = 'product';
+                              _productType = 'product';
+                              _hasUnsavedChanges = true;
+                            });
+                          },
                         ),
-                        ButtonSegment(
-                          value: 'rental',
-                          label: const Text('Aluguel'),
-                          icon: Icon(
-                            canCreateRentals ? Icons.vpn_key_rounded : Icons.lock_outlined,
-                            size: 18,
-                          ),
-                          enabled: canCreateRentals,
+                        _TypeChip(
+                          label: 'Aluguel',
+                          icon: canCreateRentals ? Icons.vpn_key_rounded : Icons.lock_outlined,
+                          selected: _announcementType == 'rental',
+                          locked: !canCreateRentals,
+                          onTap: canCreateRentals ? () {
+                            HapticFeedback.selectionClick();
+                            setState(() {
+                              _listingType = 'product';
+                              _productType = 'rental';
+                              _hasUnsavedChanges = true;
+                            });
+                          } : null,
                         ),
-                        ButtonSegment(
-                          value: 'service',
-                          label: const Text('Serviço'),
-                          icon: Icon(
-                            canCreateServices ? Icons.handyman_outlined : Icons.lock_outlined,
-                            size: 18,
-                          ),
-                          enabled: canCreateServices,
+                        _TypeChip(
+                          label: 'Serviço',
+                          icon: canCreateServices ? Icons.handyman_outlined : Icons.lock_outlined,
+                          selected: _announcementType == 'service',
+                          locked: !canCreateServices,
+                          onTap: canCreateServices ? () {
+                            context.push(AppRouter.sellerServiceNew);
+                          } : null,
                         ),
-                        ButtonSegment(
-                          value: 'job',
-                          label: const Text('Vaga'),
-                          icon: Icon(
-                            canCreateJobs ? Icons.work_outlined : Icons.lock_outlined,
-                            size: 18,
-                          ),
-                          enabled: canCreateJobs,
+                        _TypeChip(
+                          label: 'Vaga',
+                          icon: canCreateJobs ? Icons.work_outlined : Icons.lock_outlined,
+                          selected: _announcementType == 'job',
+                          locked: !canCreateJobs,
+                          onTap: canCreateJobs ? () {
+                            HapticFeedback.selectionClick();
+                            setState(() {
+                              _listingType = 'job';
+                              _productType = 'product';
+                              _hasUnsavedChanges = true;
+                            });
+                          } : null,
                         ),
                       ],
-                      selected: {_announcementType},
-                      onSelectionChanged: (value) {
-                        final type = value.first;
-                        if (type == 'rental' && !canCreateRentals) return;
-                        if (type == 'job' && !canCreateJobs) return;
-                        if (type == 'service') {
-                          if (!canCreateServices) return;
-                          context.push(AppRouter.sellerServiceNew);
-                          return;
-                        }
-                        setState(() {
-                          if (type == 'job') {
-                            _listingType = 'job';
-                            _productType = 'product';
-                          } else {
-                            _listingType = 'product';
-                            _productType = type;
-                          }
-                          _hasUnsavedChanges = true;
-                        });
-                      },
                     ),
                     if (hasLockedTypes) ...[
                       const SizedBox(height: 12),
@@ -916,16 +916,71 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                   ],
                 ),
               ),
-            if (!_isEditing) const SizedBox(height: 16),
+            if (!_isEditing) ...[
+              const SizedBox(height: 12),
+              AnimatedSize(
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeOutCubic,
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 300),
+                  child: Container(
+                    key: ValueKey(_announcementType),
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: _isJobListing
+                          ? AppColors.quickJobs.withAlpha(20)
+                          : (_isRental ? AppColors.quickRentals.withAlpha(20) : AppColors.primary.withAlpha(15)),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: _isJobListing
+                            ? AppColors.quickJobs.withAlpha(40)
+                            : (_isRental ? AppColors.quickRentals.withAlpha(40) : AppColors.primary.withAlpha(30)),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          _isJobListing
+                              ? Icons.work_outlined
+                              : (_isRental ? Icons.vpn_key_rounded : Icons.shopping_bag_outlined),
+                          size: 18,
+                          color: _isJobListing
+                              ? AppColors.quickJobs
+                              : (_isRental ? AppColors.quickRentals : AppColors.primary),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            _isJobListing
+                                ? 'Criando uma vaga de emprego'
+                                : (_isRental ? 'Criando um anúncio de aluguel' : 'Criando um produto para venda'),
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                              color: _isJobListing
+                                  ? AppColors.quickJobs
+                                  : (_isRental ? AppColors.quickRentals : AppColors.primaryDark),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
 
             // Section 1: Photos
             _SectionCard(
               key: _photosKey,
+              animationIndex: 1,
               icon: Icons.camera_alt_outlined,
               title: _isJobListing ? 'Logo / Imagem (opcional)' : 'Fotos',
               subtitle: _isJobListing
                   ? 'Adicione a logo ou imagem da empresa'
-                  : 'Adicione até 5 fotos do produto',
+                  : (_isRental ? 'Adicione até 5 fotos do imóvel/item' : 'Adicione até 5 fotos do produto'),
               hasError: _highlightedSection == 0,
               child: PhotoPickerGrid(
                 initialUrls: _existingImageUrls,
@@ -947,11 +1002,12 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
             // Section 2: Product info (or Job info)
             _SectionCard(
               key: _infoKey,
+              animationIndex: 2,
               icon: _isJobListing ? Icons.business_outlined : Icons.info_outline,
               title: _isJobListing ? 'Informações da Vaga' : 'Informações',
               subtitle: _isJobListing
                   ? 'Empresa, título e descrição da vaga'
-                  : 'Nome e descrição do produto',
+                  : (_isRental ? 'Nome e descrição do aluguel' : 'Nome e descrição do produto'),
               hasError: _highlightedSection == 1,
               child: Column(
                 children: [
@@ -977,16 +1033,16 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                   TextFormField(
                     controller: _nameController,
                     decoration: InputDecoration(
-                      labelText: _isJobListing ? 'Título da vaga *' : 'Nome do produto *',
+                      labelText: _isJobListing ? 'Título da vaga *' : (_isRental ? 'Título do anúncio *' : 'Nome do produto *'),
                       hintText: _isJobListing
                           ? 'Ex: Desenvolvedor Flutter Pleno'
-                          : 'Ex: Camiseta Premium Algodão',
+                          : (_isRental ? 'Ex: Apartamento 2 quartos Centro' : 'Ex: Camiseta Premium Algodão'),
                       prefixIcon: Icon(_isJobListing ? Icons.work_outline : Icons.label_outline),
                     ),
                     textCapitalization: TextCapitalization.words,
                     validator: (value) {
                       if (value == null || value.trim().isEmpty) {
-                        return _isJobListing ? 'Informe o título da vaga' : 'Informe o nome do produto';
+                        return _isJobListing ? 'Informe o título da vaga' : (_isRental ? 'Informe o título do anúncio' : 'Informe o nome do produto');
                       }
                       if (value.trim().length < 3) {
                         return 'Nome muito curto (mínimo 3 caracteres)';
@@ -1026,6 +1082,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
             if (!_isJobListing)
             _SectionCard(
               key: _priceKey,
+              animationIndex: 3,
               icon: Icons.attach_money,
               title: _isRental ? 'Valor do Aluguel' : 'Preço e Estoque',
               subtitle: _isRental
@@ -1070,23 +1127,45 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    SegmentedButton<String>(
-                      segments: const [
-                        ButtonSegment(value: 'diario', label: Text('Diário')),
-                        ButtonSegment(value: 'semanal', label: Text('Semanal')),
-                        ButtonSegment(value: 'mensal', label: Text('Mensal')),
-                        ButtonSegment(value: 'anual', label: Text('Anual')),
+                    Row(
+                      children: [
+                        for (final period in [
+                          ('diario', 'Diário'),
+                          ('semanal', 'Semanal'),
+                          ('mensal', 'Mensal'),
+                          ('anual', 'Anual'),
+                        ])
+                          Expanded(
+                            child: Padding(
+                              padding: EdgeInsets.only(
+                                right: period.$1 != 'anual' ? 8 : 0,
+                              ),
+                              child: ChoiceChip(
+                                label: Text(period.$2),
+                                selected: _rentalPeriod == period.$1,
+                                onSelected: (_) {
+                                  setState(() {
+                                    _rentalPeriod = period.$1;
+                                    _hasUnsavedChanges = true;
+                                  });
+                                },
+                                selectedColor: AppColors.primary.withAlpha(30),
+                                backgroundColor: Colors.transparent,
+                                labelStyle: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: _rentalPeriod == period.$1 ? FontWeight.w600 : FontWeight.w400,
+                                  color: _rentalPeriod == period.$1 ? AppColors.primary : AppColors.textSecondary,
+                                ),
+                                side: BorderSide(
+                                  color: _rentalPeriod == period.$1 ? AppColors.primary : AppColors.border,
+                                ),
+                                showCheckmark: false,
+                                padding: EdgeInsets.zero,
+                                labelPadding: const EdgeInsets.symmetric(horizontal: 4),
+                              ),
+                            ),
+                          ),
                       ],
-                      selected: {_rentalPeriod},
-                      onSelectionChanged: (value) {
-                        setState(() {
-                          _rentalPeriod = value.first;
-                          _hasUnsavedChanges = true;
-                        });
-                      },
-                      style: SegmentedButton.styleFrom(
-                        textStyle: const TextStyle(fontSize: 12),
-                      ),
                     ),
                     const SizedBox(height: 16),
                     TextFormField(
@@ -1122,7 +1201,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                         style: TextStyle(fontSize: 12, color: AppColors.textHint),
                       ),
                       value: _isOnDemand,
-                      activeColor: AppColors.sellerAccent,
+                      activeColor: AppColors.primary,
                       onChanged: (value) {
                         setState(() {
                           _isOnDemand = value;
@@ -1168,6 +1247,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
               const SizedBox(height: 16),
               // Salary
               _SectionCard(
+                animationIndex: 3,
                 icon: Icons.attach_money,
                 title: 'Salário',
                 subtitle: 'Informe a faixa salarial da vaga',
@@ -1188,7 +1268,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                         style: TextStyle(fontSize: 12, color: AppColors.textHint),
                       ),
                       value: _salaryNegotiable,
-                      activeColor: AppColors.sellerAccent,
+                      activeColor: AppColors.primary,
                       onChanged: (value) {
                         setState(() {
                           _salaryNegotiable = value;
@@ -1214,6 +1294,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
               const SizedBox(height: 16),
               // Job Type & Work Mode
               _SectionCard(
+                animationIndex: 4,
                 icon: Icons.badge_outlined,
                 title: 'Tipo e Modalidade',
                 subtitle: 'Regime de contratação e local de trabalho',
@@ -1283,6 +1364,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
               const SizedBox(height: 16),
               // Requirements
               _SectionCard(
+                animationIndex: 5,
                 icon: Icons.checklist_outlined,
                 title: 'Requisitos',
                 subtitle: 'Liste os requisitos para a vaga',
@@ -1297,7 +1379,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                               hintText: 'Ex: Experiência com Flutter',
                               suffixIcon: IconButton(
                                 icon: const Icon(Icons.add_circle_outline),
-                                color: AppColors.sellerAccent,
+                                color: AppColors.primary,
                                 onPressed: () {
                                   final text = _requirementController.text.trim();
                                   if (text.isNotEmpty && !_requirements.contains(text)) {
@@ -1355,6 +1437,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
               const SizedBox(height: 16),
               // Benefits
               _SectionCard(
+                animationIndex: 6,
                 icon: Icons.card_giftcard_outlined,
                 title: 'Benefícios',
                 subtitle: 'Liste os benefícios oferecidos',
@@ -1369,7 +1452,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                               hintText: 'Ex: Vale refeição, Plano de saúde',
                               suffixIcon: IconButton(
                                 icon: const Icon(Icons.add_circle_outline),
-                                color: AppColors.sellerAccent,
+                                color: AppColors.primary,
                                 onPressed: () {
                                   final text = _benefitController.text.trim();
                                   if (text.isNotEmpty && !_benefits.contains(text)) {
@@ -1427,6 +1510,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
               const SizedBox(height: 16),
               // Contact
               _SectionCard(
+                animationIndex: 7,
                 icon: Icons.contact_mail_outlined,
                 title: 'Contato',
                 subtitle: 'Informe ao menos um meio de contato',
@@ -1460,6 +1544,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
             // Section: Rental Location (required for rentals)
             if (_isRental)
               _SectionCard(
+                animationIndex: 4,
                 icon: Icons.location_on_outlined,
                 title: 'Localização',
                 subtitle: 'Informe a localização do imóvel/item',
@@ -1529,6 +1614,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
             // Section: Rental Details (conditional on rental type)
             if (_isRental && _rentalType == 'imovel')
               _SectionCard(
+                animationIndex: 5,
                 icon: Icons.home_outlined,
                 title: 'Detalhes do Imóvel',
                 subtitle: 'Informações específicas do imóvel',
@@ -1599,14 +1685,14 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                       contentPadding: EdgeInsets.zero,
                       title: const Text('Mobiliado', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
                       value: _furnished,
-                      activeColor: AppColors.sellerAccent,
+                      activeColor: AppColors.primary,
                       onChanged: (v) => setState(() { _furnished = v; _hasUnsavedChanges = true; }),
                     ),
                     SwitchListTile(
                       contentPadding: EdgeInsets.zero,
                       title: const Text('Aceita pets', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
                       value: _petsAllowed,
-                      activeColor: AppColors.sellerAccent,
+                      activeColor: AppColors.primary,
                       onChanged: (v) => setState(() { _petsAllowed = v; _hasUnsavedChanges = true; }),
                     ),
                   ],
@@ -1616,6 +1702,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
 
             if (_isRental && _rentalType == 'veiculo')
               _SectionCard(
+                animationIndex: 5,
                 icon: Icons.directions_car,
                 title: 'Detalhes do Veículo',
                 subtitle: 'Informações do veículo',
@@ -1655,6 +1742,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
             // Section: Shipping (hidden for rentals and jobs)
             if (!_isRental && !_isJobListing)
             _SectionCard(
+              animationIndex: 4,
               icon: Icons.local_shipping_outlined,
               title: 'Envio',
               subtitle: 'Configure a política de entrega do produto',
@@ -1700,77 +1788,44 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                       textStyle: const TextStyle(fontSize: 12),
                     ),
                   ),
-                  // Weight, dimensions, perishable — only shown for delivery policy
+                  // Package size + perishable — only shown for delivery policy
                   if (_shippingPolicy == ShippingPolicies.delivery) ...[
                     const SizedBox(height: 16),
 
-                    // Weight
-                    TextFormField(
-                      controller: _weightController,
-                      decoration: const InputDecoration(
-                        labelText: 'Peso (opcional)',
-                        suffixText: 'kg',
-                        prefixIcon: Icon(Icons.scale_outlined),
-                      ),
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      inputFormatters: [
-                        FilteringTextInputFormatter.allow(RegExp(r'[\d.,]')),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-
-                    // Dimensions
+                    // Package size selector
                     Text(
-                      'Dimensões (opcional)',
+                      'Porte do produto *',
                       style: TextStyle(
                         fontSize: 13,
-                        color: AppColors.textHint,
+                        fontWeight: FontWeight.w600,
+                        color: _packageSize == null && _highlightedSection != null
+                            ? AppColors.error
+                            : AppColors.textPrimary,
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Selecione o tamanho aproximado para calcular o frete',
+                      style: TextStyle(fontSize: 12, color: AppColors.textHint),
+                    ),
+                    const SizedBox(height: 10),
                     Row(
                       children: [
-                        Expanded(
-                          child: TextFormField(
-                            controller: _widthController,
-                            decoration: const InputDecoration(
-                              labelText: 'Larg.',
-                              suffixText: 'cm',
+                        for (final size in [PackageSizes.small, PackageSizes.medium, PackageSizes.large]) ...[
+                          if (size != PackageSizes.small) const SizedBox(width: 8),
+                          Expanded(
+                            child: _PackageSizeCard(
+                              size: size,
+                              isSelected: _packageSize == size,
+                              onTap: () {
+                                setState(() {
+                                  _packageSize = size;
+                                  _hasUnsavedChanges = true;
+                                });
+                              },
                             ),
-                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                            inputFormatters: [
-                              FilteringTextInputFormatter.allow(RegExp(r'[\d.,]')),
-                            ],
                           ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: TextFormField(
-                            controller: _heightController,
-                            decoration: const InputDecoration(
-                              labelText: 'Alt.',
-                              suffixText: 'cm',
-                            ),
-                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                            inputFormatters: [
-                              FilteringTextInputFormatter.allow(RegExp(r'[\d.,]')),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: TextFormField(
-                            controller: _lengthController,
-                            decoration: const InputDecoration(
-                              labelText: 'Comp.',
-                              suffixText: 'cm',
-                            ),
-                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                            inputFormatters: [
-                              FilteringTextInputFormatter.allow(RegExp(r'[\d.,]')),
-                            ],
-                          ),
-                        ),
+                        ],
                       ],
                     ),
                     const SizedBox(height: 12),
@@ -1791,7 +1846,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                         style: TextStyle(fontSize: 12, color: AppColors.textHint),
                       ),
                       value: _isPerishable,
-                      activeColor: AppColors.sellerAccent,
+                      activeColor: AppColors.primary,
                       onChanged: (value) {
                         setState(() {
                           _isPerishable = value;
@@ -1808,9 +1863,10 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
             // Section 4: Category
             _SectionCard(
               key: _categoryKey,
+              animationIndex: 5,
               icon: Icons.category_outlined,
               title: 'Categoria',
-              subtitle: _isJobListing ? 'Escolha a categoria da vaga' : 'Escolha a categoria do produto',
+              subtitle: _isJobListing ? 'Escolha a categoria da vaga' : (_isRental ? 'Escolha a categoria do aluguel' : 'Escolha a categoria do produto'),
               hasError: _highlightedSection == 3,
               child: categoriesAsync.when(
                 loading: () => const LinearProgressIndicator(),
@@ -1853,6 +1909,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
 
             // Section 5: Tags
             _SectionCard(
+              animationIndex: 6,
               icon: Icons.sell_outlined,
               title: 'Tags',
               subtitle: 'Adicione até 10 tags para facilitar a busca',
@@ -1867,7 +1924,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                             hintText: 'Ex: algodão, premium, verão',
                             suffixIcon: IconButton(
                               icon: const Icon(Icons.add_circle_outline),
-                              color: AppColors.sellerAccent,
+                              color: AppColors.primary,
                               onPressed:
                                   _tags.length < 10 ? _addTag : null,
                             ),
@@ -1912,6 +1969,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
             // Section 6: Variants (hidden for rentals and jobs)
             if (!_isRental && !_isJobListing)
             _SectionCard(
+              animationIndex: 7,
               icon: Icons.style_outlined,
               title: 'Variantes',
               subtitle: 'Tamanhos, cores ou outras opções',
@@ -1972,7 +2030,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                         const SizedBox(height: 2),
                         Text(
                           _isActive
-                              ? (_isJobListing ? 'Vaga visível para candidatos' : 'Produto visível para compradores')
+                              ? (_isJobListing ? 'Vaga visível para candidatos' : (_isRental ? 'Aluguel visível para interessados' : 'Produto visível para compradores'))
                               : 'Salvo como rascunho',
                           style: const TextStyle(
                             fontSize: 13,
@@ -1984,11 +2042,13 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                   ),
                   Switch(
                     value: _isActive,
-                    onChanged: (value) =>
+                    onChanged: (value) {
+                        HapticFeedback.selectionClick();
                         setState(() {
                           _isActive = value;
                           _hasUnsavedChanges = true;
-                        }),
+                        });
+                    },
                     activeColor: AppColors.secondary,
                   ),
                 ],
@@ -2003,13 +2063,13 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
               child: ElevatedButton.icon(
                 onPressed: _isLoading ? null : _saveProduct,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.sellerAccent,
+                  backgroundColor: AppColors.primary,
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14),
                   ),
                   elevation: 4,
-                  shadowColor: AppColors.sellerAccent.withAlpha(80),
+                  shadowColor: AppColors.primary.withAlpha(80),
                 ),
                 icon: _isLoading
                     ? const SizedBox(
@@ -2021,13 +2081,17 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                         ),
                       )
                     : const Icon(Icons.rocket_launch_outlined, size: 20),
-                label: Text(
-                  _isEditing
-                      ? 'Salvar alterações'
-                      : (_isJobListing ? 'Publicar vaga' : 'Publicar produto'),
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
+                label: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 200),
+                  child: Text(
+                    _isEditing
+                        ? 'Salvar alterações'
+                        : (_isJobListing ? 'Publicar vaga' : (_isRental ? 'Publicar aluguel' : 'Publicar produto')),
+                    key: ValueKey(_announcementType),
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ),
@@ -2090,6 +2154,7 @@ class _SectionCard extends StatelessWidget {
   final String subtitle;
   final Widget child;
   final bool hasError;
+  final int animationIndex;
 
   const _SectionCard({
     super.key,
@@ -2098,11 +2163,12 @@ class _SectionCard extends StatelessWidget {
     required this.subtitle,
     required this.child,
     this.hasError = false,
+    this.animationIndex = 0,
   });
 
   @override
   Widget build(BuildContext context) {
-    final accentColor = hasError ? AppColors.error : AppColors.sellerAccent;
+    final accentColor = hasError ? AppColors.error : AppColors.primary;
 
     Widget card = AnimatedContainer(
       duration: const Duration(milliseconds: 300),
@@ -2186,8 +2252,139 @@ class _SectionCard extends StatelessWidget {
       card = card
           .animate(autoPlay: true)
           .shakeX(amount: 4, duration: 400.ms, curve: Curves.easeInOut);
+    } else {
+      card = card
+          .animate(delay: Duration(milliseconds: 80 * animationIndex))
+          .fadeIn(duration: 400.ms)
+          .slideY(begin: 0.04, end: 0, duration: 400.ms, curve: Curves.easeOutCubic);
     }
 
     return card;
+  }
+}
+
+class _TypeChip extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final bool locked;
+  final VoidCallback? onTap;
+
+  const _TypeChip({
+    required this.label,
+    required this.icon,
+    required this.selected,
+    this.locked = false,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = selected ? AppColors.primary : (locked ? AppColors.textHint : AppColors.textSecondary);
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: locked ? null : onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          decoration: BoxDecoration(
+            color: selected ? AppColors.primary.withAlpha(20) : Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: selected ? AppColors.primary : AppColors.border,
+              width: selected ? 1.5 : 1,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (selected)
+                const Padding(
+                  padding: EdgeInsets.only(right: 6),
+                  child: Icon(Icons.check_circle, size: 18, color: AppColors.primary),
+                ),
+              Icon(icon, size: 18, color: color),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                  color: color,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Card widget for selecting package size (small/medium/large)
+class _PackageSizeCard extends StatelessWidget {
+  final String size;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const _PackageSizeCard({
+    required this.size,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  IconData get _icon => switch (size) {
+    PackageSizes.small => Icons.inventory_2_outlined,
+    PackageSizes.medium => Icons.archive_outlined,
+    PackageSizes.large => Icons.warehouse_outlined,
+    _ => Icons.inventory_2_outlined,
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.primary.withAlpha(15) : AppColors.surface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? AppColors.primary : AppColors.border,
+            width: isSelected ? 2 : 1,
+          ),
+        ),
+        child: Column(
+          children: [
+            Icon(
+              _icon,
+              size: 28,
+              color: isSelected ? AppColors.primary : AppColors.textSecondary,
+            ),
+            const SizedBox(height: 6),
+            Text(
+              PackageSizes.labels[size] ?? size,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: isSelected ? AppColors.primary : AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              PackageSizes.descriptions[size] ?? '',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 10,
+                color: AppColors.textHint,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

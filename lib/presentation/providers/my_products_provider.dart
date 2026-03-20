@@ -5,6 +5,7 @@ import '../../data/models/product_model.dart';
 import '../../domain/repositories/product_repository.dart';
 import 'auth_providers.dart';
 import 'core_providers.dart';
+import 'products_provider.dart';
 
 /// Filter options for my products
 enum MyProductsFilter { all, active, paused, outOfStock }
@@ -80,6 +81,14 @@ bool _isOutOfStock(ProductModel product) {
 }
 
 class MyProductsNotifier extends AsyncNotifier<List<ProductModel>> {
+  /// Invalidate all public-facing catalog providers so buyers see fresh data.
+  void _invalidatePublicCatalog() {
+    ref.invalidate(featuredProductsProvider);
+    ref.invalidate(recentProductsProvider);
+    ref.invalidate(followedSellersProductsProvider);
+    ref.read(paginatedRecentProductsProvider.notifier).refresh();
+  }
+
   @override
   Future<List<ProductModel>> build() async {
     // Wait for the user to be fully loaded before querying products.
@@ -126,6 +135,7 @@ class MyProductsNotifier extends AsyncNotifier<List<ProductModel>> {
       ));
       return [...current, created];
     });
+    _invalidatePublicCatalog();
   }
 
   Future<void> updateProduct(ProductModel product) async {
@@ -151,6 +161,7 @@ class MyProductsNotifier extends AsyncNotifier<List<ProductModel>> {
       ));
       return current.map((p) => p.id == product.id ? updated : p).toList();
     });
+    _invalidatePublicCatalog();
   }
 
   Future<void> toggleProductStatus(String productId) async {
@@ -164,6 +175,7 @@ class MyProductsNotifier extends AsyncNotifier<List<ProductModel>> {
       final updated = await repo.update(productId, UpdateProductRequest(status: newStatus));
       return current.map((p) => p.id == productId ? updated : p).toList();
     });
+    _invalidatePublicCatalog();
   }
 
   Future<void> deleteProduct(String productId) async {
@@ -173,5 +185,6 @@ class MyProductsNotifier extends AsyncNotifier<List<ProductModel>> {
       await repo.delete(productId);
       return current.where((p) => p.id != productId).toList();
     });
+    _invalidatePublicCatalog();
   }
 }

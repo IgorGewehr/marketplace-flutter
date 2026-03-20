@@ -62,58 +62,16 @@ class SellerDashboardScreen extends ConsumerWidget {
                       final tenant = tenantAsync?.valueOrNull;
                       final storeName =
                           tenant?.displayName ?? user?.displayName ?? 'Minha Loja';
-                      return Text(
-                        storeName,
-                        style: AppTextStyles.titleMedium.copyWith(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      );
-                    },
-                  ),
-                  const SizedBox(width: 8),
-                  Builder(
-                    builder: (context) {
-                      final planName = ref.watch(currentPlanNameProvider);
-                      final IconData planIcon;
-                      final Color iconColor;
-                      switch (planName) {
-                        case 'Pro':
-                          planIcon = Icons.workspace_premium_rounded;
-                          iconColor = Colors.amber;
-                        case 'Basic':
-                          planIcon = Icons.verified_rounded;
-                          iconColor = Colors.lightBlueAccent;
-                        default:
-                          planIcon = Icons.circle_outlined;
-                          iconColor = Colors.white60;
-                      }
-                      return Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.18),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.35),
-                            width: 1,
+                      return Flexible(
+                        child: Text(
+                          storeName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTextStyles.titleMedium.copyWith(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
                           ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(planIcon, size: 13, color: iconColor),
-                            const SizedBox(width: 4),
-                            Text(
-                              planName,
-                              style: const TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.white,
-                                letterSpacing: 0.3,
-                              ),
-                            ),
-                          ],
                         ),
                       );
                     },
@@ -130,19 +88,7 @@ class SellerDashboardScreen extends ConsumerWidget {
                   tooltip: 'Editar perfil da loja',
                 ),
                 const SellerModeToggle(),
-                const SizedBox(width: 4),
-                IconButton(
-                  onPressed: () {
-                    ref.read(sellerModeProvider.notifier).setMode(false);
-                    context.go('/');
-                  },
-                  icon: const Icon(
-                    Icons.shopping_bag_outlined,
-                    color: Colors.white,
-                  ),
-                  tooltip: 'Voltar para compras',
-                ),
-                const SizedBox(width: 4),
+                const SizedBox(width: 8),
               ],
             ),
             
@@ -473,7 +419,7 @@ class SellerDashboardScreen extends ConsumerWidget {
               data: (orders) {
                 if (orders.isEmpty) {
                   return SliverPadding(
-                    padding: const EdgeInsets.all(32),
+                    padding: const EdgeInsets.all(16),
                     sliver: SliverToBoxAdapter(
                       child: Center(
                         child: Column(
@@ -532,7 +478,7 @@ class SellerDashboardScreen extends ConsumerWidget {
                 ),
               ),
               error: (error, _) => SliverPadding(
-                padding: const EdgeInsets.all(32),
+                padding: const EdgeInsets.all(16),
                 sliver: SliverToBoxAdapter(
                   child: Center(
                     child: Column(

@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shimmer/shimmer.dart';
 
+import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../data/models/appointment_model.dart';
 import '../../providers/appointment_provider.dart';
@@ -335,16 +337,25 @@ class _FilterChips extends StatelessWidget {
           return ChoiceChip(
             label: Text(label),
             selected: isSelected,
-            onSelected: (_) => onSelected(value),
-            selectedColor: Colors.white,
-            backgroundColor: Colors.white.withAlpha(40),
+            onSelected: (_) {
+              HapticFeedback.selectionClick();
+              onSelected(value);
+            },
+            showCheckmark: false,
+            selectedColor: AppColors.primaryLight.withAlpha(50),
+            backgroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            avatar: isSelected
+                ? const Icon(Icons.check_circle, size: 16, color: AppColors.primaryDark)
+                : null,
             labelStyle: TextStyle(
-              color: isSelected ? AppColors.sellerAccent : Colors.white,
-              fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+              color: isSelected ? AppColors.primaryDark : AppColors.primary,
+              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
               fontSize: 13,
             ),
             side: BorderSide(
-              color: isSelected ? Colors.white : Colors.white.withAlpha(60),
+              color: isSelected ? AppColors.primary : AppColors.primaryLight,
+              width: isSelected ? 1.5 : 1,
             ),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(20),
@@ -394,6 +405,26 @@ class _EmptyState extends StatelessWidget {
             style: TextStyle(
               fontSize: 13,
               color: AppColors.textHint,
+            ),
+          ),
+          const SizedBox(height: 24),
+          FilledButton.icon(
+            onPressed: () => GoRouter.of(context).push(AppRouter.sellerServiceNew),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            icon: const Icon(Icons.add_rounded, size: 20),
+            label: const Text(
+              'Criar serviço com agenda',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ],

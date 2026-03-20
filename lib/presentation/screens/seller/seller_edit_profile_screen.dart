@@ -33,6 +33,7 @@ class _SellerEditProfileScreenState
   bool _isInitialized = false;
 
   String? _tenantId;
+  String? _originalDescription;
 
   @override
   void initState() {
@@ -51,6 +52,7 @@ class _SellerEditProfileScreenState
       _isInitialized = true;
       _nameController.text = tenant.displayName;
       _descriptionController.text = tenant.description ?? '';
+      _originalDescription = tenant.description ?? '';
     }
   }
 
@@ -90,6 +92,7 @@ class _SellerEditProfileScreenState
   Future<ImageSource?> _showSourceDialog({required String label}) {
     return showModalBottomSheet<ImageSource>(
       context: context,
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -155,11 +158,12 @@ class _SellerEditProfileScreenState
 
       final name = _nameController.text.trim();
       final description = _descriptionController.text.trim();
+      final descriptionChanged = description != _originalDescription;
 
       // Only send fields that changed
       await ref.read(tenantRepositoryProvider).updateProfile(
             name: name.isNotEmpty ? name : null,
-            description: description,
+            description: descriptionChanged ? description : null,
             logoUrl: newLogoUrl,
             coverUrl: newCoverUrl,
           );
@@ -191,11 +195,17 @@ class _SellerEditProfileScreenState
         tenantId != null ? ref.watch(tenantByIdProvider(tenantId)) : null;
     final tenant = tenantAsync?.valueOrNull;
 
+    // Keep _tenantId in sync when user data loads after _init()
+    if (tenantId != null && _tenantId == null) {
+      _tenantId = tenantId;
+    }
+
     // Pre-fill form on first load
     if (tenant != null && !_isInitialized) {
       _isInitialized = true;
       _nameController.text = tenant.displayName;
       _descriptionController.text = tenant.description ?? '';
+      _originalDescription = tenant.description ?? '';
     }
 
     final theme = Theme.of(context);
@@ -522,6 +532,8 @@ class _CoverPlaceholder extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             'Toque para adicionar uma capa',
+            overflow: TextOverflow.ellipsis,
+            maxLines: 1,
             style: theme.textTheme.bodySmall?.copyWith(
               color: Colors.white.withAlpha(200),
             ),

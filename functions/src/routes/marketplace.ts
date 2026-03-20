@@ -551,8 +551,8 @@ router.get("/services", async (req: Request, res: Response): Promise<void> => {
             provider = {
               id: tenantId,
               name: tenant.tradeName || "",
-              rating: tenant.marketplaceStats?.averageRating || 0,
-              completedJobs: tenant.marketplaceStats?.totalOrders || 0,
+              rating: tenant.marketplaceStats?.rating || tenant.marketplaceStats?.averageRating || 0,
+              completedJobs: tenant.marketplaceStats?.totalSales || tenant.marketplaceStats?.totalOrders || 0,
             };
           }
         } catch {
@@ -571,8 +571,8 @@ router.get("/services", async (req: Request, res: Response): Promise<void> => {
           provider,
           serviceAreas: data.serviceAreas || [],
           isRemote: data.isRemote || false,
-          rating: data.marketplaceStats?.rating || 0,
-          reviewCount: data.marketplaceStats?.reviewCount || 0,
+          rating: data.marketplaceStats?.rating || data.marketplaceStats?.averageRating || 0,
+          reviewCount: data.marketplaceStats?.reviewCount || data.marketplaceStats?.totalReviews || 0,
           certifications: data.certifications || [],
         };
       })
@@ -920,11 +920,34 @@ router.get("/tenants/:id", async (req: Request, res: Response): Promise<void> =>
 
     // Normalize marketplace stats — stored as marketplaceStats by become-seller
     const stats = data.marketplaceStats || {};
+    let resolvedRating: number = stats.rating || stats.averageRating || data.marketplace?.rating || 0;
+    let resolvedTotalReviews: number = stats.totalReviews || data.marketplace?.totalReviews || 0;
+
+    // Fallback: live query reviews if stored stats are missing (e.g. before trigger ran)
+    if (resolvedTotalReviews === 0) {
+      try {
+        const reviewsSnap = await db
+          .collection("reviews")
+          .where("tenantId", "==", tenantId)
+          .get();
+        if (!reviewsSnap.empty) {
+          resolvedTotalReviews = reviewsSnap.size;
+          const ratingSum = reviewsSnap.docs.reduce(
+            (sum, d) => sum + Number(d.data().rating || 0),
+            0
+          );
+          resolvedRating = Math.round((ratingSum / reviewsSnap.size) * 10) / 10;
+        }
+      } catch {
+        // Non-fatal — keep stored values
+      }
+    }
+
     const marketplace = {
       isActive: true,
-      rating: stats.averageRating || data.marketplace?.rating || 0,
-      totalReviews: stats.totalReviews || data.marketplace?.totalReviews || 0,
-      totalSales: stats.totalOrders || data.marketplace?.totalSales || 0,
+      rating: resolvedRating,
+      totalReviews: resolvedTotalReviews,
+      totalSales: stats.totalSales || stats.totalOrders || data.marketplace?.totalSales || 0,
       categories: data.categories || data.marketplace?.categories || [],
       deliveryOptions: data.deliveryOptions || data.marketplace?.deliveryOptions || [],
       paymentMethods: data.paymentMethods || data.marketplace?.paymentMethods || [],
@@ -1052,8 +1075,8 @@ async function enrichServicesWithProvider(
         tenantMap[tid] = {
           id: tid,
           name: tenant.tradeName || "",
-          rating: tenant.marketplaceStats?.averageRating || 0,
-          completedJobs: tenant.marketplaceStats?.totalOrders || 0,
+          rating: tenant.marketplaceStats?.rating || tenant.marketplaceStats?.averageRating || 0,
+          completedJobs: tenant.marketplaceStats?.totalSales || tenant.marketplaceStats?.totalOrders || 0,
         };
       }
     } catch {
@@ -1078,8 +1101,8 @@ async function enrichServicesWithProvider(
       provider,
       serviceAreas: data.serviceAreas || [],
       isRemote: data.isRemote || false,
-      rating: data.marketplaceStats?.rating || 0,
-      reviewCount: data.marketplaceStats?.reviewCount || 0,
+      rating: data.marketplaceStats?.rating || data.marketplaceStats?.averageRating || 0,
+      reviewCount: data.marketplaceStats?.reviewCount || data.marketplaceStats?.totalReviews || 0,
       certifications: data.certifications || [],
     };
   });

@@ -120,14 +120,23 @@ async function mpRequest<T>(options: MpRequestOptions): Promise<T> {
   }
 
   if (!response.ok) {
+    const parsedObj = typeof parsed === "object" && parsed !== null ? parsed as Record<string, unknown> : {};
+    const mpMessage = typeof parsedObj.message === "string" ? parsedObj.message : "";
+    const mpError = typeof parsedObj.error === "string" ? parsedObj.error : "";
+    const mpCause = Array.isArray(parsedObj.cause) ? parsedObj.cause : [];
+
     functions.logger.error("MP API Error", {
       status: response.status,
       path: options.path,
+      message: mpMessage,
+      error: mpError,
+      cause: mpCause,
       response: parsed,
     });
     throw new functions.https.HttpsError(
       "internal",
-      "Payment processing failed. Please try again."
+      `MP API ${response.status}: ${mpMessage || mpError || "Payment processing failed"}`,
+      { status: response.status, message: mpMessage, error: mpError, cause: mpCause }
     );
   }
 

@@ -19,24 +19,33 @@ final localStorageService = LocalStorageService();
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Load environment configuration
-  // Use 'prod' for production builds
-  await AppConfig.load(environment: 'prod');
+  // Load environment configuration (non-fatal — AppConfig has fallbacks)
+  try {
+    await AppConfig.load(environment: 'prod');
+  } catch (e) {
+    debugPrint('⚠️ Could not load .env file: $e');
+  }
 
-  // Initialize Hive for local storage
-  await Hive.initFlutter();
+  try {
+    // Initialize Hive for local storage
+    await Hive.initFlutter();
+    await localStorageService.init();
 
-  // Open all Hive boxes once
-  await localStorageService.init();
+    // Initialize Firebase (must succeed for auth to work)
+    await Firebase.initializeApp();
+  } catch (e, stack) {
+    debugPrint('⚠️ Critical initialization error: $e\n$stack');
+  }
 
-  // Initialize Firebase
-  await Firebase.initializeApp();
-
-  // Activate App Check (required for Storage access)
-  await FirebaseAppCheck.instance.activate(
-    androidProvider: AndroidProvider.playIntegrity,
-    appleProvider: AppleProvider.deviceCheck,
-  );
+  // Activate App Check (non-fatal — appAttest unavailable on simulator)
+  try {
+    await FirebaseAppCheck.instance.activate(
+      androidProvider: AndroidProvider.playIntegrity,
+      appleProvider: AppleProvider.appAttest,
+    );
+  } catch (e) {
+    debugPrint('⚠️ App Check activation failed: $e');
+  }
 
   AppConfig.logger.i('Compre Aqui app starting...');
 

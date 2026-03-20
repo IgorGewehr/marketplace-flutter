@@ -898,27 +898,33 @@ router.post("/orders", async (req: Request, res: Response): Promise<void> => {
       }
     }
 
-    functions.logger.error("Error creating order", error);
+    functions.logger.error("Error creating order", {
+      orderId,
+      tenantId,
+      paymentMethod,
+      error: error instanceof Error ? { message: error.message, details: (error as any).details } : error,
+    });
 
     let clientMessage = "Erro ao criar pedido. Tente novamente.";
     let clientCode = "ORDER_CREATION_FAILED";
     if (error instanceof functions.https.HttpsError) {
       const details = error.details as Record<string, unknown> | undefined;
       const mpMessage = typeof details?.message === "string" ? details.message.toLowerCase() : "";
+      const mpError = typeof details?.error === "string" ? details.error.toLowerCase() : "";
+      const fullMpText = `${mpMessage} ${mpError}`;
 
       // Seller doesn't have PIX key registered in MercadoPago
-      if (mpMessage.includes("without key enabled for qr") || mpMessage.includes("qr render")) {
+      if (fullMpText.includes("without key enabled for qr") || fullMpText.includes("qr render") || fullMpText.includes("pix")) {
         clientMessage = "O vendedor ainda não habilitou o recebimento via PIX no Mercado Pago. Tente pagar com cartão de crédito.";
         clientCode = "SELLER_PIX_NOT_ENABLED";
       } else {
-        const mpStatusMatch = error.message.match(/(\d{3})/);
-        const mpStatus = mpStatusMatch ? mpStatusMatch[1] : null;
-        if (mpStatus === "400" || mpStatus === "422") {
+        const mpStatus = details?.status as number | undefined;
+        if (mpStatus === 400 || mpStatus === 422) {
           clientMessage = "Dados de pagamento inválidos. Verifique suas informações e tente novamente.";
         }
       }
     }
-    res.status(500).json({ error: clientMessage, code: clientCode });
+    res.status(500).json({ error: clientMessage, code: clientCode, mpDetails: process.env.FUNCTIONS_EMULATOR ? (error as any)?.details : undefined });
   }
 });
 
@@ -1281,9 +1287,12 @@ router.patch("/orders/:id/status", async (req: Request, res: Response): Promise<
   const validTransitions: Record<string, string[]> = {
     pending: ["confirmed", "cancelled"],
     confirmed: ["preparing", "cancelled"],
-    preparing: ["ready", "cancelled"],
-    ready: ["cancelled"],
-    shipped: ["delivered"],
+    preparing: ["ready", "shipped", "cancelled"],
+    ready: ["shipped", "cancelled"],
+    shipped: ["out_for_delivery", "delivered", "cancelled"],
+    out_for_delivery: ["delivered", "cancelled"],
+    delivered: [],
+    cancelled: [],
   };
 
   try {
@@ -1611,24 +1620,25 @@ router.post("/orders/:id/confirm-delivery", async (req: Request, res: Response):
     }
 
     // Order must be in a deliverable state
-    const confirmableStatuses = ["shipped", "out_for_delivery", "delivered"];
-    if (!confirmableStatuses.includes(data.status)) {
-      res.status(400).json({ error: "Este pedido não pode ser confirmado no status atual" });
+    const allowedStatuses = ["shipped", "out_for_delivery", "delivered"];
+    if (!allowedStatuses.includes(data.status)) {
+      res.status(400).json({ error: "Pedido não está em status válido para confirmar recebimento" });
       return;
     }
 
     // Prevent double-confirmation
     if (data.deliveryConfirmedAt) {
-      res.json(serializeOrder(data));
+      res.status(409).json({ error: "Recebimento já foi confirmado" });
       return;
     }
 
     const now = admin.firestore.Timestamp.now();
     await orderRef.update({
+      status: "delivered",
       deliveryConfirmedAt: now,
       updatedAt: now,
       statusHistory: admin.firestore.FieldValue.arrayUnion({
-        status: "confirmed_delivery",
+        status: "delivered",
         timestamp: now,
         note: "Recebimento confirmado pelo comprador",
         userId: uid,

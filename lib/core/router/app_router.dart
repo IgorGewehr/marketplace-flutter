@@ -537,11 +537,6 @@ final routerProvider = Provider<GoRouter>((ref) {
             builder: (context, state) => const SellerAgendaScreen(),
           ),
           GoRoute(
-            parentNavigatorKey: _rootNavigatorKey,
-            path: AppRouter.sellerServiceNew,
-            builder: (context, state) => const _PopSafeWrapper(child: ServiceFormScreen()),
-          ),
-          GoRoute(
             path: AppRouter.sellerJobs,
             builder: (context, state) => const SellerJobsScreen(),
           ),
@@ -583,6 +578,16 @@ final routerProvider = Provider<GoRouter>((ref) {
           context: context,
           state: state,
           child: const SellerEditProfileScreen(),
+        ),
+      ),
+
+      GoRoute(
+        parentNavigatorKey: _rootNavigatorKey,
+        path: AppRouter.sellerServiceNew,
+        pageBuilder: (context, state) => _slidePage(
+          context: context,
+          state: state,
+          child: const ServiceFormScreen(),
         ),
       ),
 

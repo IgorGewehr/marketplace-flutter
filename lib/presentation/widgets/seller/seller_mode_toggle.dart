@@ -62,12 +62,14 @@ class SellerModeToggle extends ConsumerWidget {
             context.go('/');
           }
         },
-        child: AnimatedContainer(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minWidth: 120, maxWidth: 170),
+          child: IntrinsicWidth(
+          child: AnimatedContainer(
           duration: const Duration(milliseconds: 300),
           curve: Curves.easeInOut,
           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-          width: 130,
-          height: 40,
+          height: 44,
           decoration: BoxDecoration(
             color: isSellerMode
                 ? AppColors.sellerAccent.withAlpha(30)
@@ -89,9 +91,10 @@ class SellerModeToggle extends ConsumerWidget {
                 alignment: isSellerMode
                     ? Alignment.centerRight
                     : Alignment.centerLeft,
-                child: Container(
-                  width: 60,
-                  height: 32,
+                child: FractionallySizedBox(
+                  widthFactor: 0.5,
+                  child: Container(
+                  height: 36,
                   decoration: BoxDecoration(
                     color: isSellerMode
                         ? AppColors.sellerAccent
@@ -109,6 +112,7 @@ class SellerModeToggle extends ConsumerWidget {
                     ],
                   ),
                 ),
+                ),
               ),
               // Labels
               Row(
@@ -121,7 +125,7 @@ class SellerModeToggle extends ConsumerWidget {
                         children: [
                           Icon(
                             Icons.shopping_bag_outlined,
-                            size: 14,
+                            size: 16,
                             color: !isSellerMode
                                 ? Colors.white
                                 : theme.colorScheme.onSurfaceVariant,
@@ -130,7 +134,7 @@ class SellerModeToggle extends ConsumerWidget {
                           Text(
                             'Loja',
                             style: TextStyle(
-                              fontSize: 11,
+                              fontSize: 13,
                               fontWeight: FontWeight.w700,
                               color: !isSellerMode
                                   ? Colors.white
@@ -149,7 +153,7 @@ class SellerModeToggle extends ConsumerWidget {
                         children: [
                           Icon(
                             Icons.storefront_rounded,
-                            size: 14,
+                            size: 16,
                             color: isSellerMode
                                 ? Colors.white
                                 : theme.colorScheme.onSurfaceVariant,
@@ -158,7 +162,7 @@ class SellerModeToggle extends ConsumerWidget {
                           Text(
                             'Vender',
                             style: TextStyle(
-                              fontSize: 11,
+                              fontSize: 13,
                               fontWeight: FontWeight.w700,
                               color: isSellerMode
                                   ? Colors.white
@@ -172,6 +176,8 @@ class SellerModeToggle extends ConsumerWidget {
                 ],
               ),
             ],
+          ),
+        ),
           ),
         ),
       ),

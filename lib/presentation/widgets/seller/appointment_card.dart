@@ -28,9 +28,12 @@ class AppointmentCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
@@ -58,7 +61,7 @@ class AppointmentCard extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
-                    color: AppColors.sellerAccent.withAlpha(15),
+                    color: AppColors.primary.withAlpha(15),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Text(
@@ -66,7 +69,7 @@ class AppointmentCard extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
-                      color: AppColors.sellerAccent,
+                      color: AppColors.primary,
                     ),
                   ),
                 ),
@@ -90,6 +93,8 @@ class AppointmentCard extends StatelessWidget {
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: theme.colorScheme.onSurfaceVariant,
                         ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ],
                   ),
@@ -124,23 +129,31 @@ class AppointmentCard extends StatelessWidget {
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
                   const SizedBox(width: 6),
-                  Text(
-                    appointment.displayDate,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
+                  Flexible(
+                    child: Text(
+                      appointment.displayDate,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  const SizedBox(width: 16),
+                  const SizedBox(width: 8),
                   Icon(
                     Icons.access_time,
                     size: 14,
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
                   const SizedBox(width: 6),
-                  Text(
-                    appointment.displayTime,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
+                  Flexible(
+                    child: Text(
+                      appointment.displayTime,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                 ],
@@ -163,57 +176,59 @@ class AppointmentCard extends StatelessWidget {
               ),
 
             // Action buttons
-            if (appointment.isPending || appointment.isConfirmed)
+            if (appointment.isPending || appointment.isConfirmed) ...[
+              const Padding(
+                padding: EdgeInsets.only(top: 12),
+                child: Divider(height: 1),
+              ),
               Padding(
-                padding: const EdgeInsets.only(top: 12),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
+                padding: const EdgeInsets.only(top: 10),
+                child: Wrap(
+                  spacing: 4,
+                  runSpacing: 4,
+                  alignment: WrapAlignment.end,
                   children: [
-                    if (appointment.isPending) ...[
+                    if (appointment.isPending)
                       _ActionButton(
                         label: 'Confirmar',
                         icon: Icons.check_rounded,
-                        color: Colors.green,
+                        color: AppColors.success,
                         onPressed: onConfirm,
                       ),
-                      const SizedBox(width: 8),
-                    ],
                     if (appointment.isConfirmed) ...[
                       _ActionButton(
                         label: 'Concluir',
                         icon: Icons.done_all_rounded,
-                        color: Colors.green,
+                        color: AppColors.success,
                         onPressed: onComplete,
                       ),
-                      const SizedBox(width: 8),
                       _ActionButton(
                         label: 'Faltou',
                         icon: Icons.person_off_outlined,
-                        color: Colors.grey,
+                        color: AppColors.textSecondary,
                         onPressed: onNoShow,
                       ),
-                      const SizedBox(width: 8),
                     ],
-                    if (onReschedule != null) ...[
+                    if (onReschedule != null)
                       _ActionButton(
                         label: 'Reagendar',
                         icon: Icons.schedule_rounded,
-                        color: Colors.blue,
+                        color: AppColors.info,
                         onPressed: onReschedule,
                       ),
-                      const SizedBox(width: 8),
-                    ],
                     _ActionButton(
                       label: 'Cancelar',
                       icon: Icons.close_rounded,
-                      color: Colors.red,
+                      color: AppColors.error,
                       onPressed: onCancel,
                     ),
                   ],
                 ),
               ),
+            ],
           ],
         ),
+      ),
       ),
     );
   }

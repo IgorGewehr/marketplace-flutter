@@ -216,11 +216,14 @@ class _SellerOrderDetailsScreenState extends ConsumerState<SellerOrderDetailsScr
                           ],
                         ),
                       ),
-                      Text(
-                        _formatPrice(item.total),
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.textPrimary,
+                      Flexible(
+                        child: Text(
+                          _formatPrice(item.total),
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimary,
+                          ),
                         ),
                       ),
                     ],
@@ -441,6 +444,8 @@ class _SellerOrderDetailsScreenState extends ConsumerState<SellerOrderDetailsScr
             onAccept: () => _updateStatus('confirmed'),
             onStartPreparing: () => _updateStatus('preparing'),
             onMarkReady: () => _updateStatus('ready'),
+            onMarkShipped: () => _updateStatus('shipped'),
+            onMarkDelivered: () => _updateStatus('delivered'),
             onChat: () async {
               final chat = await ref.read(chatsProvider.notifier).getOrCreateChat(
                 order.tenantId,
@@ -591,13 +596,21 @@ class _DeliveryInfoRow extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            label,
-            style: const TextStyle(fontSize: 13, color: AppColors.textHint),
+          Flexible(
+            child: Text(
+              label,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 13, color: AppColors.textHint),
+            ),
           ),
-          Text(
-            value,
-            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              value,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.end,
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+            ),
           ),
         ],
       ),
@@ -625,49 +638,61 @@ class _SellerDeliveryStatus extends StatelessWidget {
       children: steps.asMap().entries.expand((entry) {
         final i = entry.key;
         final step = entry.value;
-        final widgets = <Widget>[
-          Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 24,
-                height: 24,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: step.done
-                      ? AppColors.primary
-                      : step.active
-                          ? AppColors.sellerAccent
-                          : AppColors.border,
-                ),
-                child: step.done
-                    ? const Icon(Icons.check, size: 14, color: Colors.white)
-                    : null,
+        final stepWidget = Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 24,
+              height: 24,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: step.done
+                    ? AppColors.primary
+                    : step.active
+                        ? AppColors.sellerAccent
+                        : AppColors.border,
               ),
-              const SizedBox(height: 4),
-              SizedBox(
-                width: 50,
-                child: Text(
-                  step.label,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 9,
-                    fontWeight: step.active ? FontWeight.bold : FontWeight.normal,
-                    color: step.done || step.active ? AppColors.textPrimary : AppColors.textHint,
-                  ),
-                ),
+              child: step.done
+                  ? const Icon(Icons.check, size: 14, color: Colors.white)
+                  : null,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              step.label,
+              textAlign: TextAlign.center,
+              overflow: TextOverflow.ellipsis,
+              maxLines: 2,
+              style: TextStyle(
+                fontSize: 9,
+                fontWeight: step.active ? FontWeight.bold : FontWeight.normal,
+                color: step.done || step.active ? AppColors.textPrimary : AppColors.textHint,
               ),
-            ],
-          ),
-        ];
+            ),
+          ],
+        );
+        final widgets = <Widget>[];
         if (i < steps.length - 1) {
           widgets.add(Expanded(
-            child: Container(
-              height: 2,
-              margin: const EdgeInsets.only(bottom: 16),
-              color: step.done ? AppColors.primary : AppColors.border,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    stepWidget,
+                    Expanded(
+                      child: Container(
+                        height: 2,
+                        margin: const EdgeInsets.only(bottom: 16),
+                        color: step.done ? AppColors.primary : AppColors.border,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ));
+        } else {
+          widgets.add(stepWidget);
         }
         return widgets;
       }).toList(),

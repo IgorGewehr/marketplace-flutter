@@ -10,6 +10,8 @@ class OrderActions extends StatelessWidget {
   final VoidCallback? onAccept;
   final VoidCallback? onStartPreparing;
   final VoidCallback? onMarkReady;
+  final VoidCallback? onMarkShipped;
+  final VoidCallback? onMarkDelivered;
   final VoidCallback? onChat;
 
   const OrderActions({
@@ -19,6 +21,8 @@ class OrderActions extends StatelessWidget {
     this.onAccept,
     this.onStartPreparing,
     this.onMarkReady,
+    this.onMarkShipped,
+    this.onMarkDelivered,
     this.onChat,
   });
 
@@ -46,6 +50,8 @@ class OrderActions extends StatelessWidget {
             label: const Text(
               'Chat com comprador',
               style: TextStyle(fontWeight: FontWeight.w600),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
       ],
@@ -73,6 +79,22 @@ class OrderActions extends StatelessWidget {
             onPressed: isLoading ? null : onStartPreparing,
             isLoading: isLoading,
           ),
+          const SizedBox(height: 8),
+          _ActionButton(
+            label: 'Marcar como Enviado',
+            icon: Icons.local_shipping_outlined,
+            color: AppColors.statusShipped,
+            onPressed: isLoading ? null : onMarkShipped,
+            isLoading: false,
+          ),
+          const SizedBox(height: 8),
+          _ActionButton(
+            label: 'Marcar como Entregue',
+            icon: Icons.check_circle_outline,
+            color: AppColors.secondary,
+            onPressed: isLoading ? null : onMarkDelivered,
+            isLoading: false,
+          ),
         ];
       case 'preparing':
         return [
@@ -83,30 +105,39 @@ class OrderActions extends StatelessWidget {
             onPressed: isLoading ? null : onMarkReady,
             isLoading: isLoading,
           ),
+          const SizedBox(height: 8),
+          _ActionButton(
+            label: 'Marcar como Enviado',
+            icon: Icons.local_shipping_outlined,
+            color: AppColors.statusShipped,
+            onPressed: isLoading ? null : onMarkShipped,
+            isLoading: false,
+          ),
+          const SizedBox(height: 8),
+          _ActionButton(
+            label: 'Marcar como Entregue',
+            icon: Icons.check_circle_outline,
+            color: AppColors.secondary,
+            onPressed: isLoading ? null : onMarkDelivered,
+            isLoading: false,
+          ),
         ];
       case 'ready':
         return [
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: AppColors.statusReady.withAlpha(20),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.check_circle_outline, color: AppColors.statusReady),
-                const SizedBox(width: 12),
-                const Expanded(
-                  child: Text(
-                    'Pronto para coleta. Aguardando entregador.',
-                    style: TextStyle(
-                      color: AppColors.textSecondary,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
-              ],
-            ),
+          _ActionButton(
+            label: 'Marcar como Enviado',
+            icon: Icons.local_shipping_outlined,
+            color: AppColors.statusShipped,
+            onPressed: isLoading ? null : onMarkShipped,
+            isLoading: isLoading,
+          ),
+          const SizedBox(height: 8),
+          _ActionButton(
+            label: 'Marcar como Entregue',
+            icon: Icons.check_circle_outline,
+            color: AppColors.secondary,
+            onPressed: isLoading ? null : onMarkDelivered,
+            isLoading: false,
           ),
         ];
       case 'shipped':
@@ -132,6 +163,14 @@ class OrderActions extends StatelessWidget {
                 ),
               ],
             ),
+          ),
+          const SizedBox(height: 8),
+          _ActionButton(
+            label: 'Marcar como Entregue',
+            icon: Icons.check_circle_outline,
+            color: AppColors.secondary,
+            onPressed: isLoading ? null : onMarkDelivered,
+            isLoading: isLoading,
           ),
         ];
       case 'delivered':
@@ -234,11 +273,16 @@ class _ActionButton extends StatelessWidget {
               ),
             )
           : Icon(icon, size: 22),
-      label: Text(
-        label,
-        style: const TextStyle(
-          fontSize: 15,
-          fontWeight: FontWeight.w600,
+      label: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Text(
+          label,
+          style: const TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
         ),
       ),
     );

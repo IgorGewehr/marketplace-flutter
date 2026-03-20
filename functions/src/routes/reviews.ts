@@ -48,7 +48,7 @@ router.post("/", async (req, res: Response): Promise<void> => {
       return;
     }
 
-    if (order.status !== "delivered") {
+    if (order.status !== "delivered" && !order.deliveryConfirmedAt) {
       res.status(400).json({ error: "O pedido deve estar entregue para ser avaliado" });
       return;
     }

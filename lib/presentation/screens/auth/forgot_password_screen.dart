@@ -62,7 +62,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
           children: [
             // ── Green gradient header ──
             SizedBox(
-              height: topPadding + 170,
+              height: topPadding + 200,
               child: SafeArea(
                 bottom: false,
                 child: Padding(

@@ -32,6 +32,29 @@ class OrderDetailsScreen extends ConsumerStatefulWidget {
 class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
   bool _isConfirming = false;
   bool _isCancelling = false;
+  bool _justConfirmedDelivery = false;
+  final _reviewSectionKey = GlobalKey();
+  final _scrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _scrollToReviewSection() {
+    Future.delayed(const Duration(milliseconds: 600), () {
+      final ctx = _reviewSectionKey.currentContext;
+      if (ctx != null && mounted) {
+        Scrollable.ensureVisible(
+          ctx,
+          duration: const Duration(milliseconds: 500),
+          curve: Curves.easeInOut,
+          alignment: 0.3,
+        );
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -75,6 +98,7 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
               ref.invalidate(orderDetailProvider(widget.orderId));
             },
             child: SingleChildScrollView(
+              controller: _scrollController,
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.all(16),
               child: Column(
@@ -603,22 +627,22 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
 
                               setState(() => _isConfirming = true);
                               try {
-                                final success = await ref.read(ordersProvider.notifier).confirmDelivery(order.id);
+                                await ref.read(ordersProvider.notifier).confirmDelivery(order.id);
                                 if (context.mounted) {
-                                  if (success) {
-                                    // A5: Inform buyer about payment release timeline
-                                    AppFeedback.showSuccess(
-                                      context,
-                                      'Recebimento confirmado! O pagamento será liberado ao vendedor em até 24 horas.',
-                                    );
-                                    ref.invalidate(orderDetailProvider(widget.orderId));
-                                  } else {
-                                    AppFeedback.showError(context, 'Erro ao confirmar recebimento');
-                                  }
+                                  // A5: Inform buyer about payment release timeline
+                                  AppFeedback.showSuccess(
+                                    context,
+                                    'Recebimento confirmado! Agora você pode avaliar seus produtos.',
+                                  );
+                                  ref.invalidate(orderDetailProvider(widget.orderId));
+                                  ref.invalidate(reviewedProductIdsProvider(order.id));
+                                  setState(() => _justConfirmedDelivery = true);
+                                  _scrollToReviewSection();
                                 }
                               } catch (e) {
                                 if (context.mounted) {
-                                  AppFeedback.showError(context, 'Erro ao confirmar recebimento');
+                                  final msg = e.toString().replaceFirst('Exception: ', '');
+                                  AppFeedback.showError(context, msg.isNotEmpty ? msg : 'Erro ao confirmar recebimento');
                                 }
                               } finally {
                                 if (mounted) setState(() => _isConfirming = false);
@@ -732,7 +756,11 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
 
                 // Review prompt — shown for delivered, paid orders
                 if (order.isDeliveryConfirmed && order.paymentStatus == 'paid' && order.items.isNotEmpty)
-                  _OrderReviewSection(order: order),
+                  _OrderReviewSection(
+                    key: _reviewSectionKey,
+                    order: order,
+                    highlight: _justConfirmedDelivery,
+                  ),
 
                 // Cancel order button — only show for pending/pending_payment orders
                 if ((order.status == 'pending' || order.status == 'pending_payment') &&
@@ -1008,157 +1036,210 @@ class _DeliveryTrackingSection extends StatelessWidget {
 
 class _OrderReviewSection extends ConsumerWidget {
   final OrderModel order;
+  final bool highlight;
 
-  const _OrderReviewSection({required this.order});
+  const _OrderReviewSection({
+    super.key,
+    required this.order,
+    this.highlight = false,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final reviewedAsync = ref.watch(reviewedProductIdsProvider(order.id));
+    final reviewedIds = reviewedAsync.valueOrNull ?? {};
+    final allReviewed = order.items.every((item) => reviewedIds.contains(item.productId));
 
     return Padding(
       padding: const EdgeInsets.only(top: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.rate_review_outlined, size: 18, color: AppColors.primary),
-              const SizedBox(width: 6),
-              Text(
-                'Avaliar compra',
-                style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-              ),
-            ],
+      child: Container(
+        decoration: BoxDecoration(
+          color: highlight
+              ? AppColors.primary.withAlpha(12)
+              : theme.colorScheme.surfaceContainerLowest,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: highlight
+                ? AppColors.primary.withAlpha(80)
+                : theme.colorScheme.outlineVariant.withAlpha(80),
+            width: highlight ? 1.5 : 1.0,
           ),
-          const SizedBox(height: 10),
-          Container(
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surfaceContainerLowest,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: theme.colorScheme.outlineVariant.withAlpha(80)),
+        ),
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withAlpha(20),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(Icons.rate_review_outlined, size: 18, color: AppColors.primary),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Avaliar compra',
+                        style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                      ),
+                      if (!allReviewed)
+                        Text(
+                          'Sua avaliação ajuda outros compradores!',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-            child: Column(
-              children: List.generate(order.items.length, (i) {
-                final item = order.items[i];
-                final reviewedIds = reviewedAsync.valueOrNull ?? {};
-                final alreadyReviewed = reviewedIds.contains(item.productId);
+            const SizedBox(height: 14),
+            Container(
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surface,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: theme.colorScheme.outlineVariant.withAlpha(60)),
+              ),
+              child: Column(
+                children: List.generate(order.items.length, (i) {
+                  final item = order.items[i];
+                  final alreadyReviewed = reviewedIds.contains(item.productId);
 
-                return Column(
-                  children: [
-                    if (i > 0) const Divider(height: 1, indent: 16, endIndent: 16),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                      child: Row(
-                        children: [
-                          // Product image
-                          if (item.imageUrl != null)
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
-                              child: Image.network(
-                                item.imageUrl!,
-                                width: 44,
-                                height: 44,
-                                fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) => Container(
+                  return Column(
+                    children: [
+                      if (i > 0) const Divider(height: 1, indent: 16, endIndent: 16),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        child: Row(
+                          children: [
+                            // Product image
+                            if (item.imageUrl != null)
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: Image.network(
+                                  item.imageUrl!,
                                   width: 44,
                                   height: 44,
-                                  decoration: BoxDecoration(
-                                    color: theme.colorScheme.surfaceContainerHighest,
-                                    borderRadius: BorderRadius.circular(8),
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) => Container(
+                                    width: 44,
+                                    height: 44,
+                                    decoration: BoxDecoration(
+                                      color: theme.colorScheme.surfaceContainerHighest,
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: const Icon(Icons.image_outlined, size: 20),
                                   ),
-                                  child: const Icon(Icons.image_outlined, size: 20),
+                                ),
+                              )
+                            else
+                              Container(
+                                width: 44,
+                                height: 44,
+                                decoration: BoxDecoration(
+                                  color: theme.colorScheme.surfaceContainerHighest,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Icon(Icons.image_outlined, size: 20),
+                              ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                item.name,
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            // Review button or checkmark
+                            if (alreadyReviewed)
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: Colors.green.withAlpha(20),
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(color: Colors.green.withAlpha(60)),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(Icons.check_circle_outline, size: 14, color: Colors.green),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      'Avaliado',
+                                      style: theme.textTheme.labelSmall?.copyWith(
+                                        color: Colors.green.shade700,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              )
+                            else
+                              FilledButton.tonalIcon(
+                                onPressed: () {
+                                  ref.read(reviewSubmitProvider.notifier).reset();
+                                  showSubmitReviewSheet(
+                                    context,
+                                    productId: item.productId,
+                                    tenantId: order.tenantId,
+                                    orderId: order.id,
+                                    productName: item.name,
+                                    productImageUrl: item.imageUrl,
+                                    onSuccess: () {
+                                      AppFeedback.showSuccess(
+                                        context,
+                                        'Avaliacao enviada! Obrigado pelo feedback.',
+                                      );
+                                      ref.invalidate(reviewedProductIdsProvider(order.id));
+                                    },
+                                  );
+                                },
+                                icon: const Icon(Icons.star_rounded, size: 16),
+                                label: const Text(
+                                  'Avaliar',
+                                  style: TextStyle(fontWeight: FontWeight.w600),
+                                ),
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: AppColors.primary.withAlpha(25),
+                                  foregroundColor: AppColors.primary,
+                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                                  minimumSize: const Size(0, 36),
+                                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                                 ),
                               ),
-                            )
-                          else
-                            Container(
-                              width: 44,
-                              height: 44,
-                              decoration: BoxDecoration(
-                                color: theme.colorScheme.surfaceContainerHighest,
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: const Icon(Icons.image_outlined, size: 20),
-                            ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              item.name,
-                              style: theme.textTheme.bodyMedium,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          // Review button or checkmark
-                          if (alreadyReviewed)
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                              decoration: BoxDecoration(
-                                color: Colors.green.withAlpha(20),
-                                borderRadius: BorderRadius.circular(20),
-                                border: Border.all(color: Colors.green.withAlpha(60)),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(Icons.check_circle_outline, size: 14, color: Colors.green),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    'Avaliado',
-                                    style: theme.textTheme.labelSmall?.copyWith(
-                                      color: Colors.green.shade700,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            )
-                          else
-                            TextButton(
-                              onPressed: () {
-                                ref.read(reviewSubmitProvider.notifier).reset();
-                                showSubmitReviewSheet(
-                                  context,
-                                  productId: item.productId,
-                                  tenantId: order.tenantId,
-                                  orderId: order.id,
-                                  productName: item.name,
-                                  productImageUrl: item.imageUrl,
-                                  onSuccess: () {
-                                    AppFeedback.showSuccess(
-                                      context,
-                                      'Avaliação enviada! Obrigado pelo feedback.',
-                                    );
-                                    ref.invalidate(reviewedProductIdsProvider(order.id));
-                                  },
-                                );
-                              },
-                              style: TextButton.styleFrom(
-                                foregroundColor: AppColors.primary,
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                              ),
-                              child: const Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(Icons.star_outline_rounded, size: 16),
-                                  SizedBox(width: 4),
-                                  Text('Avaliar', style: TextStyle(fontWeight: FontWeight.w600)),
-                                ],
-                              ),
-                            ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
-                );
-              }),
+                    ],
+                  );
+                }),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
-    );
+    )
+        .animate(target: highlight ? 1 : 0)
+        .shimmer(
+          delay: 300.ms,
+          duration: 1200.ms,
+          color: AppColors.primary.withAlpha(30),
+        )
+        .animate()
+        .fadeIn(delay: 200.ms, duration: 400.ms)
+        .slideY(begin: 0.05, duration: 400.ms);
   }
 }
 

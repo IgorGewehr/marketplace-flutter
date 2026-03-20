@@ -35,6 +35,7 @@ class ProductModel {
   final bool isPerishable;
   final String? shippingCategory; // standard, fragile, heavy, perishable
   final String shippingPolicy; // delivery, pickup_only, seller_arranges
+  final String? packageSize; // small, medium, large
   // Rental fields
   final String productType; // product, rental
   final RentalInfo? rentalInfo;
@@ -83,6 +84,7 @@ class ProductModel {
     this.isPerishable = false,
     this.shippingCategory,
     this.shippingPolicy = 'delivery',
+    this.packageSize,
     this.productType = 'product',
     this.rentalInfo,
     this.listingType = 'product',
@@ -213,6 +215,7 @@ class ProductModel {
       isPerishable: json['isPerishable'] as bool? ?? false,
       shippingCategory: json['shippingCategory'] as String?,
       shippingPolicy: json['shippingPolicy'] as String? ?? 'delivery',
+      packageSize: json['packageSize'] as String?,
       productType: json['productType'] as String? ?? 'product',
       rentalInfo: json['rentalInfo'] is Map<String, dynamic>
           ? RentalInfo.fromJson(json['rentalInfo'] as Map<String, dynamic>)
@@ -263,6 +266,7 @@ class ProductModel {
       'isPerishable': isPerishable,
       if (shippingCategory != null) 'shippingCategory': shippingCategory,
       'shippingPolicy': shippingPolicy,
+      if (packageSize != null) 'packageSize': packageSize,
       'productType': productType,
       if (rentalInfo != null) 'rentalInfo': rentalInfo!.toJson(),
       'listingType': listingType,
@@ -310,6 +314,7 @@ class ProductModel {
     bool? isPerishable,
     String? shippingCategory,
     String? shippingPolicy,
+    String? packageSize,
     String? productType,
     RentalInfo? rentalInfo,
     String? listingType,
@@ -355,6 +360,7 @@ class ProductModel {
       isPerishable: isPerishable ?? this.isPerishable,
       shippingCategory: shippingCategory ?? this.shippingCategory,
       shippingPolicy: shippingPolicy ?? this.shippingPolicy,
+      packageSize: packageSize ?? this.packageSize,
       productType: productType ?? this.productType,
       rentalInfo: rentalInfo ?? this.rentalInfo,
       listingType: listingType ?? this.listingType,

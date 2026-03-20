@@ -5,15 +5,16 @@ import '../../data/models/service_model.dart';
 import '../../domain/repositories/service_repository.dart';
 import 'auth_providers.dart';
 import 'core_providers.dart';
+import 'services_provider.dart';
 
 /// Filter options for my services
 enum MyServicesFilter { all, active, paused, inactive }
 
 /// Search query for my services
-final myServicesSearchProvider = StateProvider<String>((ref) => '');
+final myServicesSearchProvider = StateProvider.autoDispose<String>((ref) => '');
 
 /// Filter state for my services
-final myServicesFilterProvider = StateProvider<MyServicesFilter>((ref) => MyServicesFilter.all);
+final myServicesFilterProvider = StateProvider.autoDispose<MyServicesFilter>((ref) => MyServicesFilter.all);
 
 /// Provider for seller's own services
 final myServicesProvider = AsyncNotifierProvider<MyServicesNotifier, List<ServiceModel>>(() {
@@ -21,7 +22,7 @@ final myServicesProvider = AsyncNotifierProvider<MyServicesNotifier, List<Servic
 });
 
 /// Filtered services based on search and filter
-final filteredMyServicesProvider = Provider<AsyncValue<List<ServiceModel>>>((ref) {
+final filteredMyServicesProvider = Provider.autoDispose<AsyncValue<List<ServiceModel>>>((ref) {
   final servicesAsync = ref.watch(myServicesProvider);
   final search = ref.watch(myServicesSearchProvider).toLowerCase();
   final filter = ref.watch(myServicesFilterProvider);
@@ -60,9 +61,15 @@ final filteredMyServicesProvider = Provider<AsyncValue<List<ServiceModel>>>((ref
 class MyServicesNotifier extends AsyncNotifier<List<ServiceModel>> {
   ServiceRepository get _repository => ref.read(serviceRepositoryProvider);
 
+  /// Invalidate public-facing service catalog so buyers see fresh data.
+  void _invalidatePublicCatalog() {
+    ref.invalidate(featuredServicesProvider);
+    ref.invalidate(recentServicesProvider);
+  }
+
   @override
   Future<List<ServiceModel>> build() async {
-    final user = ref.watch(currentUserProvider).valueOrNull;
+    final user = await ref.watch(currentUserProvider.future);
     if (user == null || !user.isSeller) return [];
 
     try {
@@ -84,6 +91,7 @@ class MyServicesNotifier extends AsyncNotifier<List<ServiceModel>> {
       final current = state.valueOrNull ?? [];
       return [newService, ...current];
     });
+    _invalidatePublicCatalog();
   }
 
   Future<void> updateService(String serviceId, UpdateServiceRequest request) async {
@@ -92,6 +100,7 @@ class MyServicesNotifier extends AsyncNotifier<List<ServiceModel>> {
       final current = state.valueOrNull ?? [];
       return current.map((s) => s.id == serviceId ? updatedService : s).toList();
     });
+    _invalidatePublicCatalog();
   }
 
   Future<void> toggleServiceStatus(String serviceId) async {
@@ -108,6 +117,7 @@ class MyServicesNotifier extends AsyncNotifier<List<ServiceModel>> {
 
       return current.map((s) => s.id == serviceId ? updatedService : s).toList();
     });
+    _invalidatePublicCatalog();
   }
 
   Future<void> toggleServiceAvailability(String serviceId) async {
@@ -123,6 +133,7 @@ class MyServicesNotifier extends AsyncNotifier<List<ServiceModel>> {
 
       return current.map((s) => s.id == serviceId ? updatedService : s).toList();
     });
+    _invalidatePublicCatalog();
   }
 
   Future<void> deleteService(String serviceId) async {
@@ -131,6 +142,7 @@ class MyServicesNotifier extends AsyncNotifier<List<ServiceModel>> {
       final current = state.valueOrNull ?? [];
       return current.where((s) => s.id != serviceId).toList();
     });
+    _invalidatePublicCatalog();
   }
 
   Future<void> uploadImages(

@@ -147,6 +147,39 @@ class ShippingCategories {
   static const String perishable = 'perishable';
 }
 
+/// Package size presets for simplified shipping configuration
+class PackageSizes {
+  static const String small = 'small';
+  static const String medium = 'medium';
+  static const String large = 'large';
+
+  static const Map<String, String> labels = {
+    small: 'Pequeno',
+    medium: 'Médio',
+    large: 'Grande',
+  };
+
+  static const Map<String, String> descriptions = {
+    small: 'Livros, eletrônicos, acessórios',
+    medium: 'Eletrodomésticos, caixas médias',
+    large: 'Móveis, itens volumosos',
+  };
+
+  /// Weight in kg for each size
+  static const Map<String, double> weights = {
+    small: 2.0,
+    medium: 10.0,
+    large: 25.0,
+  };
+
+  /// Dimensions (width, height, length) in cm for each size
+  static const Map<String, List<double>> dimensions = {
+    small: [30, 20, 15],
+    medium: [40, 30, 30],
+    large: [60, 50, 40],
+  };
+}
+
 /// Order payment split status
 class PaymentSplitStatus {
   static const String pending = 'pending';

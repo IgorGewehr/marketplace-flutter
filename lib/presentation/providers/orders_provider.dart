@@ -158,26 +158,15 @@ class OrdersNotifier extends AsyncNotifier<OrdersState> {
   }
 
   Future<bool> confirmDelivery(String orderId) async {
-    try {
-      // Clear previous action error
-      final current = state.valueOrNull;
-      if (current != null) {
-        state = AsyncValue.data(current.copyWith(lastActionError: null));
-      }
-      final orderRepo = ref.read(orderRepositoryProvider);
-      await orderRepo.confirmDelivery(orderId);
-      ref.invalidate(orderDetailProvider(orderId));
-      await refresh();
-      return true;
-    } catch (e) {
-      final current = state.valueOrNull;
-      if (current != null) {
-        state = AsyncValue.data(current.copyWith(
-          lastActionError: 'Erro ao confirmar entrega: ${e.toString()}',
-        ));
-      }
-      return false;
+    final current = state.valueOrNull;
+    if (current != null) {
+      state = AsyncValue.data(current.copyWith(lastActionError: null));
     }
+    final orderRepo = ref.read(orderRepositoryProvider);
+    await orderRepo.confirmDelivery(orderId);
+    ref.invalidate(orderDetailProvider(orderId));
+    await refresh();
+    return true;
   }
 
   Future<bool> disputeOrder(String orderId, {required String reason}) async {
