@@ -552,8 +552,7 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
 
                 // Buyer actions: Confirm delivery or Report problem
                 if ((order.status == 'shipped' || order.status == 'out_for_delivery' || order.status == 'delivered') &&
-                    !order.isDeliveryConfirmed &&
-                    order.paymentStatus == 'paid')
+                    !order.isDeliveryConfirmed)
                   Padding(
                     padding: const EdgeInsets.only(top: 16),
                     child: Column(
@@ -754,8 +753,8 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
                     ),
                   ),
 
-                // Review prompt — shown for delivered, paid orders
-                if (order.isDeliveryConfirmed && order.paymentStatus == 'paid' && order.items.isNotEmpty)
+                // Review prompt — shown once buyer confirmed delivery
+                if (order.isDeliveryConfirmed && order.items.isNotEmpty)
                   _OrderReviewSection(
                     key: _reviewSectionKey,
                     order: order,

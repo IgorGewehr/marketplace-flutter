@@ -176,9 +176,11 @@ class _SellerEditProfileScreenState
         Navigator.pop(context);
       }
     } catch (e) {
+      debugPrint('⚠️ Erro ao salvar perfil da loja: $e');
       if (mounted) {
+        final msg = e.toString().replaceAll('Exception: ', '');
         AppFeedback.showError(
-            context, 'Erro ao salvar. Tente novamente.');
+            context, msg.length > 80 ? 'Erro ao salvar. Tente novamente.' : msg);
       }
     } finally {
       if (mounted) setState(() => _isSaving = false);

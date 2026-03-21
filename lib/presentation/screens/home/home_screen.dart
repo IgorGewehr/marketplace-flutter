@@ -131,14 +131,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 child: _buildCategoryCarousel(),
               ),
 
-              // "Em alta no Compre Aqui" section
+              // "Em alta" section
               SliverToBoxAdapter(
                 child: featuredAsync.when(
                   loading: () => Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       SectionHeader(
-                        title: 'Em alta no Compre Aqui',
+                        title: 'Em alta',
                         actionLabel: 'Ver todos',
                         onActionPressed: () => context.push(AppRouter.search),
                       ),
@@ -147,7 +147,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     ],
                   ),
                   error: (_, __) => _ErrorRetrySection(
-                    title: 'Em alta no Compre Aqui',
+                    title: 'Em alta',
                     onRetry: () => ref.invalidate(featuredProductsProvider),
                   ),
                   data: (products) {
@@ -156,7 +156,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         SectionHeader(
-                          title: 'Em alta no Compre Aqui',
+                          title: 'Em alta',
                           actionLabel: 'Ver todos',
                           onActionPressed: () => context.push(AppRouter.search),
                         ),

@@ -8,7 +8,7 @@ import '../../providers/cart_provider.dart';
 import '../../providers/notifications_provider.dart';
 import '../seller/seller_mode_toggle.dart';
 
-/// Minimalist home header with "Compre Aqui" branding, seller toggle and notification bell
+/// Clean home header — seller toggle centered, action icons on the right
 class HomeHeader extends ConsumerWidget {
   const HomeHeader({super.key});
 
@@ -21,51 +21,70 @@ class HomeHeader extends ConsumerWidget {
     final cartCount = ref.watch(cartItemCountProvider);
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 8, 0),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
       child: Row(
         children: [
-          // App name
-          Text(
-            'Compre Aqui',
-            style: theme.textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: theme.colorScheme.primary,
-            ),
-          ),
-
-          const Spacer(),
-
           // Seller mode toggle (only for sellers)
-          if (isSeller) const SellerModeToggle(),
+          if (isSeller)
+            const Expanded(child: SellerModeToggle())
+          else
+            const Spacer(),
 
-          // Cart button with item count badge
-          IconButton(
+          const SizedBox(width: 8),
+
+          // Cart button
+          _HeaderIconButton(
             onPressed: () => context.push(AppRouter.cart),
-            icon: Badge(
-              isLabelVisible: cartCount > 0,
-              label: cartCount > 9 ? const Text('9+') : Text('$cartCount'),
-              child: Icon(
-                Icons.shopping_cart_outlined,
-                color: theme.colorScheme.onSurface,
-                size: 26,
-              ),
-            ),
+            icon: Icons.shopping_cart_outlined,
+            badgeCount: cartCount,
+            theme: theme,
           ),
 
-          // Notification bell with badge
-          IconButton(
+          const SizedBox(width: 2),
+
+          // Notification bell
+          _HeaderIconButton(
             onPressed: () => context.push(AppRouter.notifications),
-            icon: Badge(
-              isLabelVisible: unreadCount > 0,
-              label: unreadCount > 9 ? const Text('9+') : Text('$unreadCount'),
-              child: Icon(
-                Icons.notifications_outlined,
-                color: theme.colorScheme.onSurface,
-                size: 26,
-              ),
-            ),
+            icon: Icons.notifications_outlined,
+            badgeCount: unreadCount,
+            theme: theme,
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _HeaderIconButton extends StatelessWidget {
+  final VoidCallback onPressed;
+  final IconData icon;
+  final int badgeCount;
+  final ThemeData theme;
+
+  const _HeaderIconButton({
+    required this.onPressed,
+    required this.icon,
+    required this.badgeCount,
+    required this.theme,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      onPressed: onPressed,
+      padding: const EdgeInsets.all(8),
+      constraints: const BoxConstraints(),
+      style: IconButton.styleFrom(
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      ),
+      icon: Badge(
+        isLabelVisible: badgeCount > 0,
+        label: badgeCount > 9 ? const Text('9+') : Text('$badgeCount'),
+        child: Icon(
+          icon,
+          color: theme.colorScheme.onSurface,
+          size: 24,
+        ),
       ),
     );
   }

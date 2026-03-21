@@ -63,13 +63,12 @@ class SellerModeToggle extends ConsumerWidget {
           }
         },
         child: ConstrainedBox(
-          constraints: const BoxConstraints(minWidth: 120, maxWidth: 170),
-          child: IntrinsicWidth(
+          constraints: const BoxConstraints(maxWidth: 200),
           child: AnimatedContainer(
           duration: const Duration(milliseconds: 300),
           curve: Curves.easeInOut,
           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-          height: 44,
+          height: 40,
           decoration: BoxDecoration(
             color: isSellerMode
                 ? AppColors.sellerAccent.withAlpha(30)
@@ -94,7 +93,7 @@ class SellerModeToggle extends ConsumerWidget {
                 child: FractionallySizedBox(
                   widthFactor: 0.5,
                   child: Container(
-                  height: 36,
+                  height: 32,
                   decoration: BoxDecoration(
                     color: isSellerMode
                         ? AppColors.sellerAccent
@@ -178,7 +177,6 @@ class SellerModeToggle extends ConsumerWidget {
             ],
           ),
         ),
-          ),
         ),
       ),
     );

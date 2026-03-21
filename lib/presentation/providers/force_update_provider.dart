@@ -24,7 +24,8 @@ final forceUpdateProvider = FutureProvider<bool>((ref) async {
     final doc = await FirebaseFirestore.instance
         .collection('config')
         .doc('app')
-        .get();
+        .get()
+        .timeout(const Duration(seconds: 5));
 
     if (!doc.exists) return false;
 
@@ -36,7 +37,7 @@ final forceUpdateProvider = FutureProvider<bool>((ref) async {
 
     return _isVersionOlderThan(currentVersion, minVersion);
   } catch (_) {
-    // On error (offline, etc.), allow the user through
+    // On error (offline, timeout, etc.), allow the user through
     return false;
   }
 });

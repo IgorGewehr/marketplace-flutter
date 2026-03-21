@@ -162,6 +162,33 @@ class ImageUploadService {
     }
   }
 
+  /// Compress cover images with appropriate dimensions (wide aspect ratio).
+  Future<File> _compressCoverImage(File file) async {
+    try {
+      final filePath = file.absolute.path;
+      final dir = path.dirname(filePath);
+      final filename = path.basenameWithoutExtension(filePath);
+      final outPath = path.join(dir, '${filename}_cover_compressed.jpg');
+
+      final compressedFile = await FlutterImageCompress.compressAndGetFile(
+        filePath,
+        outPath,
+        quality: compressionQuality,
+        minWidth: 1920,
+        minHeight: 640,
+        format: CompressFormat.jpeg,
+      );
+
+      if (compressedFile != null) {
+        return File(compressedFile.path);
+      }
+
+      return file;
+    } catch (e) {
+      return file;
+    }
+  }
+
   /// Delete a temporary compressed file if it is different from the original.
   Future<void> _deleteTempCompressed(File original, File compressed) async {
     if (original.path == compressed.path) return;
@@ -268,7 +295,17 @@ class ImageUploadService {
         throw Exception('Imagem muito grande. Máximo: 10MB');
       }
 
-      final compressedFile = await _compressImage(imageFile);
+      // Cover images are wide (1920x640) — use appropriate compression
+      // to avoid upscaling the height dimension.
+      final compressedFile = isCover
+          ? await _compressCoverImage(imageFile)
+          : await _compressImage(imageFile);
+
+      // Validate compressed size against Storage rules (5MB max)
+      final compressedSize = await compressedFile.length();
+      if (compressedSize > maxFileSizeBytes) {
+        throw Exception('Imagem muito grande após compressão (${(compressedSize / 1024 / 1024).toStringAsFixed(1)}MB). Tente uma imagem menor.');
+      }
 
       final type = isCover ? 'cover' : 'logo';
       final fileName = '${type}_${_uuid.v4()}.jpg';

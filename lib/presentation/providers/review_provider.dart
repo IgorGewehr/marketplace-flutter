@@ -1,7 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../data/models/order_model.dart';
 import '../../data/models/review_model.dart';
 import 'core_providers.dart';
+import 'orders_provider.dart';
 
 /// Reviews for a specific product (public).
 final productReviewsProvider =
@@ -22,6 +24,64 @@ final reviewedProductIdsProvider =
     FutureProvider.family<Set<String>, String>((ref, orderId) async {
   if (orderId.isEmpty) return {};
   return ref.read(reviewRepositoryProvider).getReviewedProductIds(orderId);
+});
+
+/// Finds a delivered order where the current user bought a specific product
+/// and hasn't reviewed it yet. Returns (orderId, tenantId) or null.
+final reviewableOrderForProductProvider =
+    FutureProvider.autoDispose.family<({String orderId, String tenantId})?, String>(
+        (ref, productId) async {
+  if (productId.isEmpty) return null;
+
+  final ordersState = ref.watch(ordersProvider).valueOrNull;
+  if (ordersState == null) return null;
+
+  for (final order in ordersState.orders) {
+    if (!order.isDeliveryConfirmed) continue;
+    final hasProduct = order.items.any((item) => item.productId == productId);
+    if (!hasProduct) continue;
+
+    // Check if already reviewed
+    try {
+      final reviewed = await ref.read(reviewRepositoryProvider).getReviewedProductIds(order.id);
+      if (!reviewed.contains(productId)) {
+        return (orderId: order.id, tenantId: order.tenantId);
+      }
+    } catch (_) {
+      continue;
+    }
+  }
+  return null;
+});
+
+/// Finds delivered orders for a given seller where the user has unreviewed products.
+/// Returns list of (orderId, productId, productName, productImageUrl).
+final reviewableProductsForSellerProvider = FutureProvider.autoDispose
+    .family<List<({String orderId, String tenantId, OrderItemModel item})>, String>(
+        (ref, tenantId) async {
+  if (tenantId.isEmpty) return [];
+
+  final ordersState = ref.watch(ordersProvider).valueOrNull;
+  if (ordersState == null) return [];
+
+  final result = <({String orderId, String tenantId, OrderItemModel item})>[];
+
+  for (final order in ordersState.orders) {
+    if (!order.isDeliveryConfirmed) continue;
+    if (order.tenantId != tenantId) continue;
+
+    try {
+      final reviewed = await ref.read(reviewRepositoryProvider).getReviewedProductIds(order.id);
+      for (final item in order.items) {
+        if (!reviewed.contains(item.productId)) {
+          result.add((orderId: order.id, tenantId: order.tenantId, item: item));
+        }
+      }
+    } catch (_) {
+      continue;
+    }
+  }
+  return result;
 });
 
 // ---------------------------------------------------------------------------

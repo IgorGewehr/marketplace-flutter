@@ -16,7 +16,6 @@ import '../../providers/wallet_provider.dart';
 import '../../widgets/shared/shimmer_loading.dart';
 import '../../widgets/seller/stat_card.dart';
 import '../../widgets/seller/seller_order_tile.dart';
-import '../../widgets/seller/seller_mode_toggle.dart';
 
 /// Seller dashboard with key metrics and recent orders
 class SellerDashboardScreen extends ConsumerWidget {
@@ -87,8 +86,18 @@ class SellerDashboardScreen extends ConsumerWidget {
                   ),
                   tooltip: 'Editar perfil da loja',
                 ),
-                const SellerModeToggle(),
-                const SizedBox(width: 8),
+                IconButton(
+                  onPressed: () {
+                    ref.read(sellerModeProvider.notifier).setMode(false);
+                    context.go('/');
+                  },
+                  icon: const Icon(
+                    Icons.shopping_bag_outlined,
+                    color: Colors.white,
+                  ),
+                  tooltip: 'Voltar para modo comprador',
+                ),
+                const SizedBox(width: 4),
               ],
             ),
             

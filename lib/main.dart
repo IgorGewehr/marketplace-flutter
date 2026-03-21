@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -41,7 +42,7 @@ void main() async {
   try {
     await FirebaseAppCheck.instance.activate(
       androidProvider: AndroidProvider.playIntegrity,
-      appleProvider: AppleProvider.appAttest,
+      appleProvider: kDebugMode ? AppleProvider.debug : AppleProvider.appAttest,
     );
   } catch (e) {
     debugPrint('⚠️ App Check activation failed: $e');

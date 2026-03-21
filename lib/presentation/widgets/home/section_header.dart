@@ -20,12 +20,15 @@ class SectionHeader extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            title,
-            style: theme.textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.w700,
+          Expanded(
+            child: Text(
+              title,
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
           if (actionLabel != null && onActionPressed != null)
@@ -36,11 +39,12 @@ class SectionHeader extends StatelessWidget {
                 style: TextStyle(
                   color: theme.colorScheme.primary,
                   fontWeight: FontWeight.w600,
+                  fontSize: 13,
                 ),
               ),
               label: Icon(
                 Icons.chevron_right,
-                size: 18,
+                size: 16,
                 color: theme.colorScheme.primary,
               ),
             ),

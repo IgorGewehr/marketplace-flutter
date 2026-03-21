@@ -1264,12 +1264,15 @@ class _ProductReviewsSection extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final reviewsAsync = ref.watch(productReviewsProvider(productId));
+    final reviewableAsync = ref.watch(reviewableOrderForProductProvider(productId));
 
     final reviews = reviewsAsync.valueOrNull ?? [];
     final hasReviews = reviews.isNotEmpty;
     final avg = hasReviews
         ? reviews.fold(0.0, (sum, r) => sum + r.rating) / reviews.length
         : 0.0;
+
+    final reviewable = reviewableAsync.valueOrNull;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1295,6 +1298,44 @@ class _ProductReviewsSection extends ConsumerWidget {
           ],
         ),
         const SizedBox(height: 8),
+
+        // "Avaliar" button — shown when user has a delivered order with this product
+        if (reviewable != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  // Get product info from the provider
+                  final product = ref.read(productDetailProvider(productId)).valueOrNull;
+                  showSubmitReviewSheet(
+                    context,
+                    productId: productId,
+                    tenantId: reviewable.tenantId,
+                    orderId: reviewable.orderId,
+                    productName: product?.name ?? 'Produto',
+                    productImageUrl: product?.images.firstOrNull?.url,
+                    onSuccess: () {
+                      ref.invalidate(productReviewsProvider(productId));
+                      ref.invalidate(reviewableOrderForProductProvider(productId));
+                      AppFeedback.showSuccess(context, 'Avaliação enviada!');
+                    },
+                  );
+                },
+                icon: const Icon(Icons.star_rounded, size: 20),
+                label: const Text('Avaliar este produto'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.rating,
+                  side: BorderSide(color: AppColors.rating.withAlpha(120)),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
+          ),
 
         // Summary button
         ReviewsSummaryButton(

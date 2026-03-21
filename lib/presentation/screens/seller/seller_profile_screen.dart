@@ -14,6 +14,7 @@ import '../../providers/follows_provider.dart';
 import '../../providers/products_provider.dart';
 import '../../providers/review_provider.dart';
 import '../../providers/tenant_provider.dart';
+import '../../../data/models/order_model.dart';
 import '../../widgets/products/product_card.dart';
 import '../../widgets/reviews/reviews_bottom_sheet.dart';
 import '../../widgets/shared/app_feedback.dart';
@@ -987,6 +988,8 @@ class _SellerReviewsButton extends ConsumerWidget {
     final reviewsAsync = ref.watch(sellerReviewsProvider(tenantId));
     final reviews = reviewsAsync.valueOrNull ?? [];
     final hasReviews = reviews.isNotEmpty;
+    final reviewableAsync = ref.watch(reviewableProductsForSellerProvider(tenantId));
+    final reviewableProducts = reviewableAsync.valueOrNull ?? [];
 
     final avg = hasReviews
         ? reviews.fold(0.0, (double sum, r) => sum + r.rating) / reviews.length
@@ -996,17 +999,144 @@ class _SellerReviewsButton extends ConsumerWidget {
         ? reviews.length
         : (tenant.marketplace?.totalReviews ?? 0);
 
-    return ReviewsSummaryButton(
-      averageRating: double.parse(avg.toStringAsFixed(1)),
-      totalReviews: total,
-      onTap: hasReviews
-          ? () => showReviewsBottomSheet(
-                context,
-                targetLabel: tenant.displayName,
-                reviews: reviews,
-                averageRating: avg,
-              )
-          : null,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ReviewsSummaryButton(
+          averageRating: double.parse(avg.toStringAsFixed(1)),
+          totalReviews: total,
+          onTap: hasReviews
+              ? () => showReviewsBottomSheet(
+                    context,
+                    targetLabel: tenant.displayName,
+                    reviews: reviews,
+                    averageRating: avg,
+                  )
+              : null,
+        ),
+
+        // Show review button for each unreviewed product the buyer purchased
+        if (reviewableProducts.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () => _showReviewableProducts(
+                context, ref, reviewableProducts, tenant.displayName,
+              ),
+              icon: const Icon(Icons.star_rounded, size: 20),
+              label: Text(
+                reviewableProducts.length == 1
+                    ? 'Avaliar produto comprado'
+                    : 'Avaliar ${reviewableProducts.length} produtos',
+              ),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.rating,
+                side: BorderSide(color: AppColors.rating.withAlpha(120)),
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  void _showReviewableProducts(
+    BuildContext context,
+    WidgetRef ref,
+    List<({String orderId, String tenantId, OrderItemModel item})> products,
+    String sellerName,
+  ) {
+    // If only one product, open the review form directly
+    if (products.length == 1) {
+      final p = products.first;
+      showSubmitReviewSheet(
+        context,
+        productId: p.item.productId,
+        tenantId: p.tenantId,
+        orderId: p.orderId,
+        productName: p.item.name,
+        productImageUrl: p.item.imageUrl,
+        onSuccess: () {
+          ref.invalidate(sellerReviewsProvider(tenantId));
+          ref.invalidate(reviewableProductsForSellerProvider(tenantId));
+          AppFeedback.showSuccess(context, 'Avaliação enviada!');
+        },
+      );
+      return;
+    }
+
+    // Multiple products — show picker
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40, height: 4,
+                  decoration: BoxDecoration(
+                    color: Theme.of(ctx).colorScheme.outlineVariant,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Avaliar produtos de $sellerName',
+                style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 12),
+              ...products.map((p) => ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: p.item.imageUrl != null
+                    ? ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Image.network(
+                          p.item.imageUrl!,
+                          width: 48, height: 48, fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => const Icon(Icons.image_outlined, size: 48),
+                        ),
+                      )
+                    : const Icon(Icons.image_outlined, size: 48),
+                title: Text(p.item.name, maxLines: 2, overflow: TextOverflow.ellipsis),
+                trailing: const Icon(Icons.star_outline_rounded, color: AppColors.rating),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  showSubmitReviewSheet(
+                    context,
+                    productId: p.item.productId,
+                    tenantId: p.tenantId,
+                    orderId: p.orderId,
+                    productName: p.item.name,
+                    productImageUrl: p.item.imageUrl,
+                    onSuccess: () {
+                      ref.invalidate(sellerReviewsProvider(tenantId));
+                      ref.invalidate(reviewableProductsForSellerProvider(tenantId));
+                      AppFeedback.showSuccess(context, 'Avaliação enviada!');
+                    },
+                  );
+                },
+              )),
+              const SizedBox(height: 8),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
