@@ -969,6 +969,8 @@ router.get("/tenants/:id", async (req: Request, res: Response): Promise<void> =>
       description: data.description || null,
       // Do not expose sensitive fields (email, phone, documentNumber)
       whatsapp,
+      instagramUrl: data.instagramUrl || null,
+      websiteUrl: data.websiteUrl || null,
       address: data.address || null,
       memberIds: data.memberIds || [],
       ownerUserId,

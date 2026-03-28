@@ -107,11 +107,7 @@ final isBuyerProvider = Provider<bool>((ref) {
 
 /// GoogleSignIn instance provider
 final googleSignInProvider = Provider<GoogleSignIn>((ref) {
-  return GoogleSignIn(
-    scopes: ['email', 'profile'],
-    serverClientId:
-        '474436537260-pgo7o50mn8c288l24vilvm8eg0njlefo.apps.googleusercontent.com',
-  );
+  return GoogleSignIn.instance;
 });
 
 /// Auth State Notifier for Auth Actions
@@ -141,16 +137,21 @@ class AuthNotifier extends Notifier<AsyncValue<void>> {
   Future<bool> signInWithGoogle() async {
     state = const AsyncValue.loading();
     state = await AsyncValue.guard(() async {
-      final googleUser = await _googleSignIn.signIn();
-
-      if (googleUser == null) {
-        throw Exception('Login com Google cancelado');
+      final GoogleSignInAccount googleUser;
+      try {
+        googleUser = await _googleSignIn.authenticate(
+          scopeHint: ['email', 'profile'],
+        );
+      } on GoogleSignInException catch (e) {
+        if (e.code == GoogleSignInExceptionCode.canceled) {
+          throw Exception('Login com Google cancelado');
+        }
+        rethrow;
       }
 
-      final googleAuth = await googleUser.authentication;
+      final googleAuth = googleUser.authentication;
 
       final credential = GoogleAuthProvider.credential(
-        accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,
       );
 

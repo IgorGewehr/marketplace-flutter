@@ -39,6 +39,8 @@ router.get("/profile", async (req: Request, res: Response): Promise<void> => {
       whatsappEnabled: data.whatsappEnabled || false,
       logoUrl: data.logoURL || null,
       coverUrl: data.coverURL || null,
+      instagramUrl: data.instagramUrl || null,
+      websiteUrl: data.websiteUrl || null,
       categories: data.categories || [],
       address: data.address || null,
       marketplaceStats: data.marketplaceStats || null,
@@ -72,7 +74,7 @@ router.patch("/profile", async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    const { whatsappNumber, whatsappEnabled, description, name, logoUrl, coverUrl } = req.body;
+    const { whatsappNumber, whatsappEnabled, description, name, logoUrl, coverUrl, instagramUrl, websiteUrl } = req.body;
 
     // Validate WhatsApp number format if provided and non-empty
     if (whatsappNumber !== undefined && whatsappNumber !== null && whatsappNumber !== "") {
@@ -97,6 +99,22 @@ router.patch("/profile", async (req: Request, res: Response): Promise<void> => {
       }
     }
 
+    // Validate Instagram URL if provided
+    if (instagramUrl !== undefined && instagramUrl !== null && instagramUrl !== "") {
+      if (typeof instagramUrl !== "string" || instagramUrl.length > 300) {
+        res.status(400).json({ error: "URL do Instagram inválida" });
+        return;
+      }
+    }
+
+    // Validate website URL if provided
+    if (websiteUrl !== undefined && websiteUrl !== null && websiteUrl !== "") {
+      if (typeof websiteUrl !== "string" || websiteUrl.length > 300) {
+        res.status(400).json({ error: "URL do site inválida" });
+        return;
+      }
+    }
+
     const updateData: Record<string, unknown> = {
       updatedAt: admin.firestore.Timestamp.now(),
     };
@@ -108,6 +126,8 @@ router.patch("/profile", async (req: Request, res: Response): Promise<void> => {
     // logoURL / coverURL — stored with capital URL to match TenantModel convention
     if (logoUrl !== undefined) updateData.logoURL = logoUrl || null;
     if (coverUrl !== undefined) updateData.coverURL = coverUrl || null;
+    if (instagramUrl !== undefined) updateData.instagramUrl = instagramUrl || null;
+    if (websiteUrl !== undefined) updateData.websiteUrl = websiteUrl || null;
 
     await admin.firestore().collection("tenants").doc(tenantId).update(updateData);
 
@@ -124,6 +144,8 @@ router.patch("/profile", async (req: Request, res: Response): Promise<void> => {
       whatsappEnabled: data.whatsappEnabled || false,
       logoUrl: data.logoURL || null,
       coverUrl: data.coverURL || null,
+      instagramUrl: data.instagramUrl || null,
+      websiteUrl: data.websiteUrl || null,
       categories: data.categories || [],
       address: data.address || null,
       marketplaceStats: data.marketplaceStats || null,

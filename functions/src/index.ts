@@ -6,7 +6,7 @@ import cors from "cors";
 import rateLimit from "express-rate-limit";
 
 import { validateConfig, config } from "./config";
-import { verifyAuth } from "./middleware/auth";
+import { verifyAuth, verifyAppCheck } from "./middleware/auth";
 import { handleWebhook } from "./mercadopago/webhook";
 import oauthRouter, { handleOAuthCallback } from "./mercadopago/oauth";
 import paymentsRouter from "./mercadopago/payments";
@@ -153,6 +153,9 @@ app.get("/api/users/:userId/public", async (req: express.Request, res: express.R
 // ============================================================================
 // Authenticated Routes
 // ============================================================================
+
+// App Check verification (permissive mode — logs only, does not block)
+app.use("/api", verifyAppCheck);
 
 // Apply auth middleware to all routes below
 app.use("/api", verifyAuth);

@@ -761,9 +761,11 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
                     highlight: _justConfirmedDelivery,
                   ),
 
-                // Cancel order button — only show for pending/pending_payment orders
-                if ((order.status == 'pending' || order.status == 'pending_payment') &&
-                    order.paymentStatus != 'paid')
+                // Cancel order button — show for any non-terminal, non-shipped status
+                if (order.status != 'shipped' &&
+                    order.status != 'out_for_delivery' &&
+                    order.status != 'delivered' &&
+                    order.status != 'cancelled')
                   Padding(
                     padding: const EdgeInsets.only(top: 16),
                     child: SizedBox(

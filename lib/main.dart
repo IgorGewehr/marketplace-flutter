@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:in_app_update/in_app_update.dart';
 
@@ -46,6 +47,15 @@ void main() async {
     );
   } catch (e) {
     debugPrint('⚠️ App Check activation failed: $e');
+  }
+
+  // Initialize Google Sign-In
+  try {
+    await GoogleSignIn.instance.initialize(
+      serverClientId: '474436537260-pgo7o50mn8c288l24vilvm8eg0njlefo.apps.googleusercontent.com',
+    );
+  } catch (e) {
+    debugPrint('⚠️ Google Sign-In initialization failed: $e');
   }
 
   AppConfig.logger.i('Compre Aqui app starting...');

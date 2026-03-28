@@ -4,6 +4,7 @@ import '../../data/models/order_model.dart';
 import '../../data/models/review_model.dart';
 import 'core_providers.dart';
 import 'orders_provider.dart';
+import 'tenant_provider.dart';
 
 /// Reviews for a specific product (public).
 final productReviewsProvider =
@@ -139,6 +140,7 @@ class ReviewSubmitNotifier extends StateNotifier<ReviewSubmitState> {
       _ref.invalidate(productReviewsProvider(productId));
       _ref.invalidate(sellerReviewsProvider(tenantId));
       _ref.invalidate(reviewedProductIdsProvider(orderId));
+      _ref.invalidate(tenantByIdProvider(tenantId));
 
       return true;
     } catch (e) {

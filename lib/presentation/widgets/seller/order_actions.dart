@@ -13,6 +13,7 @@ class OrderActions extends StatelessWidget {
   final VoidCallback? onMarkShipped;
   final VoidCallback? onMarkDelivered;
   final VoidCallback? onChat;
+  final VoidCallback? onCancel;
 
   const OrderActions({
     super.key,
@@ -24,6 +25,7 @@ class OrderActions extends StatelessWidget {
     this.onMarkShipped,
     this.onMarkDelivered,
     this.onChat,
+    this.onCancel,
   });
 
   @override
@@ -54,6 +56,30 @@ class OrderActions extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
             ),
           ),
+        // Cancel button
+        if (onCancel != null &&
+            currentStatus != 'delivered' &&
+            currentStatus != 'cancelled') ...[
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            onPressed: isLoading ? null : onCancel,
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.error,
+              side: const BorderSide(color: AppColors.error),
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            icon: const Icon(Icons.warning_amber_rounded, size: 20),
+            label: const Text(
+              'Cancelar pedido',
+              style: TextStyle(fontWeight: FontWeight.w600),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
       ],
     );
   }

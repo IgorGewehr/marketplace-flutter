@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -446,6 +447,7 @@ class _SellerOrderDetailsScreenState extends ConsumerState<SellerOrderDetailsScr
             onMarkReady: () => _updateStatus('ready'),
             onMarkShipped: () => _updateStatus('shipped'),
             onMarkDelivered: () => _updateStatus('delivered'),
+            onCancel: () => _showCancelDialog(context, order.id),
             onChat: () async {
               final chat = await ref.read(chatsProvider.notifier).getOrCreateChat(
                 order.tenantId,
@@ -460,6 +462,67 @@ class _SellerOrderDetailsScreenState extends ConsumerState<SellerOrderDetailsScr
         ],
       ),
     );
+  }
+
+  void _showCancelDialog(BuildContext context, String orderId) {
+    final controller = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: AppColors.error),
+            const SizedBox(width: 8),
+            const Text('Cancelar pedido'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Tem certeza que deseja cancelar este pedido? Se o pagamento já foi realizado, o estorno será processado automaticamente.',
+              style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
+                color: Theme.of(ctx).colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: controller,
+              maxLines: 2,
+              maxLength: 200,
+              decoration: const InputDecoration(
+                hintText: 'Motivo do cancelamento (obrigatório)',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Voltar'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              final reason = controller.text.trim();
+              if (reason.isEmpty) {
+                AppFeedback.showError(ctx, 'Informe o motivo do cancelamento.');
+                return;
+              }
+              HapticFeedback.heavyImpact();
+              Navigator.of(ctx).pop();
+              await _updateStatus('cancelled', note: reason);
+            },
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.error,
+            ),
+            child: const Text('Confirmar cancelamento'),
+          ),
+        ],
+      ),
+    ).whenComplete(() => controller.dispose());
   }
 
   String _formatPrice(double price) {

@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shimmer/shimmer.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../data/models/product_model.dart';
@@ -720,106 +721,158 @@ class _TenantCard extends StatelessWidget {
 
   const _TenantCard({required this.tenant});
 
+  Future<void> _launchUrl(String url) async {
+    var uri = Uri.tryParse(url);
+    if (uri == null) return;
+    if (!uri.hasScheme) uri = Uri.parse('https://$url');
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final hasInstagram = tenant.instagramUrl != null && tenant.instagramUrl!.isNotEmpty;
+    final hasWebsite = tenant.websiteUrl != null && tenant.websiteUrl!.isNotEmpty;
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          // Logo or initial avatar
-          ClipRRect(
-            borderRadius: BorderRadius.circular(28),
-            child: tenant.logoURL != null && tenant.logoURL!.isNotEmpty
-                ? Image.network(
-                    tenant.logoURL!,
-                    width: 56,
-                    height: 56,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => _TenantAvatar(name: tenant.displayName),
-                  )
-                : _TenantAvatar(name: tenant.displayName),
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surfaceContainerHighest,
+            borderRadius: BorderRadius.circular(12),
           ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+          child: Row(
+            children: [
+              // Logo or initial avatar
+              ClipRRect(
+                borderRadius: BorderRadius.circular(28),
+                child: tenant.logoURL != null && tenant.logoURL!.isNotEmpty
+                    ? Image.network(
+                        tenant.logoURL!,
+                        width: 56,
+                        height: 56,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => _TenantAvatar(name: tenant.displayName),
+                      )
+                    : _TenantAvatar(name: tenant.displayName),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: Text(
-                        tenant.displayName,
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            tenant.displayName,
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
+                        if (tenant.isVerified)
+                          Padding(
+                            padding: const EdgeInsets.only(left: 4),
+                            child: Icon(
+                              Icons.verified,
+                              size: 16,
+                              color: theme.colorScheme.primary,
+                            ),
+                          ),
+                      ],
                     ),
-                    if (tenant.isVerified)
-                      Padding(
-                        padding: const EdgeInsets.only(left: 4),
-                        child: Icon(
-                          Icons.verified,
-                          size: 16,
-                          color: theme.colorScheme.primary,
-                        ),
+                    if (tenant.address?.city != null) ...[
+                      const SizedBox(height: 2),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.location_on_outlined,
+                            size: 13,
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            [tenant.address!.city, tenant.address!.state]
+                                .where((s) => s.isNotEmpty)
+                                .join(' - '),
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
                       ),
+                    ],
+                    if (tenant.rating > 0) ...[
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          const Icon(Icons.star, size: 14, color: Colors.amber),
+                          const SizedBox(width: 4),
+                          Text(
+                            tenant.rating.toStringAsFixed(1),
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ],
                 ),
-                if (tenant.address?.city != null) ...[
-                  const SizedBox(height: 2),
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.location_on_outlined,
-                        size: 13,
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        [tenant.address!.city, tenant.address!.state]
-                            .where((s) => s.isNotEmpty)
-                            .join(' - '),
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
+              ),
+              // View profile arrow
+              IconButton(
+                onPressed: () => context.push('/seller-profile/${tenant.id}'),
+                icon: const Icon(Icons.chevron_right),
+                tooltip: 'Ver perfil',
+              ),
+            ],
+          ),
+        ),
+        if (hasInstagram || hasWebsite)
+          Padding(
+            padding: const EdgeInsets.only(top: 10),
+            child: Row(
+              children: [
+                if (hasInstagram)
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => _launchUrl(tenant.instagramUrl!),
+                      icon: const Icon(Icons.camera_alt_outlined, size: 18),
+                      label: const Text('Instagram'),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
                         ),
                       ),
-                    ],
+                    ),
                   ),
-                ],
-                if (tenant.rating > 0) ...[
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      const Icon(Icons.star, size: 14, color: Colors.amber),
-                      const SizedBox(width: 4),
-                      Text(
-                        tenant.rating.toStringAsFixed(1),
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          fontWeight: FontWeight.w600,
+                if (hasInstagram && hasWebsite) const SizedBox(width: 10),
+                if (hasWebsite)
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => _launchUrl(tenant.websiteUrl!),
+                      icon: const Icon(Icons.language_outlined, size: 18),
+                      label: const Text('Site'),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
                         ),
                       ),
-                    ],
+                    ),
                   ),
-                ],
               ],
             ),
           ),
-          // View profile arrow
-          IconButton(
-            onPressed: () => context.push('/seller-profile/${tenant.id}'),
-            icon: const Icon(Icons.chevron_right),
-            tooltip: 'Ver perfil',
-          ),
-        ],
-      ),
+      ],
     ).animate().fadeIn(duration: 300.ms, delay: 250.ms).slideY(begin: 0.05, end: 0);
   }
 }

@@ -62,6 +62,11 @@ service cloud.firestore {
       match /addresses/{addressId} {
         allow read, write: if isOwner(userId);
       }
+
+      match /sessions/{sessionId} {
+        allow read: if isOwner(userId);
+        allow write: if false;
+      }
     }
 
     // ===========================================================================
@@ -149,13 +154,16 @@ service cloud.firestore {
       // No client-side creation allowed — server validates prices, stock, and payment.
       allow create: if false;
 
-      // Sellers can update order status, buyers can confirm delivery
+      // Sellers can only cancel orders via direct write; all other status changes go through Cloud Functions
       allow update: if (isTenantMember(resource.data.tenantId) &&
                         request.resource.data.diff(resource.data).affectedKeys()
-                          .hasOnly(['status', 'statusHistory', 'updatedAt'])) ||
-                       (isOwner(resource.data.buyerUserId) &&
+                          .hasOnly(['status', 'statusHistory', 'updatedAt']) &&
+                        request.resource.data.status == 'cancelled')
+                    || (isOwner(resource.data.buyerUserId) &&
                         request.resource.data.diff(resource.data).affectedKeys()
-                          .hasOnly(['deliveryConfirmedAt', 'status', 'statusHistory', 'updatedAt']));
+                          .hasOnly(['deliveryConfirmedAt', 'status', 'statusHistory', 'updatedAt']) &&
+                        request.resource.data.status == 'delivered' &&
+                        request.resource.data.deliveryConfirmedAt is timestamp);
 
       // No deletion
       allow delete: if false;
@@ -552,6 +560,15 @@ service cloud.firestore {
     match /config/{docId} {
       allow read: if true;
       allow write: if false;
+    }
+
+    // Internal collections — Admin SDK only
+    match /webhook_processed/{docId} {
+      allow read, write: if false;
+    }
+
+    match /token_refresh_locks/{docId} {
+      allow read, write: if false;
     }
 
     // ===========================================================================

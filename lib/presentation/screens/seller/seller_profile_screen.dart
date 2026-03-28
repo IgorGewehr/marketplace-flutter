@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/constants/api_constants.dart';
 import '../../../core/router/app_router.dart';
@@ -38,6 +39,15 @@ class _SellerProfileScreenState extends ConsumerState<SellerProfileScreen> {
   bool _isOpeningChat = false;
 
   bool _whatsappInitialized = false;
+
+  Future<void> _launchUrl(String url) async {
+    var uri = Uri.tryParse(url);
+    if (uri == null) return;
+    if (!uri.hasScheme) uri = Uri.parse('https://$url');
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
 
   @override
   void initState() {
@@ -153,6 +163,15 @@ class _SellerProfileScreenState extends ConsumerState<SellerProfileScreen> {
           if (tenant == null) {
             return const Center(child: Text('Vendedor não encontrado'));
           }
+
+          // Use live review data for stats (more up-to-date than cached tenant)
+          final liveReviews = ref.watch(sellerReviewsProvider(tenantId)).valueOrNull ?? [];
+          final liveRating = liveReviews.isNotEmpty
+              ? liveReviews.fold(0.0, (double sum, r) => sum + r.rating) / liveReviews.length
+              : tenant.rating;
+          final liveTotalReviews = liveReviews.isNotEmpty
+              ? liveReviews.length
+              : (tenant.marketplace?.totalReviews ?? 0);
 
           return CustomScrollView(
             slivers: [
@@ -290,8 +309,8 @@ class _SellerProfileScreenState extends ConsumerState<SellerProfileScreen> {
                     children: [
                       _StatItem(
                         icon: Icons.star_rounded,
-                        value: tenant.rating > 0
-                            ? tenant.rating.toStringAsFixed(1)
+                        value: liveRating > 0
+                            ? liveRating.toStringAsFixed(1)
                             : '-',
                         label: 'Avaliação',
                         color: AppColors.rating,
@@ -306,7 +325,7 @@ class _SellerProfileScreenState extends ConsumerState<SellerProfileScreen> {
                       const SizedBox(width: 12),
                       _StatItem(
                         icon: Icons.rate_review_outlined,
-                        value: '${tenant.marketplace?.totalReviews ?? 0}',
+                        value: '$liveTotalReviews',
                         label: 'Avaliações',
                         color: AppColors.sellerAccent,
                       ),
@@ -365,6 +384,50 @@ class _SellerProfileScreenState extends ConsumerState<SellerProfileScreen> {
                       style: theme.textTheme.bodyMedium?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant,
                       ),
+                    ),
+                  ),
+                ),
+
+              // Social links
+              if ((tenant.instagramUrl != null && tenant.instagramUrl!.isNotEmpty) ||
+                  (tenant.websiteUrl != null && tenant.websiteUrl!.isNotEmpty))
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                    child: Row(
+                      children: [
+                        if (tenant.instagramUrl != null && tenant.instagramUrl!.isNotEmpty)
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () => _launchUrl(tenant.instagramUrl!),
+                              icon: const Icon(Icons.camera_alt_outlined, size: 18),
+                              label: const Text('Instagram'),
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 10),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                            ),
+                          ),
+                        if (tenant.instagramUrl != null && tenant.instagramUrl!.isNotEmpty &&
+                            tenant.websiteUrl != null && tenant.websiteUrl!.isNotEmpty)
+                          const SizedBox(width: 10),
+                        if (tenant.websiteUrl != null && tenant.websiteUrl!.isNotEmpty)
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () => _launchUrl(tenant.websiteUrl!),
+                              icon: const Icon(Icons.language_outlined, size: 18),
+                              label: const Text('Site'),
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 10),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
                   ),
                 ),

@@ -32,12 +32,16 @@ class TenantRepositoryImpl implements TenantRepository {
     String? description,
     String? logoUrl,
     String? coverUrl,
+    String? instagramUrl,
+    String? websiteUrl,
   }) async {
     final data = <String, dynamic>{};
     if (name != null) data['name'] = name;
     if (description != null) data['description'] = description;
     if (logoUrl != null) data['logoUrl'] = logoUrl;
     if (coverUrl != null) data['coverUrl'] = coverUrl;
+    if (instagramUrl != null) data['instagramUrl'] = instagramUrl;
+    if (websiteUrl != null) data['websiteUrl'] = websiteUrl;
     await _apiClient.patch<Map<String, dynamic>>(
       ApiConstants.sellerProfile,
       data: data,

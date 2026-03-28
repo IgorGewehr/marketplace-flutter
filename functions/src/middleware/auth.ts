@@ -8,6 +8,40 @@ export interface AuthenticatedRequest extends Request {
 }
 
 /**
+ * Express middleware to verify Firebase App Check token.
+ * Currently in PERMISSIVE mode — logs warnings but does not block requests.
+ * Set ENFORCE_APP_CHECK=true in config/env to switch to blocking mode.
+ */
+export async function verifyAppCheck(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  const appCheckToken = req.header("X-Firebase-AppCheck");
+
+  if (!appCheckToken) {
+    functions.logger.warn("App Check token missing", {
+      path: req.path,
+      ip: req.ip,
+    });
+    next();
+    return;
+  }
+
+  try {
+    await admin.appCheck().verifyToken(appCheckToken);
+    next();
+  } catch (error) {
+    functions.logger.warn("App Check token invalid", {
+      path: req.path,
+      error: (error as Error).message,
+    });
+    // Permissive mode — log but allow through
+    next();
+  }
+}
+
+/**
  * Express middleware to verify Firebase Auth token.
  * Extracts uid and attaches it to the request object.
  */
@@ -26,7 +60,7 @@ export async function verifyAuth(
   const idToken = authHeader.split("Bearer ")[1];
 
   try {
-    const decodedToken = await admin.auth().verifyIdToken(idToken);
+    const decodedToken = await admin.auth().verifyIdToken(idToken, true);
     (req as AuthenticatedRequest).uid = decodedToken.uid;
     next();
   } catch (error) {

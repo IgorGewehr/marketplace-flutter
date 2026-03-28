@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_colors.dart';
@@ -37,6 +38,15 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
   int _quantity = 1;
   bool _isAddingToCart = false;
   bool _isOpeningChat = false;
+
+  Future<void> _launchUrl(String url) async {
+    var uri = Uri.tryParse(url);
+    if (uri == null) return;
+    if (!uri.hasScheme) uri = Uri.parse('https://$url');
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
   String? _selectedVariantId;
   bool _isDescriptionExpanded = false;
 
@@ -801,6 +811,49 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                           ),
                         ),
                       ),
+
+                      // Seller social links
+                      if (tenant != null &&
+                          ((tenant.instagramUrl != null && tenant.instagramUrl!.isNotEmpty) ||
+                           (tenant.websiteUrl != null && tenant.websiteUrl!.isNotEmpty)))
+                        Padding(
+                          padding: const EdgeInsets.only(top: 12),
+                          child: Row(
+                            children: [
+                              if (tenant.instagramUrl != null && tenant.instagramUrl!.isNotEmpty)
+                                Expanded(
+                                  child: OutlinedButton.icon(
+                                    onPressed: () => _launchUrl(tenant.instagramUrl!),
+                                    icon: const Icon(Icons.camera_alt_outlined, size: 18),
+                                    label: const Text('Instagram'),
+                                    style: OutlinedButton.styleFrom(
+                                      padding: const EdgeInsets.symmetric(vertical: 10),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              if (tenant.instagramUrl != null && tenant.instagramUrl!.isNotEmpty &&
+                                  tenant.websiteUrl != null && tenant.websiteUrl!.isNotEmpty)
+                                const SizedBox(width: 10),
+                              if (tenant.websiteUrl != null && tenant.websiteUrl!.isNotEmpty)
+                                Expanded(
+                                  child: OutlinedButton.icon(
+                                    onPressed: () => _launchUrl(tenant.websiteUrl!),
+                                    icon: const Icon(Icons.language_outlined, size: 18),
+                                    label: const Text('Site'),
+                                    style: OutlinedButton.styleFrom(
+                                      padding: const EdgeInsets.symmetric(vertical: 10),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
 
                       // Reviews section
                       const SizedBox(height: 24),

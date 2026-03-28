@@ -26,6 +26,8 @@ class _SellerEditProfileScreenState
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _nameController;
   late final TextEditingController _descriptionController;
+  late final TextEditingController _instagramController;
+  late final TextEditingController _websiteController;
 
   File? _pendingLogo;
   File? _pendingCover;
@@ -34,12 +36,16 @@ class _SellerEditProfileScreenState
 
   String? _tenantId;
   String? _originalDescription;
+  String? _originalInstagram;
+  String? _originalWebsite;
 
   @override
   void initState() {
     super.initState();
     _nameController = TextEditingController();
     _descriptionController = TextEditingController();
+    _instagramController = TextEditingController();
+    _websiteController = TextEditingController();
     WidgetsBinding.instance.addPostFrameCallback((_) => _init());
   }
 
@@ -53,6 +59,10 @@ class _SellerEditProfileScreenState
       _nameController.text = tenant.displayName;
       _descriptionController.text = tenant.description ?? '';
       _originalDescription = tenant.description ?? '';
+      _instagramController.text = tenant.instagramUrl ?? '';
+      _originalInstagram = tenant.instagramUrl ?? '';
+      _websiteController.text = tenant.websiteUrl ?? '';
+      _originalWebsite = tenant.websiteUrl ?? '';
     }
   }
 
@@ -60,6 +70,8 @@ class _SellerEditProfileScreenState
   void dispose() {
     _nameController.dispose();
     _descriptionController.dispose();
+    _instagramController.dispose();
+    _websiteController.dispose();
     super.dispose();
   }
 
@@ -159,6 +171,10 @@ class _SellerEditProfileScreenState
       final name = _nameController.text.trim();
       final description = _descriptionController.text.trim();
       final descriptionChanged = description != _originalDescription;
+      final instagram = _instagramController.text.trim();
+      final instagramChanged = instagram != (_originalInstagram ?? '');
+      final website = _websiteController.text.trim();
+      final websiteChanged = website != (_originalWebsite ?? '');
 
       // Only send fields that changed
       await ref.read(tenantRepositoryProvider).updateProfile(
@@ -166,6 +182,8 @@ class _SellerEditProfileScreenState
             description: descriptionChanged ? description : null,
             logoUrl: newLogoUrl,
             coverUrl: newCoverUrl,
+            instagramUrl: instagramChanged ? instagram : null,
+            websiteUrl: websiteChanged ? website : null,
           );
 
       // Refresh tenant data everywhere
@@ -208,6 +226,10 @@ class _SellerEditProfileScreenState
       _nameController.text = tenant.displayName;
       _descriptionController.text = tenant.description ?? '';
       _originalDescription = tenant.description ?? '';
+      _instagramController.text = tenant.instagramUrl ?? '';
+      _originalInstagram = tenant.instagramUrl ?? '';
+      _websiteController.text = tenant.websiteUrl ?? '';
+      _originalWebsite = tenant.websiteUrl ?? '';
     }
 
     final theme = Theme.of(context);
@@ -436,6 +458,53 @@ class _SellerEditProfileScreenState
                       textCapitalization: TextCapitalization.sentences,
                     ),
                     const SizedBox(height: 8),
+
+                    Text(
+                      'Redes Sociais',
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Instagram
+                    TextFormField(
+                      controller: _instagramController,
+                      decoration: InputDecoration(
+                        labelText: 'Instagram (opcional)',
+                        hintText: 'https://instagram.com/sualoja',
+                        prefixIcon: const Icon(Icons.camera_alt_outlined),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 14,
+                        ),
+                      ),
+                      keyboardType: TextInputType.url,
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Website
+                    TextFormField(
+                      controller: _websiteController,
+                      decoration: InputDecoration(
+                        labelText: 'Site (opcional)',
+                        hintText: 'https://www.sualoja.com.br',
+                        prefixIcon: const Icon(Icons.language_outlined),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 14,
+                        ),
+                      ),
+                      keyboardType: TextInputType.url,
+                    ),
+                    const SizedBox(height: 16),
 
                     // Tips
                     Container(

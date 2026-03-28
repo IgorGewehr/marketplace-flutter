@@ -16,6 +16,8 @@ class TenantModel {
   final String? email;
   final String? phone;
   final String? whatsapp;
+  final String? instagramUrl;
+  final String? websiteUrl;
   final AddressModel? address;
   final TenantSettings? settings;
   final TenantMarketplace? marketplace;
@@ -39,6 +41,8 @@ class TenantModel {
     this.email,
     this.phone,
     this.whatsapp,
+    this.instagramUrl,
+    this.websiteUrl,
     this.address,
     this.settings,
     this.marketplace,
@@ -85,6 +89,8 @@ class TenantModel {
       email: json['email'] as String?,
       phone: json['phone'] as String?,
       whatsapp: json['whatsapp'] as String?,
+      instagramUrl: json['instagramUrl'] as String?,
+      websiteUrl: json['websiteUrl'] as String?,
       address: json['address'] is Map<String, dynamic>
           ? AddressModel.fromJson(json['address'] as Map<String, dynamic>)
           : json['address'] is String
@@ -121,6 +127,8 @@ class TenantModel {
       if (email != null) 'email': email,
       if (phone != null) 'phone': phone,
       if (whatsapp != null) 'whatsapp': whatsapp,
+      if (instagramUrl != null) 'instagramUrl': instagramUrl,
+      if (websiteUrl != null) 'websiteUrl': websiteUrl,
       if (address != null) 'address': address!.toJson(),
       if (settings != null) 'settings': settings!.toJson(),
       if (marketplace != null) 'marketplace': marketplace!.toJson(),
@@ -146,6 +154,8 @@ class TenantModel {
     String? email,
     String? phone,
     String? whatsapp,
+    String? instagramUrl,
+    String? websiteUrl,
     AddressModel? address,
     TenantSettings? settings,
     TenantMarketplace? marketplace,
@@ -169,6 +179,8 @@ class TenantModel {
       email: email ?? this.email,
       phone: phone ?? this.phone,
       whatsapp: whatsapp ?? this.whatsapp,
+      instagramUrl: instagramUrl ?? this.instagramUrl,
+      websiteUrl: websiteUrl ?? this.websiteUrl,
       address: address ?? this.address,
       settings: settings ?? this.settings,
       marketplace: marketplace ?? this.marketplace,

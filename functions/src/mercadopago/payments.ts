@@ -1296,7 +1296,6 @@ router.patch("/orders/:id/status", async (req: Request, res: Response): Promise<
   };
 
   try {
-    const tenantId = await getTenantForUser(uid);
     const db = admin.firestore();
     const orderRef = db.collection("orders").doc(orderId);
     const orderDoc = await orderRef.get();
@@ -1308,9 +1307,43 @@ router.patch("/orders/:id/status", async (req: Request, res: Response): Promise<
 
     const data = orderDoc.data()!;
 
-    // Verify seller ownership
-    if (data.tenantId !== tenantId) {
-      res.status(403).json({ error: "Acesso negado" });
+    let tenantId: string | null = null;
+    let isSeller = false;
+    let isBuyer = false;
+
+    try {
+      tenantId = await getTenantForUser(uid);
+      if (data.tenantId === tenantId) {
+        isSeller = true;
+      }
+    } catch {
+      // User is not a seller — check if they're the buyer
+    }
+
+    if (!isSeller) {
+      if (data.buyerUserId === uid) {
+        isBuyer = true;
+      } else {
+        res.status(403).json({ error: "Acesso negado" });
+        return;
+      }
+    }
+
+    // Buyers can only cancel
+    if (isBuyer && newStatus !== "cancelled") {
+      res.status(403).json({ error: "Compradores só podem cancelar pedidos" });
+      return;
+    }
+
+    // Buyers cannot cancel shipped/delivered orders
+    if (isBuyer && ["shipped", "out_for_delivery", "delivered"].includes(data.status)) {
+      res.status(400).json({ error: "Não é possível cancelar um pedido que já foi enviado" });
+      return;
+    }
+
+    // Block non-cancel status advancement if payment is not confirmed
+    if (newStatus !== "cancelled" && data.paymentStatus !== "paid") {
+      res.status(400).json({ error: "Não é possível avançar o pedido sem pagamento confirmado" });
       return;
     }
 
@@ -1616,6 +1649,11 @@ router.post("/orders/:id/confirm-delivery", async (req: Request, res: Response):
     // Only the buyer can confirm delivery
     if (data.buyerUserId !== uid) {
       res.status(403).json({ error: "Acesso negado" });
+      return;
+    }
+
+    if (data.paymentStatus !== "paid") {
+      res.status(400).json({ error: "Pagamento não confirmado" });
       return;
     }
 
